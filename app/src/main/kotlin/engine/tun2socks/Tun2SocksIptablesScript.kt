@@ -341,6 +341,7 @@ private fun StringBuilder.appendOutputAllTrafficMarkRules(
         """
         $command -t mangle -A $chain -p tcp -j MARK --set-xmark $mark
         $command -t mangle -A $chain -p udp -j MARK --set-xmark $mark
+        $command -t mangle -A $chain -j CONNMARK --save-mark --mask 0x60000000
         """,
     )
 }
