@@ -41,6 +41,7 @@ import engine.tproxy.DefaultTproxyPort
 import engine.tun.SingBoxTunDevice
 import engine.tun2socks.DefaultTun2SocksProxyPort
 import engine.vpn.toTunOptions
+import features.resources.runtime.prepareSingBoxResourceFilePaths
 import features.resources.runtime.singBoxRuleSetFiles
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -88,6 +89,7 @@ internal object SingBoxConfigCompiler {
                 localRuleSets.mapTo(mutableSetOf(), SingBoxLocalRuleSet::tag),
             )
             .withPrunedDnsServerReferences()
+        val resourcePaths = context.prepareSingBoxResourceFilePaths()
         return compileGenerated(
             appState = runtimeState,
             runMode = runMode,
@@ -98,6 +100,8 @@ internal object SingBoxConfigCompiler {
             } else {
                 EbpfUidPolicy()
             },
+            rootCorePath = resourcePaths.singBoxCorePath,
+            rootDataDir = resourcePaths.dataDir,
         )
     }
 
@@ -107,6 +111,8 @@ internal object SingBoxConfigCompiler {
         exposePorts: Boolean = true,
         localRuleSets: List<SingBoxLocalRuleSet> = emptyList(),
         ebpfUidPolicy: EbpfUidPolicy = EbpfUidPolicy(),
+        rootCorePath: String? = null,
+        rootDataDir: String? = null,
     ): String {
         val encoded = encodeSingBoxJson(
             generateRoot(
@@ -117,7 +123,7 @@ internal object SingBoxConfigCompiler {
                 ebpfUidPolicy = ebpfUidPolicy,
             ),
         )
-        SingBoxConfigChecker.check(encoded)
+        SingBoxConfigChecker.check(encoded, rootCorePath, rootDataDir)
         return encoded
     }
 

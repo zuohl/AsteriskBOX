@@ -4,6 +4,7 @@
 package engine.singbox.config
 
 import io.nekohasekai.libbox.Libbox
+import java.io.File
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -12,11 +13,44 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 
 internal object SingBoxConfigChecker {
-    fun check(content: String) {
+    fun check(
+        content: String,
+        rootCorePath: String? = null,
+        rootDataDir: String? = null,
+    ) {
         val root = parseSingBoxJson(content)
         SingBoxDeprecatedConfigValidator.validate(root)
+        if (rootCorePath != null && rootDataDir != null && File(rootCorePath).canExecute()) {
+            checkWithRootCore(rootCorePath, rootDataDir, content)
+            return
+        }
         val compatibleRoot = root.withLibboxCompatibleEbpfInbounds()
         Libbox.checkConfig(if (compatibleRoot === root) content else encodeSingBoxJson(compatibleRoot))
+    }
+
+    private fun checkWithRootCore(corePath: String, dataDir: String, content: String) {
+        val configFile = File(dataDir, "check-config.json")
+        configFile.writeText(content)
+        val process = ProcessBuilder(
+            corePath,
+            "check",
+            "--disable-color",
+            "-D",
+            dataDir,
+            "-c",
+            configFile.absolutePath,
+        )
+            .redirectErrorStream(true)
+            .apply { environment()["SING_BOX_LOCATION_ASSET"] = dataDir }
+            .start()
+        val output = process.inputStream.bufferedReader().use { reader -> reader.readText() }
+        val exitCode = process.waitFor()
+        if (exitCode != 0) {
+            throw IllegalArgumentException(
+                "Invalid sing-box configuration: " +
+                    output.trim().ifBlank { "exit code $exitCode" },
+            )
+        }
     }
 
     fun format(content: String): String {
