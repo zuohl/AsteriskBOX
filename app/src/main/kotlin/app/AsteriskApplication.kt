@@ -9,6 +9,7 @@ import data.AppSettingsPreferences
 import engine.singbox.config.validateSingBoxRuntimeConfiguration
 import features.outbound.parseOutboundImportContent
 import features.logs.AndroidCoreLogRepository
+import features.logs.AndroidAsteriskdLogRepository
 import features.logs.AndroidLogcatRepository
 import features.subscription.runtime.AndroidSubscriptionPreparer
 import features.subscription.runtime.AndroidSubscriptionScheduleGateway
@@ -62,8 +63,8 @@ class AsteriskApplication : Application(), SingletonImageLoader.Factory {
                     ageSecretKey = group.ageSecretKey,
                     localContent = null,
                     subscriptionPreparer = subscriptionPreparer,
-                    fetchOptions = state.toSubscriptionFetchOptions(
-                        useRunningProxy = group.updateViaProxy,
+                    fetchOptions = toSubscriptionFetchOptions(
+                        useRunningProxy = group.updateViaProxy && state.proxyRunning,
                         hwid = group.hwid,
                     ),
                     etag = group.subscriptionEtag,
@@ -83,6 +84,7 @@ class AsteriskApplication : Application(), SingletonImageLoader.Factory {
         AndroidLibboxRuntime.setup(this)
         AndroidLogcatRepository.initialize(applicationContext)
         AndroidCoreLogRepository.initialize(applicationContext)
+        AndroidAsteriskdLogRepository.initialize(applicationContext)
         appScope.launch {
             stateStore.state
                 .map { state ->

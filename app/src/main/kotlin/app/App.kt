@@ -17,12 +17,12 @@ import app.effects.ResourceFileSynchronizer
 import app.effects.RootBootScriptSynchronizer
 import app.effects.SingBoxRuntimeSynchronizer
 import app.effects.TrafficStatsNotificationSynchronizer
-import app.effects.Tun2SocksRuntimeFileSynchronizer
 import data.backup.AndroidAppBackupDocumentGateway
 import data.backup.AppBackupUseCase
 import engine.proxy.AndroidProxyEngine
 import engine.proxy.ProxyServiceUseCase
 import features.logs.AndroidCoreLogRepository
+import features.logs.AndroidAsteriskdLogRepository
 import features.logs.AndroidLogcatRepository
 import features.monitoring.MonitoringRepository
 import features.resources.ResourceFileUpdateCoordinator
@@ -33,6 +33,7 @@ import features.settings.locale.ProvideAppLanguage
 import features.settings.usecase.RootBootScriptUseCase
 import features.settings.usecase.RootEbpfProbeUseCase
 import features.settings.usecase.SwitchRunModeUseCase
+import features.settings.usecase.ApplyServiceControlUseCase
 import system.AndroidNetworkInterfaceProvider
 import system.AndroidPackageProvider
 import system.AndroidRootShellGateway
@@ -73,10 +74,12 @@ fun App(
     val networkInterfaces = remember(rootAccess) {
         AndroidNetworkInterfaceProvider(rootAccess)
     }
-    val resourceFileUseCase = remember(appContext, resourceFilePicker) {
+    val resourceFileUseCase = remember(appContext, resourceFilePicker, rootAccess, stateStore) {
         ResourceFileUseCase(
             context = appContext,
             resourceFilePicker = resourceFilePicker,
+            currentAppState = { stateStore.state.value },
+            rootShell = rootAccess,
         )
     }
     val appBackupUseCase = remember(appContext, backupFilePicker, backupFileCreator) {
@@ -155,6 +158,9 @@ fun App(
     val proxyServiceUseCase = remember(proxyEngine) {
         ProxyServiceUseCase(proxyEngine)
     }
+    val applyServiceControlUseCase = remember(proxyEngine) {
+        ApplyServiceControlUseCase(proxyEngine)
+    }
     val tipNotifier = remember(appContext) { AndroidToastTipNotifier(appContext) }
     val services = remember(
         appScope,
@@ -173,6 +179,7 @@ fun App(
         monitoring,
         proxyServiceUseCase,
         switchRunModeUseCase,
+        applyServiceControlUseCase,
         rootBootScriptUseCase,
         rootEbpfProbeUseCase,
         tipNotifier,
@@ -195,11 +202,13 @@ fun App(
             monitoring = monitoring,
             proxyServiceUseCase = proxyServiceUseCase,
             switchRunModeUseCase = switchRunModeUseCase,
+            applyServiceControlUseCase = applyServiceControlUseCase,
             rootBootScriptUseCase = rootBootScriptUseCase,
             rootEbpfProbeUseCase = rootEbpfProbeUseCase,
             tipNotifier = tipNotifier,
             logFileCreator = logFileCreator,
             coreLogRepository = AndroidCoreLogRepository,
+            rootLogRepository = AndroidAsteriskdLogRepository,
             logcatRepository = AndroidLogcatRepository,
         )
     }
@@ -215,9 +224,7 @@ fun App(
     )
     SingBoxRuntimeSynchronizer(
         stateStore = stateStore,
-        proxyEngine = proxyEngine,
         singBoxRuntime = application.singBoxRuntime,
-        updateAppState = updateAppState,
     )
     ResourceFileSynchronizer(
         resourceFileUseCase = resourceFileUseCase,
@@ -226,10 +233,6 @@ fun App(
     RootBootScriptSynchronizer(
         stateStore = stateStore,
         rootBootScriptUseCase = rootBootScriptUseCase,
-    )
-    Tun2SocksRuntimeFileSynchronizer(
-        context = appContext,
-        stateStore = stateStore,
     )
     TrafficStatsNotificationSynchronizer(
         stateStore = stateStore,

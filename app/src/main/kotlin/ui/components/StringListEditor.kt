@@ -4,6 +4,7 @@
 package ui.components
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -53,7 +54,6 @@ import androidx.compose.ui.unit.dp
 import org.asterisk.zcc.abox.R
 import ui.theme.AsteriskShapeTokens
 import ui.theme.AsteriskMotion
-import utils.toTrimmedNonEmptyList
 
 @Composable
 internal fun StringListEditor(
@@ -65,6 +65,7 @@ internal fun StringListEditor(
     modifier: Modifier = Modifier,
     description: String? = null,
     validateInput: (String) -> String? = { null },
+    normalizeInput: (String) -> String = String::trim,
     onPendingChange: ((Boolean) -> Unit)? = null,
     horizontalPadding: Dp = 16.dp,
 ) {
@@ -74,10 +75,11 @@ internal fun StringListEditor(
     var showBulkEditor by rememberSaveable(editorKey, title) { mutableStateOf(false) }
     var bulkInput by rememberSaveable(editorKey, title) { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
-    val sanitizedValues = values.toTrimmedNonEmptyList()
-    val inputError = input.trim().takeIf(String::isNotEmpty)?.let(validateInput)
-    val canAdd = input.trim().isNotEmpty() && inputError == null
-    val hasPendingInput = input.isNotBlank() || editingIndex >= 0
+    val sanitizedValues = normalizeStringListValues(values, normalizeInput)
+    val normalizedInput = normalizeInput(input)
+    val inputError = normalizedInput.takeIf(String::isNotEmpty)?.let(validateInput)
+    val canAdd = normalizedInput.isNotEmpty() && inputError == null
+    val hasPendingInput = hasPendingStringListEdit(input, editingIndex, normalizeInput)
     val currentOnPendingChange by rememberUpdatedState(onPendingChange)
 
     LaunchedEffect(hasPendingInput) {
@@ -119,9 +121,11 @@ internal fun StringListEditor(
                 IconButton(
                     enabled = canAdd,
                     onClick = {
-                        val result = addStringListValue(sanitizedValues, input, validateInput)
+                        val result = addStringListValue(
+                            sanitizedValues, input, validateInput, normalizeInput,
+                        )
                         if (result.error == null) {
-                            onValuesChange(result.values.toTrimmedNonEmptyList())
+                            onValuesChange(normalizeStringListValues(result.values, normalizeInput))
                             input = ""
                         }
                     },
@@ -129,7 +133,12 @@ internal fun StringListEditor(
                     Icon(Icons.Rounded.Add, stringResource(R.string.common_add))
                 }
             }
-            if (hasPendingInput && onPendingChange != null) {
+            AnimatedVisibility(
+                visible = hasPendingInput && onPendingChange != null,
+                enter = AsteriskMotion.contentEnter(),
+                exit = AsteriskMotion.contentExit(),
+                label = "string-list-pending-value",
+            ) {
                 StringListStatusText(stringResource(R.string.string_list_pending_value))
             }
             if (sanitizedValues.isEmpty()) StringListStatusText(emptyText)
@@ -138,8 +147,12 @@ internal fun StringListEditor(
                 val contentSizeMotion = AsteriskMotion.contentSpatial<androidx.compose.ui.unit.IntSize>()
                 val actionMotion = AsteriskMotion.fastSpatial<Float>()
                 val editError = if (editing) {
-                    editInput.trim().takeIf(String::isNotEmpty)?.let(validateInput)
-                        ?: if (editInput.trim().isEmpty()) stringResource(R.string.string_list_item_empty) else null
+                    normalizeInput(editInput).takeIf(String::isNotEmpty)?.let(validateInput)
+                        ?: if (normalizeInput(editInput).isEmpty()) {
+                            stringResource(R.string.string_list_item_empty)
+                        } else {
+                            null
+                        }
                 } else {
                     null
                 }
@@ -191,9 +204,12 @@ internal fun StringListEditor(
                                                     index,
                                                     editInput,
                                                     validateInput,
+                                                    normalizeInput,
                                                 )
                                                 if (result.error == null) {
-                                                    onValuesChange(result.values.toTrimmedNonEmptyList())
+                                                    onValuesChange(
+                                                        normalizeStringListValues(result.values, normalizeInput),
+                                                    )
                                                     focusManager.clearFocus()
                                                     editingIndex = -1
                                                 }
@@ -241,10 +257,11 @@ internal fun StringListEditor(
         value = bulkInput,
         onValueChange = { bulkInput = it },
         validateInput = validateInput,
+        normalizeInput = normalizeInput,
         onDismissRequest = { showBulkEditor = false },
         onSave = { nextValues ->
             editingIndex = -1
-            onValuesChange(nextValues.toTrimmedNonEmptyList())
+            onValuesChange(normalizeStringListValues(nextValues, normalizeInput))
             showBulkEditor = false
         },
     )
@@ -384,10 +401,11 @@ private fun StringListBulkEditorSheet(
     value: String,
     onValueChange: (String) -> Unit,
     validateInput: (String) -> String?,
+    normalizeInput: (String) -> String,
     onDismissRequest: () -> Unit,
     onSave: (List<String>) -> Unit,
 ) {
-    val result = parseStringListBatch(value, validateInput)
+    val result = parseStringListBatch(value, validateInput, normalizeInput)
     val error = result.error?.let { stringResource(R.string.string_list_line_error, result.errorLine ?: 1, it) }
     AsteriskModalBottomSheet(
         show = show,

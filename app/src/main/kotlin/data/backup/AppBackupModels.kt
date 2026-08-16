@@ -103,14 +103,46 @@ internal data class AppBackupSettings(
     val dnsTimeout: String = BackupDefaults.dnsTimeout,
     val transparentProxyPort: String = BackupDefaults.transparentProxyPort,
     val enableRootEbpfDirectCidrBypass: Boolean = BackupDefaults.enableRootEbpfDirectCidrBypass,
+    val ebpfBypassRuleSetTags: List<String> = BackupDefaults.ebpfBypassRuleSetTags,
     val enableRootIpv6Disabler: Boolean = BackupDefaults.enableRootIpv6Disabler,
     val socks5ProxyPort: String = BackupDefaults.socks5ProxyPort,
     val bpf2SocksBridgePort: String = BackupDefaults.bpf2SocksBridgePort,
     val externalInterfaces: List<String> = BackupDefaults.externalInterfaces,
     val ebpfSharedNetworkInterfaces: List<String> = BackupDefaults.ebpfSharedNetworkInterfaces,
     val ignoredInterfaces: List<String> = BackupDefaults.ignoredInterfaces,
+    val serviceControl: AppBackupServiceControl = AppBackupServiceControl(),
     val privateAddressCidrs: List<String> = BackupDefaults.privateAddressCidrs,
     val proxyAppListMode: Int = BackupDefaults.proxyAppListMode,
+)
+
+@Serializable
+internal data class AppBackupServiceControl(
+    val enabled: Boolean = BackupDefaults.serviceControl.enabled,
+    val schedule: AppBackupServiceControlSchedule = AppBackupServiceControlSchedule(),
+    val wifi: AppBackupServiceControlWifi = AppBackupServiceControlWifi(),
+)
+
+@Serializable
+internal data class AppBackupServiceControlSchedule(
+    val enabled: Boolean = BackupDefaults.serviceControl.schedule.enabled,
+    val startCron: String = BackupDefaults.serviceControl.schedule.startCron,
+    val stopCron: String = BackupDefaults.serviceControl.schedule.stopCron,
+)
+
+@Serializable
+internal data class AppBackupServiceControlWifi(
+    val enabled: Boolean = BackupDefaults.serviceControl.wifi.enabled,
+    val connectStart: AppBackupServiceControlWifiRule = AppBackupServiceControlWifiRule(),
+    val connectStop: AppBackupServiceControlWifiRule = AppBackupServiceControlWifiRule(),
+    val disconnectStart: AppBackupServiceControlWifiRule = AppBackupServiceControlWifiRule(),
+    val disconnectStop: AppBackupServiceControlWifiRule = AppBackupServiceControlWifiRule(),
+)
+
+@Serializable
+internal data class AppBackupServiceControlWifiRule(
+    val enabled: Boolean = false,
+    val ssids: List<String> = emptyList(),
+    val bssids: List<String> = emptyList(),
 )
 
 @Serializable

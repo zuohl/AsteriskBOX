@@ -16,6 +16,7 @@ import engine.singbox.config.APP_GLOBAL_SELECTOR
 import engine.singbox.config.APP_LOCAL_INBOUND
 import engine.singbox.config.APP_ROOT_INBOUND
 import engine.singbox.config.APP_TUN_INBOUND
+import features.resources.hasSingBoxRuleSetExtension
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -23,6 +24,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
 internal enum class ManagedOutboundChoiceKind {
+    Group,
     Selector,
     UrlTest,
     Outbound,
@@ -118,7 +120,7 @@ internal fun selectableManagedOutbounds(
                     ManagedOutboundChoice(
                         tag = tag,
                         label = group.name.trim(),
-                        kind = ManagedOutboundChoiceKind.Selector,
+                        kind = ManagedOutboundChoiceKind.Group,
                     ),
                 )
             }
@@ -253,6 +255,7 @@ internal fun AppState.withCanonicalManagedTagReferences(): AppState {
             }
         },
         routeFinal = resolve(routeFinal),
+        ebpfBypassRuleSetTags = ebpfBypassRuleSetTags.map(resolve),
         routeRules = routeRules.map { rule -> rule.withCanonicalManagedReferences(resolve) },
         dnsFinal = resolve(dnsFinal),
         routeDefaultDomainResolver = resolve(routeDefaultDomainResolver),
@@ -463,7 +466,7 @@ internal fun AppState.managedRuleSetChoices(
     val custom = customResourceFiles.mapNotNull { file ->
         file.name
             .takeIf { fileName ->
-                fileName.endsWith(SingBoxRuleSetExtension, ignoreCase = true) &&
+                fileName.hasSingBoxRuleSetExtension() &&
                     fileName.lowercase() in available
             }
             ?.let { fileName ->
@@ -486,6 +489,7 @@ internal fun AppState.withRemovedManagedRuleSets(
         .mapTo(mutableSetOf()) { file -> managedCustomRuleSetTag(file.id, file.name) }
     if (removedTags.isEmpty()) return this
     return copy(
+        ebpfBypassRuleSetTags = ebpfBypassRuleSetTags.filterNot(removedTags::contains),
         routeRules = routeRules.map { rule ->
             rule.updateManagedRuleSetReferences { tag -> tag.takeUnless(removedTags::contains) }
         },
@@ -738,6 +742,7 @@ private fun AppState.outboundDependsOn(
 
 private val ManagedOutboundChoiceKind.priority: Int
     get() = when (this) {
+        ManagedOutboundChoiceKind.Group -> 0
         ManagedOutboundChoiceKind.Selector -> 0
         ManagedOutboundChoiceKind.UrlTest -> 1
         ManagedOutboundChoiceKind.Endpoint -> 2

@@ -3,16 +3,37 @@
 
 package system
 
-class AndroidRootShellGateway {
+interface RootShellGateway {
+    suspend fun exec(command: String, options: ShellExecOptions = ShellExecOptions()): ShellExecResult
+
+    suspend fun execStreaming(
+        command: String,
+        options: ShellExecOptions = ShellExecOptions(),
+        onStdoutLine: (String) -> Unit,
+    ): ShellExecResult
+
+    suspend fun hasRootAccess(): Boolean
+
+}
+
+class AndroidRootShellGateway : RootShellGateway {
     init {
         AndroidRootShell.configure()
     }
 
-    suspend fun exec(command: String, options: ShellExecOptions = ShellExecOptions()): ShellExecResult {
+    override suspend fun exec(command: String, options: ShellExecOptions): ShellExecResult {
         return AndroidRootShell.exec(command, options)
     }
 
-    suspend fun hasRootAccess(): Boolean {
+    override suspend fun execStreaming(
+        command: String,
+        options: ShellExecOptions,
+        onStdoutLine: (String) -> Unit,
+    ): ShellExecResult {
+        return AndroidRootShell.execStreaming(command, options, onStdoutLine)
+    }
+
+    override suspend fun hasRootAccess(): Boolean {
         return AndroidRootShell.hasRootAccess()
     }
 }
