@@ -551,7 +551,7 @@ private fun SelectorCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
-                .animateContentSize(AsteriskMotion.contentSpatial()),
+                .animateContentSize(AsteriskMotion.contentSize()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1289,8 +1289,7 @@ private fun SelectorTargetRow(
             Spacer(Modifier.width(12.dp))
             Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .animateContentSize(AsteriskMotion.contentSpatial()),
+                    .weight(1f),
             ) {
                 Text(
                     target.displayLabel(),
@@ -1314,17 +1313,6 @@ private fun SelectorTargetRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                AnimatedVisibility(
-                    visible = lockedByGroup,
-                    enter = AsteriskMotion.contentEnter(),
-                    exit = AsteriskMotion.contentExit(),
-                ) {
-                    Text(
-                        stringResource(R.string.selector_target_included_by_group),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
             }
             Checkbox(
                 checked = selected,

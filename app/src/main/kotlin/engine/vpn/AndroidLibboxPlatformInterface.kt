@@ -24,6 +24,8 @@ import app.modes.ProxyAppListModeGlobal
 import app.modes.ProxyAppListModeWhitelist
 import engine.proxy.LocalProxyLoopbackAddress
 import features.logs.AndroidAppLogger
+import io.nekohasekai.libbox.AutoRedirectHandler
+import io.nekohasekai.libbox.AutoRedirectSession
 import io.nekohasekai.libbox.BridgeOptions
 import io.nekohasekai.libbox.BridgeSession
 import io.nekohasekai.libbox.ConnectionOwner
@@ -39,20 +41,20 @@ import io.nekohasekai.libbox.ShellSession
 import io.nekohasekai.libbox.StringIterator
 import io.nekohasekai.libbox.TunOptions
 import io.nekohasekai.libbox.WIFIState
-import system.getInstalledApplicationsCompat
-import utils.toTrimmedNonEmptyDistinctList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.suspendCancellableCoroutine
+import system.getInstalledApplicationsCompat
+import utils.toTrimmedNonEmptyDistinctList
 import java.net.Inet6Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.InterfaceAddress
-import java.net.UnknownHostException
 import java.net.NetworkInterface
+import java.net.UnknownHostException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
-import kotlin.coroutines.suspendCoroutine
 import io.nekohasekai.libbox.NetworkInterface as LibboxNetworkInterface
 
 internal class AndroidLibboxPlatformInterface(
@@ -306,6 +308,10 @@ internal class AndroidLibboxPlatformInterface(
     override fun readSystemSSHHostKey(): String = unsupported("system SSH host key")
     override fun lookupSFTPServer(): String = unsupported("SFTP server")
     override fun lookupUser(username: String?): PlatformUser = unsupported("platform user")
+    override fun usePlatformAutoRedirect(): Boolean = false
+    override fun createAutoRedirect(options: ByteArray?, handler: AutoRedirectHandler?): AutoRedirectSession =
+        unsupported("platform auto redirect")
+
     override fun usePlatformBridge(): Boolean = false
     override fun createBridge(options: BridgeOptions?): BridgeSession = unsupported("platform bridge")
     override fun registerMyInterface(name: String?) = Unit
@@ -330,6 +336,8 @@ internal class AndroidLibboxPlatformInterface(
             listOf(notification.title, notification.body).filter(String::isNotBlank).joinToString(": "),
         )
     }
+
+    override fun cancelNotification(identifier: String, typeID: Int) = Unit
 
     private fun installedPackageNames(): List<String> =
         service.packageManager.getInstalledApplicationsCompat()
@@ -418,7 +426,7 @@ private class AndroidLocalDnsTransport(
     private fun exchangeRaw(context: ExchangeContext, message: ByteArray) = runBlocking {
         val network = connectivityManager.activeNetwork
             ?: error("android: default network is unavailable")
-        suspendCoroutine { continuation ->
+        suspendCancellableCoroutine { continuation ->
             val cancellation = CancellationSignal()
             context.onCancel(cancellation::cancel)
             DnsResolver.getInstance().rawQuery(
@@ -474,13 +482,14 @@ private class AndroidLocalDnsTransport(
         network: String,
         domain: String,
     ) {
-        suspendCoroutine { continuation ->
+        suspendCancellableCoroutine { continuation ->
             val cancellation = CancellationSignal()
             context.onCancel(cancellation::cancel)
-            val callback = object : DnsResolver.Callback<Collection<java.net.InetAddress>> {
-                override fun onAnswer(answer: Collection<java.net.InetAddress>, rcode: Int) {
+            val callback = object : DnsResolver.Callback<Collection<InetAddress>> {
+                override fun onAnswer(answer: Collection<InetAddress>, rcode: Int) {
                     if (rcode == 0) {
-                        context.success(answer.mapNotNull { address -> address.hostAddress }.joinToString("\n"))
+                        context.success(answer.mapNotNull { address -> address.hostAddress }
+                            .joinToString("\n"))
                     } else {
                         context.errorCode(rcode)
                     }

@@ -17,12 +17,13 @@ import org.asterisk.zcc.abox.R
 import app.modes.ProxyAppListModeBlacklist
 import app.modes.ProxyAppListModeGlobal
 import app.modes.ProxyAppListModeWhitelist
-import engine.singbox.clearCoreLogs
+import engine.singbox.logDirectoryPath
 import engine.network.NetworkDefaults
 import engine.proxy.LocalProxyLoopbackAddress
 import engine.proxy.LocalProxyRuntime
 import engine.vpn.hevtun.HevTunRuntime
 import features.logs.AndroidAppLogger
+import features.logs.clearServiceLogsAsApp
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +34,9 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 import system.getInstalledApplicationsCompat
 import utils.toTrimmedNonEmptyDistinctList
+import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.milliseconds
 
 @SuppressLint("VpnServicePolicy")
@@ -98,21 +102,21 @@ class AsteriskVpnService : VpnService() {
     }
 
     override fun onDestroy() {
-        serviceScope.launch {
-            runCatching {
-                operationMutex.withLock {
-                    stopVpn()
-                }
-            }.onFailure { error ->
-                AndroidAppLogger.warn(LogTag, "Failed to stop VPN Service while destroying service", error)
-            }
-            serviceJob.cancel()
+        runCatching {
+            stopVpn()
+        }.onFailure { error ->
+            AndroidAppLogger.warn(LogTag, "Failed to stop VPN Service while destroying service", error)
         }
+        serviceJob.cancel()
         super.onDestroy()
     }
 
     override fun onRevoke() {
-        running = false
+        runCatching {
+            stopVpn()
+        }.onFailure { error ->
+            AndroidAppLogger.warn(LogTag, "Failed to stop VPN Service while revoking", error)
+        }
         super.onRevoke()
     }
 
@@ -134,7 +138,7 @@ class AsteriskVpnService : VpnService() {
 
     private fun startVpn(config: VpnServiceStartConfig) {
         stopVpn()
-        config.coreLogPaths.clearCoreLogs(LogTag)
+        clearServiceLogsAsApp(File(config.coreLogPaths.logDirectoryPath()), LogTag)
         val hevConfig = config.hevSocks5TunnelConfig
         if (hevConfig == null) {
             libboxRuntime.start(config)
@@ -267,16 +271,7 @@ class AsteriskVpnService : VpnService() {
     }
 
     private fun stopVpn() {
-        runCatching {
-            hevTunRuntime?.stop()
-        }.onFailure { error ->
-            AndroidAppLogger.warn(LogTag, "Failed to stop Hev TUN while stopping VPN Service", error)
-        }
-        runCatching {
-            libboxRuntime.stop()
-        }.onFailure { error ->
-            AndroidAppLogger.warn(LogTag, "Failed to stop sing-box while stopping VPN Service", error)
-        }
+        stopNativeRuntimesBounded()
         runCatching {
             tunFileDescriptor?.close()
         }.onFailure { error ->
@@ -287,8 +282,42 @@ class AsteriskVpnService : VpnService() {
         running = false
     }
 
+    private fun stopNativeRuntimesBounded() {
+        val tasks = buildList {
+            add("Hev TUN" to { hevTunRuntime?.stop() })
+            add("sing-box" to { libboxRuntime.stop() })
+        }
+        val completion = CountDownLatch(tasks.size)
+        val threads = tasks.map { (name, action) ->
+            Thread({
+                runCatching {
+                    action()
+                }.onFailure { error ->
+                    AndroidAppLogger.warn(LogTag, "Failed to stop $name while stopping VPN Service", error)
+                }.also {
+                    completion.countDown()
+                }
+            }, "$LogTag-$name").apply {
+                isDaemon = true
+            }.also { thread ->
+                thread.start()
+            }
+        }
+
+        if (!completion.await(RuntimeShutdownTimeoutMillis, TimeUnit.MILLISECONDS)) {
+            threads.filter(Thread::isAlive).forEach { thread ->
+                thread.interrupt()
+                AndroidAppLogger.warn(
+                    LogTag,
+                    "Timed out stopping VPN runtime after ${RuntimeShutdownTimeoutMillis}ms: ${thread.name}",
+                )
+            }
+        }
+    }
+
     companion object {
         private const val LogTag = "AsteriskVpnService"
+        private const val RuntimeShutdownTimeoutMillis = 1_000L
 
         @Volatile
         private var running = false

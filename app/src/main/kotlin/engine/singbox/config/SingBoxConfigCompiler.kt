@@ -11,6 +11,7 @@ import app.ManagedGlobalSelectorTag
 import app.ManagedLocalInboundTag
 import app.ManagedRootInboundTag
 import app.ManagedTunInboundTag
+import app.OutboundState
 import app.SingBoxRouteNetworkStrategies
 import app.SingBoxRouteNetworkTypes
 import app.SingBoxRouteRuleActionReject
@@ -32,6 +33,7 @@ import app.modes.RunModeVpnService
 import app.modes.SingBoxModeDirect
 import app.modes.SingBoxModeGlobal
 import app.modes.isRootRunMode
+import app.rootIpv6DataPathEnabled
 import app.withCanonicalManagedTagReferences
 import app.withPrunedDnsServerReferences
 import app.withUnavailableManagedRuleSetsDisabled
@@ -107,10 +109,10 @@ internal object SingBoxConfigCompiler {
             runMode = runMode,
             exposePorts = exposePorts,
             localRuleSets = localRuleSets,
-            ebpfUidPolicy = if (runMode == RunModeEbpf) {
-                context.resolveEbpfUidPolicy(runtimeState)
+            rootUidPolicy = if (runMode == RunModeEbpf || runMode == RunModeTun) {
+                context.resolveRootInboundUidPolicy(runtimeState)
             } else {
-                EbpfUidPolicy()
+                RootInboundUidPolicy()
             },
         )
     }
@@ -120,22 +122,35 @@ internal object SingBoxConfigCompiler {
         runMode: Int = appState.runMode,
         exposePorts: Boolean = true,
         localRuleSets: List<SingBoxLocalRuleSet> = emptyList(),
-        ebpfUidPolicy: EbpfUidPolicy = EbpfUidPolicy(),
+        rootUidPolicy: RootInboundUidPolicy = RootInboundUidPolicy(),
     ): String {
-        val canonicalState = appState.withCanonicalManagedTagReferences()
         val encoded = encodeSingBoxJson(
-            generateRoot(
-                sourceRoot = JsonObject(emptyMap()),
-                appState = canonicalState,
+            compileGeneratedRoot(
+                appState = appState,
                 runMode = runMode,
                 exposePorts = exposePorts,
                 localRuleSets = localRuleSets,
-                ebpfUidPolicy = ebpfUidPolicy,
+                rootUidPolicy = rootUidPolicy,
             ),
         )
         SingBoxConfigChecker.check(encoded)
         return encoded
     }
+
+    internal fun compileGeneratedRoot(
+        appState: AppState,
+        runMode: Int = appState.runMode,
+        exposePorts: Boolean = true,
+        localRuleSets: List<SingBoxLocalRuleSet> = emptyList(),
+        rootUidPolicy: RootInboundUidPolicy = RootInboundUidPolicy(),
+    ): JsonObject = generateRoot(
+        sourceRoot = JsonObject(emptyMap()),
+        appState = appState.withCanonicalManagedTagReferences(),
+        runMode = runMode,
+        exposePorts = exposePorts,
+        localRuleSets = localRuleSets,
+        rootUidPolicy = rootUidPolicy,
+    )
 
     private fun generateRoot(
         sourceRoot: JsonObject,
@@ -143,7 +158,7 @@ internal object SingBoxConfigCompiler {
         runMode: Int = appState.runMode,
         exposePorts: Boolean = true,
         localRuleSets: List<SingBoxLocalRuleSet> = emptyList(),
-        ebpfUidPolicy: EbpfUidPolicy = EbpfUidPolicy(),
+        rootUidPolicy: RootInboundUidPolicy = RootInboundUidPolicy(),
     ): JsonObject {
         val managedSourceRoot = sourceRoot.withLocalRuleSets(localRuleSets)
         val availableRuleSetTags = localRuleSets.mapTo(linkedSetOf(), SingBoxLocalRuleSet::tag)
@@ -157,7 +172,7 @@ internal object SingBoxConfigCompiler {
                     appState = appState,
                     runMode = runMode,
                     exposePorts = exposePorts,
-                    ebpfUidPolicy = ebpfUidPolicy,
+                    rootUidPolicy = rootUidPolicy,
                     availableRuleSetTags = availableRuleSetTags,
                 ),
             )
@@ -166,11 +181,24 @@ internal object SingBoxConfigCompiler {
             .updated("services", compileServices(managedSourceRoot, appState, runMode, exposePorts))
 
         runtime = runtime.updated("dns", dnsResult?.dns)
+        val availableOutboundTags = sequenceOf(
+            runtime["endpoints"] as? JsonArray,
+            runtime["outbounds"] as? JsonArray,
+        )
+            .filterNotNull()
+            .flatMap(JsonArray::asSequence)
+            .mapNotNull { target ->
+                ((target as? JsonObject)?.get("tag") as? JsonPrimitive)
+                    ?.contentOrNull
+                    ?.takeIf(String::isNotBlank)
+            }
+            .toSet()
         runtime = runtime.updated(
             "route",
             compileRoute(
                 sourceRoute = managedSourceRoot["route"] as? JsonObject,
                 appState = appState,
+                availableOutboundTags = availableOutboundTags,
                 dnsEnabled = runtime["dns"] is JsonObject,
                 defaultDomainResolver = dnsResult?.defaultDomainResolver,
             ),
@@ -229,7 +257,7 @@ private fun compileInbounds(
     appState: AppState,
     runMode: Int,
     exposePorts: Boolean,
-    ebpfUidPolicy: EbpfUidPolicy,
+    rootUidPolicy: RootInboundUidPolicy,
     availableRuleSetTags: Set<String>,
 ): JsonArray {
     val retained = (root["inbounds"] as? JsonArray)
@@ -246,7 +274,7 @@ private fun compileInbounds(
         RunModeTproxy -> retained += buildJsonObject {
             put("type", "tproxy")
             put("tag", APP_ROOT_INBOUND)
-            put("listen", "0.0.0.0")
+            put("listen", if (appState.rootIpv6DataPathEnabled) "::" else "0.0.0.0")
             put("listen_port", appState.transparentProxyPort.toPortOrNull() ?: RootModeEngine.DefaultTproxyPort)
         }
         RunModeTun2Socks, RunModeBpf2Socks -> retained += buildJsonObject {
@@ -255,62 +283,72 @@ private fun compileInbounds(
             put("listen", LocalProxyLoopbackAddress)
             put("listen_port", appState.socks5ProxyPort.toPortOrNull() ?: RootModeEngine.DefaultTun2SocksProxyPort)
         }
-        RunModeTun -> retained += compileTunInbound(appState, rootMode = true)
+        RunModeTun -> retained += compileTunInbound(
+            appState,
+            rootMode = true,
+            uidPolicy = rootUidPolicy,
+            availableRuleSetTags = availableRuleSetTags,
+        )
         RunModeEbpf -> retained += compileEbpfInbound(
             appState = appState,
-            uidPolicy = ebpfUidPolicy,
+            uidPolicy = rootUidPolicy,
             availableRuleSetTags = availableRuleSetTags,
         )
     }
     return JsonArray(retained)
 }
 
-private fun compileEbpfInbound(
+internal fun compileEbpfInbound(
     appState: AppState,
-    uidPolicy: EbpfUidPolicy,
+    uidPolicy: RootInboundUidPolicy,
     availableRuleSetTags: Set<String>,
-): JsonObject = buildJsonObject {
-    put("type", "ebpf")
-    put("tag", APP_ROOT_INBOUND)
-    put("dns_mode", if (appState.enableLocalDns) "hijack" else "off")
-    putJsonArray("redirect_address") {
-        add(EbpfRedirectIpv4Prefix)
-        if (appState.enableIpv6) add(EbpfRedirectIpv6Prefix)
-    }
-    if (uidPolicy.includeUids.isNotEmpty()) {
-        putJsonArray("include_uid") {
-            uidPolicy.includeUids.distinct().sorted().forEach(::add)
+): JsonObject {
+    val sharedInterfaces = normalizeTunSharedNetworkInterfaces(appState.tunSharedNetworkInterfaces)
+    return buildJsonObject {
+        put("type", "ebpf")
+        put("tag", APP_ROOT_INBOUND)
+        putJsonObject("local") {
+            put("enabled", true)
+            put("data_plane", "tc")
+            put("dns_mode", if (appState.enableLocalDns) "hijack" else "off")
+            put("ipv6", appState.enableIpv6)
+            put("bypass_private_address", false)
+            if (uidPolicy.includeUids.isNotEmpty()) {
+                putJsonArray("include_uid") {
+                    uidPolicy.includeUids.distinct().sorted().forEach(::add)
+                }
+            }
+            if (uidPolicy.excludeUids.isNotEmpty()) {
+                putJsonArray("exclude_uid") {
+                    uidPolicy.excludeUids.distinct().sorted().forEach(::add)
+                }
+            }
         }
-    }
-    if (uidPolicy.excludeUids.isNotEmpty()) {
-        putJsonArray("exclude_uid") {
-            uidPolicy.excludeUids.distinct().sorted().forEach(::add)
+        val bypassRuleSets = appState.availableTunBypassRuleSetTags(availableRuleSetTags)
+        if (bypassRuleSets.isNotEmpty()) {
+            putJsonArray("bypass_rule_set") {
+                bypassRuleSets.forEach(::add)
+            }
         }
-    }
-    val bypassRuleSets = appState.availableEbpfBypassRuleSetTags(availableRuleSetTags)
-    if (bypassRuleSets.isNotEmpty()) {
-        putJsonArray("bypass_rule_set") {
-            bypassRuleSets.forEach(::add)
-        }
-    }
-    val sharedInterfaces = normalizeEbpfSharedNetworkInterfaces(appState.ebpfSharedNetworkInterfaces)
-    if (sharedInterfaces.isNotEmpty()) {
-        put(
-            "shared_network",
-            buildJsonObject {
+        if (sharedInterfaces.isNotEmpty()) {
+            putJsonObject("shared") {
                 put("enabled", true)
-                putJsonArray("include_interface") {
+                put("data_plane", "socket_assign")
+                put("dns_mode", if (appState.enableLocalDns) "hijack" else "off")
+                putJsonArray("interface") {
                     sharedInterfaces.forEach(::add)
                 }
-            },
-        )
+                put("bypass_private_address", false)
+                put("ipv6", appState.enableIpv6)
+            }
+        }
     }
 }
 
-private fun AppState.availableEbpfBypassRuleSetTags(
+private fun AppState.availableTunBypassRuleSetTags(
     availableTags: Set<String>,
 ): List<String> =
-    ebpfBypassRuleSetTags
+    tunBypassRuleSetTags
         .map(String::trim)
         .filter(String::isNotEmpty)
         .distinct()
@@ -336,16 +374,40 @@ private fun compileLocalInbound(appState: AppState): JsonObject {
     }
 }
 
-private fun compileTunInbound(appState: AppState, rootMode: Boolean): JsonObject {
+internal fun compileTunInbound(
+    appState: AppState,
+    rootMode: Boolean,
+    uidPolicy: RootInboundUidPolicy = RootInboundUidPolicy(),
+    availableRuleSetTags: Set<String> = emptySet(),
+): JsonObject {
     val options = appState.toTunOptions()
     return buildJsonObject {
         put("type", "tun")
         put("tag", APP_TUN_INBOUND)
         if (rootMode) {
             put("interface_name", SingBoxTunDevice)
-        } else {
-            put("auto_route", true)
+            put("auto_redirect", true)
+            val sharedInterfaces = normalizeTunSharedNetworkInterfaces(appState.tunSharedNetworkInterfaces)
+                .filterNot { it == "lo" }
+            require(sharedInterfaces.all(::isSingBoxSharedNetworkInterface)) {
+                "TUN shared interfaces must be exact interface names"
+            }
+            // lo keeps local OUTPUT enabled; an empty shared list must not capture other ingress.
+            putJsonArray("include_interface") {
+                (listOf("lo") + sharedInterfaces).forEach(::add)
+            }
+            if (uidPolicy.includeUids.isNotEmpty()) {
+                putJsonArray("include_uid") { uidPolicy.includeUids.forEach(::add) }
+            }
+            if (uidPolicy.excludeUids.isNotEmpty()) {
+                putJsonArray("exclude_uid") { uidPolicy.excludeUids.forEach(::add) }
+            }
+            val bypassTags = appState.availableTunBypassRuleSetTags(availableRuleSetTags)
+            if (bypassTags.isNotEmpty()) {
+                putJsonArray("route_exclude_address_set") { bypassTags.forEach(::add) }
+            }
         }
+        put("auto_route", true)
         put("mtu", options.mtu)
         putJsonArray("address") {
             add("${options.ipv4Address.address}/${options.ipv4Address.prefixLength}")
@@ -354,7 +416,7 @@ private fun compileTunInbound(appState: AppState, rootMode: Boolean): JsonObject
             }
         }
         put("dns_mode", if (appState.enableLocalDns) "hijack" else "disabled")
-        if (appState.enableLocalDns) {
+        if (appState.enableLocalDns && !rootMode) {
             putJsonArray("dns_address") {
                 options.dnsServers.forEach(::add)
             }
@@ -380,6 +442,7 @@ internal fun compileOutbounds(root: JsonObject, appState: AppState): JsonArray {
         .mapNotNull { outbound ->
             runCatching { parseSingBoxJson(outbound.json) }
                 .getOrNull()
+                ?.takeIf { parsed -> outbound.shouldRetainRawGroupedOutbound(parsed) }
                 ?.let { parsed ->
                     outbound.groupId to JsonObject(
                         buildMap {
@@ -568,6 +631,18 @@ internal fun compileOutbounds(root: JsonObject, appState: AppState): JsonArray {
     return JsonArray(retained)
 }
 
+private fun OutboundState.shouldRetainRawGroupedOutbound(parsed: JsonObject): Boolean {
+    if (
+        type != SingBoxSelectorTypeSelector &&
+        type != SingBoxSelectorTypeUrlTest
+    ) {
+        return true
+    }
+    // Malformed shapes stay on the existing compiler/validation path. Only cleanup's [] is silent.
+    val members = parsed["outbounds"] as? JsonArray ?: return true
+    return members.isNotEmpty()
+}
+
 private fun AppState.selectorDefault(
     selectorTag: String,
     members: List<String>,
@@ -672,10 +747,11 @@ private fun compileServices(
 internal fun compileRoute(
     sourceRoute: JsonObject?,
     appState: AppState,
+    availableOutboundTags: Set<String>,
     dnsEnabled: Boolean,
     defaultDomainResolver: String?,
 ): JsonObject {
-    val finalOutbound = appState.routeFinal.trim().ifBlank { APP_GLOBAL_SELECTOR }
+    val finalOutbound = resolveRouteFinal(appState, availableOutboundTags)
     val networkStrategy = appState.routeDefaultNetworkStrategy
         .trim()
         .lowercase()
@@ -795,6 +871,14 @@ internal fun compileRoute(
         },
     )
 }
+
+internal fun resolveRouteFinal(
+    appState: AppState,
+    availableOutboundTags: Set<String>,
+): String = appState.routeFinal
+    .trim()
+    .takeIf(availableOutboundTags::contains)
+    ?: APP_GLOBAL_SELECTOR
 
 private val ManagedRouteSettingKeys = setOf(
     "auto_detect_interface",
@@ -989,7 +1073,7 @@ private fun kotlinx.serialization.json.JsonObjectBuilder.putPortArray(
 }
 
 private fun JsonArray?.orEmptyObjects(): List<JsonObject> =
-    this?.mapNotNull { element -> element as? JsonObject }.orEmpty()
+    this?.filterIsInstance<JsonObject>().orEmpty()
 
 private fun JsonObject.hasAppTag(): Boolean =
     isManagedSingBoxTag((this["tag"] as? JsonPrimitive)?.contentOrNull.orEmpty())

@@ -35,34 +35,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import app.LocalAppServices
 import app.LocalAppStateStore
 import app.LocalIsWideScreen
 import app.LocalNavigator
-import app.LocalUpdateAppState
-import app.OutboundState
 import app.collectAppState
-import app.managedOutboundTag
 import app.selectableDetourOutbounds
 import engine.singbox.config.SingBoxJson
-import engine.singbox.config.validateSingBoxRuntimeConfiguration
 import features.logs.FailureLogContext
-import features.logs.reportFailure
 import features.settings.SettingsDropdownRow
 import features.settings.SettingsSectionCard
 import features.settings.SettingsSectionTitle
 import features.settings.SettingsSwitchRow
 import features.settings.sheets.dnsServerTypeLabel
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import org.asterisk.zcc.abox.R
 import ui.clipboard.setPlainText
@@ -82,15 +72,15 @@ internal fun OutboundEditorPage(
     initialType: String,
 ) {
     val appState by LocalAppStateStore.current.collectAppState()
-    val updateAppState = LocalUpdateAppState.current
     val navigator = LocalNavigator.current
     val services = LocalAppServices.current
     val resources = LocalResources.current
     val clipboard = LocalClipboard.current
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isWideScreen = LocalIsWideScreen.current
-    val editing = appState.outbounds.firstOrNull { it.id == outboundId }
+    val editing = remember(outboundId) {
+        appState.outbounds.firstOrNull { outbound -> outbound.id == outboundId }
+    }
     val type = editing?.type ?: initialType
     val schema = remember(type) { OutboundEditorRegistry.schema(type) }
     var document by remember(outboundId, editing?.json, type) {
@@ -100,7 +90,7 @@ internal fun OutboundEditorPage(
                 ?.let(::OutboundEditorDocument)
                 ?: OutboundEditorDocument.create(
                     type,
-                    managedOutboundTag(appState.nextOutboundId, ""),
+                    "outbound_draft",
                 ),
         )
     }
@@ -116,13 +106,23 @@ internal fun OutboundEditorPage(
     if (visibleGroups.none { it.id == selectedGroupId }) {
         selectedGroupId = visibleGroups.firstOrNull()?.id ?: appState.outboundGroups.firstOrNull()?.id ?: 0
     }
-    val referenceOptions = mapOf(
-        "detour" to selectableDetourOutbounds(
+    val detourChoices = remember(
+        appState.outboundGroups,
+        appState.outbounds,
+        appState.endpoints,
+        appState.selectors,
+        editing?.tag,
+        selectedGroupId,
+    ) {
+        selectableDetourOutbounds(
             state = appState,
             excludedTag = editing?.tag.orEmpty(),
             excludedManagedGroupId = selectedGroupId,
             includeGlobalSelector = false,
-        ).map { choice ->
+        )
+    }
+    val referenceOptions = mapOf(
+        "detour" to detourChoices.map { choice ->
             OutboundReferenceOption(choice.tag, choice.localizedLabel())
         },
         "domain_resolver" to appState.dnsServers
@@ -143,7 +143,8 @@ internal fun OutboundEditorPage(
     } else {
         emptyMap()
     }
-    val invalidMessage = stringResource(R.string.common_copied)
+    val stateChangedMessage = stringResource(R.string.outbound_group_sync_failed)
+    val invalidMessage = stringResource(R.string.outbound_import_failed)
     val copiedMessage = stringResource(R.string.common_copied)
     fun save() {
         if (saving) return
@@ -158,69 +159,26 @@ internal fun OutboundEditorPage(
             }
             else -> {
                 val imported = document.toImported(remarks)
+                val draft = OutboundDraft(
+                    groupId = selectedGroupId,
+                    remarks = imported.remarks,
+                    type = imported.type,
+                    json = imported.json,
+                )
                 saving = true
                 scope.launch {
                     try {
-                        val candidateState = if (editing == null) {
-                            appState.withImportedOutbounds(
-                            groupId = selectedGroupId,
-                            imported = listOf(imported),
-                            replaceGroup = false,
-                        )
-                        } else {
-                            appState.copy(
-                            outbounds = appState.outbounds.map { outbound ->
-                                if (outbound.id == editing.id) {
-                                    OutboundState(
-                                        id = editing.id,
-                                        groupId = selectedGroupId,
-                                        remarks = imported.remarks,
-                                        type = imported.type,
-                                        json = SingBoxJson.encodeToString(
-                                            kotlinx.serialization.json.JsonElement.serializer(),
-                                            JsonObject(
-                                                (SingBoxJson.parseToJsonElement(imported.json) as JsonObject) +
-                                                    ("tag" to kotlinx.serialization.json.JsonPrimitive(editing.tag)),
-                                            ),
-                                        ),
-                                    )
-                                } else {
-                                    outbound
-                                }
-                            },
-                        )
-                        }
-                        withContext(Dispatchers.IO) {
-                            validateSingBoxRuntimeConfiguration(context, candidateState)
-                        }
-                        var committed = false
-                        updateAppState { state ->
-                            if (state !== appState) {
-                                state
-                            } else {
-                                committed = true
-                                candidateState
-                            }
-                        }
-                        if (committed) {
-                            navigator.pop()
-                        } else {
-                            reportFailure(
-                                FailureLogContext(
-                                    operation = "outbound_save",
-                                    stage = "commit",
-                                ),
+                        when (val result = services.outboundRepository.save(editing, draft)) {
+                            is OutboundCommandResult.Saved -> navigator.pop()
+                            OutboundCommandResult.Conflict -> services.tipNotifier.show(stateChangedMessage)
+                            is OutboundCommandResult.Invalid -> services.tipNotifier.show(invalidMessage)
+                            is OutboundCommandResult.PersistenceFailed -> services.tipNotifier.showError(
+                                result.error,
+                                invalidMessage,
+                                FailureLogContext(operation = "outbound_save", stage = "persist"),
                             )
-                            services.tipNotifier.show(invalidMessage)
+                            else -> error("Unexpected outbound save result: $result")
                         }
-                    } catch (error: CancellationException) {
-                        throw error
-                    } catch (error: Throwable) {
-                        services.tipNotifier.showError(
-                            error,
-                            invalidMessage,
-                            FailureLogContext(operation = "outbound_save"),
-                        )
                     } finally {
                         saving = false
                     }
@@ -323,11 +281,7 @@ internal fun EditorSectionCard(
     description: String,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize(animationSpec = AsteriskMotion.contentSpatial()),
-    ) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         SettingsSectionTitle(title)
         SettingsSectionCard(bottomPadding = 0.dp) {
             if (description.isNotBlank()) {
@@ -399,11 +353,6 @@ internal fun OutboundEditorField(
             isError = error != null,
             singleLine = field.kind !in setOf(OutboundFieldKind.MULTILINE, OutboundFieldKind.TEXT_LIST),
             minLines = if (field.kind == OutboundFieldKind.MULTILINE) 3 else 1,
-            visualTransformation = if (field.kind == OutboundFieldKind.SECRET) {
-                PasswordVisualTransformation()
-            } else {
-                androidx.compose.ui.text.input.VisualTransformation.None
-            },
             keyboardOptions = KeyboardOptions(
                 keyboardType = if (field.kind == OutboundFieldKind.INTEGER) {
                     KeyboardType.Number
@@ -436,7 +385,7 @@ private fun OutboundKeyValueField(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
-            .animateContentSize(animationSpec = AsteriskMotion.contentSpatial()),
+            .animateContentSize(animationSpec = AsteriskMotion.contentSize()),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         ),
@@ -541,7 +490,7 @@ private fun OutboundMultiSelectField(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
-            .animateContentSize(animationSpec = AsteriskMotion.contentSpatial()),
+            .animateContentSize(animationSpec = AsteriskMotion.contentSize()),
     ) {
         Text(
             text = field.localizedLabel(),

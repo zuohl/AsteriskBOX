@@ -19,9 +19,11 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -31,23 +33,53 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 internal val LocalReduceMotion = staticCompositionLocalOf { false }
 
-private const val NavigationTransitionDurationMillis = 300
+private const val NavigationTransitionDurationMillis = 500
+private const val PredictiveNavigationTransitionDurationMillis = 550
 
-/**
- * Match the smooth, non-bouncing spring used by the Miuix-era AsteriskMETA content transitions.
- */
-internal object AsteriskContentMotionScheme {
-    private val defaultSpatialSpec: FiniteAnimationSpec<Any> = spring(
-        dampingRatio = Spring.DampingRatioNoBouncy,
-        stiffness = Spring.StiffnessMediumLow,
-    )
+// Mirrors the default transition curve used by AsteriskNG's Miuix NavDisplay.
+private val NavigationTransitionEasing = DampedNavigationEasing(
+    response = 0.8f,
+    damping = 0.95f,
+)
 
-    @Suppress("UNCHECKED_CAST")
-    fun <T> defaultSpatialSpec(): FiniteAnimationSpec<T> =
-        defaultSpatialSpec as FiniteAnimationSpec<T>
+private class DampedNavigationEasing(
+    response: Float,
+    damping: Float,
+) : Easing {
+    private val decayRate: Float
+    private val dampedFrequency: Float
+    private val phaseCoefficient: Float
+
+    init {
+        val angularFrequency = 2.0 * PI / response
+        val stiffness = angularFrequency * angularFrequency
+        val dampingCoefficient = damping * 4.0 * PI / response
+        val dampedFrequencySquared =
+            4.0 * stiffness - dampingCoefficient * dampingCoefficient
+
+        dampedFrequency = (sqrt(dampedFrequencySquared) / 2.0).toFloat()
+        decayRate = (-dampingCoefficient / 2.0).toFloat()
+        phaseCoefficient = decayRate / dampedFrequency
+    }
+
+    override fun transform(fraction: Float): Float {
+        val time = fraction.toDouble()
+        val decay = exp(decayRate * time)
+        return (
+            decay * (
+                -cos(dampedFrequency * time) +
+                    phaseCoefficient * sin(dampedFrequency * time)
+            ) + 1.0
+        ).toFloat()
+    }
 }
 
 /**
@@ -62,11 +94,11 @@ internal object AsteriskMotion {
 
     internal fun navigationForwardSlideOffsets(width: Int) = HorizontalSlideOffsets(
         incoming = width,
-        outgoing = -width / 3,
+        outgoing = -width / 4,
     )
 
     internal fun navigationBackSlideOffsets(width: Int) = HorizontalSlideOffsets(
-        incoming = -width / 3,
+        incoming = -width / 4,
         outgoing = width,
     )
 
@@ -81,13 +113,27 @@ internal object AsteriskMotion {
     } else {
         tween(
             durationMillis = NavigationTransitionDurationMillis,
-            easing = FastOutSlowInEasing,
+            easing = NavigationTransitionEasing,
         )
     }
 
     @Composable
     private fun <T> navigation(): FiniteAnimationSpec<T> =
         navigation(reducedMotion = LocalReduceMotion.current)
+
+    fun <T> predictiveNavigation(reducedMotion: Boolean): FiniteAnimationSpec<T> =
+        if (reducedMotion) {
+            snap()
+        } else {
+            tween(
+                durationMillis = PredictiveNavigationTransitionDurationMillis,
+                easing = LinearEasing,
+            )
+        }
+
+    @Composable
+    private fun <T> predictiveNavigation(): FiniteAnimationSpec<T> =
+        predictiveNavigation(reducedMotion = LocalReduceMotion.current)
 
     fun <T> effects(reducedMotion: Boolean): FiniteAnimationSpec<T> = if (reducedMotion) {
         snap()
@@ -123,22 +169,42 @@ internal object AsteriskMotion {
         MaterialTheme.motionScheme.defaultSpatialSpec()
     }
 
-    @Composable
-    fun <T> contentSpatial(): FiniteAnimationSpec<T> = if (LocalReduceMotion.current) {
+    fun contentFade(reducedMotion: Boolean): FiniteAnimationSpec<Float> = if (reducedMotion) {
         snap()
     } else {
-        AsteriskContentMotionScheme.defaultSpatialSpec()
+        spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        )
     }
 
     @Composable
+    fun contentFade(): FiniteAnimationSpec<Float> =
+        contentFade(reducedMotion = LocalReduceMotion.current)
+
+    fun contentSize(reducedMotion: Boolean): FiniteAnimationSpec<IntSize> = if (reducedMotion) {
+        snap()
+    } else {
+        spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+            visibilityThreshold = IntSize.VisibilityThreshold,
+        )
+    }
+
+    @Composable
+    fun contentSize(): FiniteAnimationSpec<IntSize> =
+        contentSize(reducedMotion = LocalReduceMotion.current)
+
+    @Composable
     fun contentEnter(): EnterTransition =
-        fadeIn(animationSpec = contentSpatial()) +
-            expandVertically(animationSpec = contentSpatial())
+        fadeIn(animationSpec = contentFade()) +
+            expandVertically(animationSpec = contentSize())
 
     @Composable
     fun contentExit(): ExitTransition =
-        shrinkVertically(animationSpec = contentSpatial()) +
-            fadeOut(animationSpec = contentSpatial())
+        shrinkVertically(animationSpec = contentSize()) +
+            fadeOut(animationSpec = contentFade())
 
     @Composable
     fun <S> navigationForward(): AnimatedContentTransitionScope<S>.() -> ContentTransform {
@@ -185,7 +251,7 @@ internal object AsteriskMotion {
     @Composable
     fun <S> predictiveNavigationBack():
         AnimatedContentTransitionScope<S>.(Int) -> ContentTransform {
-        val spatialSpec = navigation<IntOffset>()
+        val spatialSpec = predictiveNavigation<IntOffset>()
         return { swipeEdge ->
             ContentTransform(
                 targetContentEnter = slideInHorizontally(
@@ -248,9 +314,15 @@ internal object AsteriskMotion {
         effectsSpec: FiniteAnimationSpec<Float>,
         sizeSpec: FiniteAnimationSpec<IntSize>? = null,
     ): AnimatedContentTransitionScope<S>.() -> ContentTransform = {
+        fadeThroughTransform(effectsSpec, sizeSpec)
+    }
+
+    fun fadeThroughTransform(
+        effectsSpec: FiniteAnimationSpec<Float>,
+        sizeSpec: FiniteAnimationSpec<IntSize>? = null,
+    ): ContentTransform =
         (fadeIn(animationSpec = effectsSpec) togetherWith fadeOut(animationSpec = effectsSpec))
             .withSizeSpec(sizeSpec)
-    }
 
     fun fadeEnter(spec: FiniteAnimationSpec<Float>): EnterTransition =
         fadeIn(animationSpec = spec)

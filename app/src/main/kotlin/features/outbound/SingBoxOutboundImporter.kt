@@ -94,6 +94,7 @@ internal object SingBoxOutboundImporter {
                 mutations = mutations,
             )
         }
+        var ignoredExpectedCount = 0
         val accepted = outbounds.mapIndexedNotNull { index, item ->
             val outbound = item as? JsonObject
             if (outbound == null) {
@@ -111,6 +112,10 @@ internal object SingBoxOutboundImporter {
                     sourceIndex = index,
                     message = "Outbound entry has no type",
                 )
+                return@mapIndexedNotNull null
+            }
+            if (type in ExpectedIgnoredSingBoxOutboundTypes) {
+                ignoredExpectedCount += 1
                 return@mapIndexedNotNull null
             }
             if (type !in SupportedSingBoxProxyOutboundTypes) {
@@ -136,9 +141,18 @@ internal object SingBoxOutboundImporter {
                 null
             }
         }
+        val detectedCount = outbounds.size - ignoredExpectedCount
+        if (detectedCount == 0) {
+            issues += ImportIssue(
+                reason = ImportIssueReason.NO_SUPPORTED_ITEMS,
+                severity = ImportIssueSeverity.ERROR,
+                stage = ImportStage.PARSE,
+                message = "No importable proxy outbounds were found",
+            )
+        }
         return ImportOutcome(
             format = OutboundImportFormat.JSON,
-            detectedCount = outbounds.size,
+            detectedCount = detectedCount,
             accepted = accepted,
             issues = issues,
             mutations = mutations,
@@ -276,14 +290,15 @@ internal fun AppState.withImportedOutbounds(
     if (imported.isEmpty()) return this
 
     val previousGroup = outbounds.filter { outbound -> replaceGroup && outbound.groupId == groupId }
-    val reusableIds = previousGroup
-        .groupBy { outbound -> outbound.remarks to outbound.type }
-        .mapValues { (_, values) -> ArrayDeque(values.map(OutboundState::id)) }
+    val reusableIds = if (replaceGroup) {
+        matchImportedOutbounds(previousGroup, imported)
+    } else {
+        emptyMap()
+    }
     val usedIds = outbounds.mapTo(mutableSetOf()) { outbound -> outbound.id }
     var candidate = nextOutboundId.coerceAtLeast(1)
-    val assigned = imported.map { item ->
-        val reusable = reusableIds[item.remarks.trim() to item.type]
-            ?.removeFirstOrNull()
+    val assigned = imported.mapIndexed { importedIndex, item ->
+        val reusable = reusableIds[importedIndex]
         val id = reusable ?: run {
             while (candidate in usedIds) candidate += 1
             candidate.also { candidate += 1 }
@@ -566,4 +581,8 @@ internal val SupportedSingBoxProxyOutboundTypes = linkedSetOf(
     "ssh",
 )
 
-internal val ManualSingBoxOutboundTypes = SupportedSingBoxProxyOutboundTypes.toList()
+private val ExpectedIgnoredSingBoxOutboundTypes = setOf(
+    "selector",
+    "urltest",
+    "direct",
+)

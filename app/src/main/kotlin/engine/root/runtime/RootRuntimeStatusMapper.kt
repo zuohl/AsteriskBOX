@@ -76,13 +76,6 @@ internal fun AsteriskdControlResponse.preflightStart(
     }
 }
 
-internal fun AsteriskdControlResponse.canPublishBoot(owner: AsteriskdOwner, deferIfBound: Boolean): Boolean {
-    val snapshot = boundSnapshot() ?: return true
-    snapshot.requireOwner(owner)
-    if (deferIfBound) return false
-    snapshot.rejectBound(owner)
-}
-
 internal fun AsteriskdSnapshot.toProxyEngineStatus(
     runMode: Int,
     expectedMode: AsteriskdMode,

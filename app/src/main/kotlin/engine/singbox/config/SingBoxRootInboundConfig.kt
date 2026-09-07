@@ -16,34 +16,32 @@ import system.toAndroidUserId
 import utils.toTrimmedNonEmptyDistinctList
 
 internal const val SingBoxTunDevice = "asterisk0"
-internal const val EbpfRedirectIpv4Prefix = "127.128.0.0/9"
-internal const val EbpfRedirectIpv6Prefix = "fd53:696e:672d:626f::/64"
 
-internal data class EbpfUidPolicy(
+internal data class RootInboundUidPolicy(
     val includeUids: List<Int> = emptyList(),
     val excludeUids: List<Int> = emptyList(),
 )
 
-internal fun normalizeEbpfSharedNetworkInterfaces(values: Iterable<String>): List<String> =
+internal fun normalizeTunSharedNetworkInterfaces(values: Iterable<String>): List<String> =
     values.toTrimmedNonEmptyDistinctList()
 
-internal fun buildEbpfUidPolicy(
+internal fun buildRootInboundUidPolicy(
     mode: Int,
     hasSelectedApps: Boolean,
     resolvedUids: List<Int>,
-): EbpfUidPolicy {
-    if (!hasSelectedApps) return EbpfUidPolicy()
+): RootInboundUidPolicy {
+    if (!hasSelectedApps) return RootInboundUidPolicy()
     return when (mode.toSupportedProxyAppListMode()) {
-        ProxyAppListModeWhitelist -> EbpfUidPolicy(
+        ProxyAppListModeWhitelist -> RootInboundUidPolicy(
             includeUids = (resolvedUids + RootProxyAppWhitelistSystemUids).distinct().sorted(),
         )
-        ProxyAppListModeBlacklist -> EbpfUidPolicy(excludeUids = resolvedUids.distinct().sorted())
-        ProxyAppListModeGlobal -> EbpfUidPolicy()
-        else -> EbpfUidPolicy()
+        ProxyAppListModeBlacklist -> RootInboundUidPolicy(excludeUids = resolvedUids.distinct().sorted())
+        ProxyAppListModeGlobal -> RootInboundUidPolicy()
+        else -> RootInboundUidPolicy()
     }
 }
 
-internal fun Context.resolveEbpfUidPolicy(appState: AppState): EbpfUidPolicy {
+internal fun Context.resolveRootInboundUidPolicy(appState: AppState): RootInboundUidPolicy {
     val selectedAppKeys = appState.proxyAppListSelectedApps.toTrimmedNonEmptyDistinctList()
     val mode = if (selectedAppKeys.isEmpty()) {
         ProxyAppListModeGlobal
@@ -55,7 +53,7 @@ internal fun Context.resolveEbpfUidPolicy(appState: AppState): EbpfUidPolicy {
     } else {
         resolveApplicationUids(selectedAppKeys)
     }
-    return buildEbpfUidPolicy(mode, selectedAppKeys.isNotEmpty(), resolvedUids)
+    return buildRootInboundUidPolicy(mode, selectedAppKeys.isNotEmpty(), resolvedUids)
 }
 
 private val RootProxyAppWhitelistSystemUids = listOf(0, 1052)
@@ -82,3 +80,6 @@ private fun Context.resolveApplicationUids(packageKeys: List<String>): List<Int>
         userId * ANDROID_USER_UID_RANGE + appId
     }.distinct()
 }
+
+internal fun isSingBoxSharedNetworkInterface(value: String): Boolean =
+    value != "lo" && value.matches(Regex("[A-Za-z0-9_.-]{1,15}"))

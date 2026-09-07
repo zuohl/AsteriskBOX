@@ -4,9 +4,10 @@
 package features.settings.sheets
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -198,9 +199,7 @@ private fun ServiceControlRuleEditor(
     val invalidSsid = stringResource(R.string.settings_service_control_ssid_invalid)
     val invalidBssid = stringResource(R.string.settings_service_control_bssid_invalid)
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize(AsteriskMotion.contentSpatial()),
+        modifier = Modifier.fillMaxWidth(),
     ) {
         SwitchPreference(
             title = title,
@@ -228,6 +227,7 @@ private fun ServiceControlRuleEditor(
                     },
                     onPendingChange = { onPendingChange("${kind.name}-ssid", it) },
                 )
+                Spacer(Modifier.height(8.dp))
                 StringListEditor(
                     editorKey = "${kind.name}-bssid",
                     title = stringResource(R.string.settings_service_control_bssids),

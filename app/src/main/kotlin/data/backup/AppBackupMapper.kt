@@ -117,12 +117,12 @@ private fun AppState.toBackupSettings(): AppBackupSettings =
         dnsTimeout = dnsTimeout,
         transparentProxyPort = transparentProxyPort,
         enableRootEbpfDirectCidrBypass = enableRootEbpfDirectCidrBypass,
-        ebpfBypassRuleSetTags = ebpfBypassRuleSetTags,
+        tunBypassRuleSetTags = tunBypassRuleSetTags,
         enableRootIpv6Disabler = enableRootIpv6Disabler,
         socks5ProxyPort = socks5ProxyPort,
         bpf2SocksBridgePort = bpf2SocksBridgePort,
         externalInterfaces = externalInterfaces,
-        ebpfSharedNetworkInterfaces = ebpfSharedNetworkInterfaces,
+        tunSharedNetworkInterfaces = tunSharedNetworkInterfaces,
         ignoredInterfaces = ignoredInterfaces,
         serviceControl = serviceControl.toBackup(),
         privateAddressCidrs = privateAddressCidrs,
@@ -322,12 +322,14 @@ private fun AppBackupData.toAppState(): AppState {
         enableRootBootScript = false,
         enableRootEbpfRules = false,
         enableRootEbpfDirectCidrBypass = settings.enableRootEbpfDirectCidrBypass,
-        ebpfBypassRuleSetTags = settings.ebpfBypassRuleSetTags,
+        tunBypassRuleSetTags = settings.tunBypassRuleSetTags
+            ?: settings.legacyEbpfBypassRuleSetTags,
         enableRootIpv6Disabler = settings.enableRootIpv6Disabler,
         socks5ProxyPort = settings.socks5ProxyPort,
         bpf2SocksBridgePort = settings.bpf2SocksBridgePort,
         externalInterfaces = settings.externalInterfaces,
-        ebpfSharedNetworkInterfaces = settings.ebpfSharedNetworkInterfaces,
+        tunSharedNetworkInterfaces = settings.tunSharedNetworkInterfaces
+            ?: settings.legacyEbpfSharedNetworkInterfaces,
         ignoredInterfaces = settings.ignoredInterfaces,
         serviceControl = settings.serviceControl.toState(),
         privateAddressCidrs = settings.privateAddressCidrs,
@@ -367,7 +369,6 @@ private fun AppBackupOutbound.toState(): OutboundState =
         remarks = remarks,
         type = type,
         json = json,
-        pingMillis = null,
     )
 
 private fun AppBackupEndpoint.toState(): SingBoxEndpointState =

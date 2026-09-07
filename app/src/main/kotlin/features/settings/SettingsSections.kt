@@ -236,7 +236,7 @@ internal fun SettingsProxyModeSections(
     enableRootBootScript: Boolean,
     enableRootEbpfRules: Boolean,
     enableRootEbpfDirectCidrBypass: Boolean,
-    ebpfBypassRuleSetsSummary: String,
+    tunBypassRuleSetsSummary: String,
     enableIpv6: Boolean,
     enableRootIpv6Disabler: Boolean,
     externalInterfacesSummary: String,
@@ -250,7 +250,7 @@ internal fun SettingsProxyModeSections(
     onEnableRootBootScriptChange: (Boolean) -> Unit,
     onEnableRootEbpfRulesChange: (Boolean) -> Unit,
     onEnableRootEbpfDirectCidrBypassChange: (Boolean) -> Unit,
-    onOpenEbpfBypassRuleSets: () -> Unit,
+    onOpenTunBypassRuleSets: () -> Unit,
     onEnableRootIpv6DisablerChange: (Boolean) -> Unit,
     onOpenExternalInterfaces: () -> Unit,
     onOpenServiceControl: () -> Unit,
@@ -341,7 +341,7 @@ internal fun SettingsProxyModeSections(
                     onClick = onOpenServiceControl,
                 )
                 AnimatedVisibility(
-                    visible = runMode != RunModeBpf2Socks && runMode != RunModeEbpf,
+                    visible = runMode != RunModeBpf2Socks && runMode != RunModeEbpf && runMode != RunModeTun,
             enter = AsteriskMotion.contentEnter(),
             exit = AsteriskMotion.contentExit(),
                 ) {
@@ -356,18 +356,18 @@ internal fun SettingsProxyModeSections(
                 AnimatedVisibility(
                     visible = enableRootEbpfRules ||
                         runMode == RunModeBpf2Socks ||
-                        runMode == RunModeEbpf,
+                        (runMode == RunModeEbpf || runMode == RunModeTun),
             enter = AsteriskMotion.contentEnter(),
             exit = AsteriskMotion.contentExit(),
                 ) {
                     AnimatedContent(
-                        targetState = runMode == RunModeEbpf,
+                        targetState = (runMode == RunModeEbpf || runMode == RunModeTun),
                         modifier = Modifier.fillMaxWidth(),
                         transitionSpec = AsteriskMotion.fadeThrough(
                             effectsSpec = bypassControlEffectsMotion,
                             sizeSpec = bypassControlSizeMotion,
                         ),
-                        label = "settings-ebpf-bypass-control",
+                        label = "settings-tun-bypass-control",
                     ) { useRuleSetSelector ->
                         if (useRuleSetSelector) {
                             ArrowPreference(
@@ -375,8 +375,8 @@ internal fun SettingsProxyModeSections(
                                     R.string.settings_root_ebpf_bypass_direct_cidrs,
                                 ),
                                 icon = Icons.Rounded.Route,
-                                summary = ebpfBypassRuleSetsSummary,
-                                onClick = onOpenEbpfBypassRuleSets,
+                                summary = tunBypassRuleSetsSummary,
+                                onClick = onOpenTunBypassRuleSets,
                             )
                         } else {
                             SwitchPreference(
@@ -406,6 +406,13 @@ internal fun SettingsProxyModeSections(
                         onCheckedChange = onEnableRootIpv6DisablerChange,
                     )
                 }
+                SwitchPreference(
+                    title = stringResource(R.string.settings_traffic_stats_notification),
+                    icon = Icons.Rounded.Notifications,
+                    summary = stringResource(R.string.settings_traffic_stats_notification_summary),
+                    checked = enableTrafficStatsNotification,
+                    onCheckedChange = onEnableTrafficStatsNotificationChange,
+                )
                 ArrowPreference(
                     title = stringResource(R.string.settings_local_proxy),
                     icon = Icons.Rounded.Router,
@@ -425,19 +432,19 @@ internal fun SettingsProxyModeSections(
                     )
                 }
                 AnimatedVisibility(
-                    visible = runMode == RunModeEbpf,
+                    visible = (runMode == RunModeEbpf || runMode == RunModeTun),
                     enter = AsteriskMotion.contentEnter(),
                     exit = AsteriskMotion.contentExit(),
                 ) {
                     ArrowPreference(
-                        title = stringResource(R.string.settings_ebpf_shared_network),
+                        title = stringResource(R.string.settings_tun_shared_network),
                         icon = Icons.Rounded.Cable,
                         summary = externalInterfacesSummary,
                         onClick = onOpenExternalInterfaces,
                     )
                 }
                 AnimatedVisibility(
-                    visible = runMode != RunModeEbpf,
+                    visible = runMode != RunModeEbpf && runMode != RunModeTun,
                     enter = AsteriskMotion.contentEnter(),
                     exit = AsteriskMotion.contentExit(),
                 ) {
@@ -449,7 +456,7 @@ internal fun SettingsProxyModeSections(
                     )
                 }
                 AnimatedVisibility(
-                    visible = runMode != RunModeEbpf,
+                    visible = runMode != RunModeEbpf && runMode != RunModeTun,
                     enter = AsteriskMotion.contentEnter(),
                     exit = AsteriskMotion.contentExit(),
                 ) {
@@ -461,7 +468,7 @@ internal fun SettingsProxyModeSections(
                     )
                 }
                 AnimatedVisibility(
-                    visible = runMode != RunModeEbpf,
+                    visible = runMode != RunModeEbpf && runMode != RunModeTun,
                     enter = AsteriskMotion.contentEnter(),
                     exit = AsteriskMotion.contentExit(),
                 ) {

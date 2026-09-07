@@ -4,6 +4,7 @@
 package features.home
 
 import app.AppState
+import app.modes.isRootRunMode
 import engine.singbox.runtime.SingBoxTrafficSample
 import engine.singbox.runtime.SingBoxTrafficState
 import features.monitoring.MonitoringState
@@ -41,7 +42,18 @@ internal data class HomeControllerState(
 internal data class HomeModeChange(
     val runtimeAppState: AppState,
     val persistSelection: Boolean,
-    val patchRuntime: Boolean,
+    val runtimeAction: HomeModeRuntimeAction,
+)
+
+internal enum class HomeModeRuntimeAction {
+    None,
+    PatchRuntime,
+    RestartService,
+}
+
+internal data class HomeModeOperationState(
+    val serviceOperationInProgress: Boolean,
+    val modeOperationInProgress: Boolean,
 )
 
 internal data class HomeNetworkActivityState(
@@ -81,7 +93,28 @@ internal fun buildHomeModeChange(
     return HomeModeChange(
         runtimeAppState = appState.copy(singBoxMode = requestedMode),
         persistSelection = true,
-        patchRuntime = appState.proxyRunning,
+        runtimeAction = when {
+            !appState.proxyRunning -> HomeModeRuntimeAction.None
+            appState.runMode.isRootRunMode() -> HomeModeRuntimeAction.RestartService
+            else -> HomeModeRuntimeAction.PatchRuntime
+        },
+    )
+}
+
+internal fun buildHomeModeOperationState(
+    runtimeAction: HomeModeRuntimeAction,
+): HomeModeOperationState = when (runtimeAction) {
+    HomeModeRuntimeAction.None -> HomeModeOperationState(
+        serviceOperationInProgress = false,
+        modeOperationInProgress = false,
+    )
+    HomeModeRuntimeAction.PatchRuntime -> HomeModeOperationState(
+        serviceOperationInProgress = false,
+        modeOperationInProgress = true,
+    )
+    HomeModeRuntimeAction.RestartService -> HomeModeOperationState(
+        serviceOperationInProgress = true,
+        modeOperationInProgress = true,
     )
 }
 
