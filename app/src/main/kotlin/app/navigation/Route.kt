@@ -37,7 +37,10 @@ sealed interface Route : NavKey {
     ) : Route
 
     @Serializable
-    data object OutboundGroupList : Route
+    data object OutboundGroupCreate : Route
+
+    @Serializable
+    data object ProxyAppList : Route
 
     @Serializable
     data object OutboundList : Route

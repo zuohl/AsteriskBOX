@@ -43,7 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.view.WindowCompat
-import org.asterisk.zcc.abox.R
+import app.R
 import app.modes.ColorModeDark
 import app.modes.ColorModeLight
 import app.modes.ColorModeSystem
@@ -114,7 +114,14 @@ fun AppTheme(
     } else {
         null
     }
-    val materialScheme = systemDynamicScheme ?: fallbackScheme
+    val baseScheme = systemDynamicScheme ?: fallbackScheme
+    val materialScheme = baseScheme.copy(
+        background = if (resolution.isDark) {
+            lerp(baseScheme.background, Color.Black, 0.3f)
+        } else {
+            lerp(baseScheme.background, Color.White, 0.1f)
+        },
+    )
     var displayedScheme by remember { mutableStateOf(materialScheme) }
     var displayedIsDark by remember { mutableStateOf(resolution.isDark) }
     var systemBarIsDark by remember { mutableStateOf(resolution.isDark) }
@@ -254,8 +261,9 @@ val KeyColors: List<Color> = listOf(
     Color(0xFF7C4DFF),
     Color(0xFFFFB21D),
     Color(0xFFFF5722),
-    Color(0xFFE91E63),
+    Color(0xFFFEDFE1),
     Color(0xFF00BCD4),
+    Color(0xFF6F4E37),
 )
 
 fun keyColorFor(index: Int): Color? = if (index <= 0) null else KeyColors.getOrNull(index - 1)

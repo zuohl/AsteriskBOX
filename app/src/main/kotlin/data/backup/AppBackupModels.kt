@@ -67,7 +67,6 @@ internal data class AppBackupSettings(
     val singBoxMode: Int = BackupDefaults.singBoxMode,
     val singBoxProxyLayout: Int = BackupDefaults.singBoxProxyLayout,
     val singBoxProxySort: Int = BackupDefaults.singBoxProxySort,
-    val singBoxTunStack: Int = BackupDefaults.singBoxTunStack,
     val singBoxControlPort: String = BackupDefaults.singBoxControlPort,
     val singBoxControlSecret: String = BackupDefaults.singBoxControlSecret,
     val enableLocalDns: Boolean = BackupDefaults.enableLocalDns,
@@ -85,6 +84,8 @@ internal data class AppBackupSettings(
     val coreLogLevel: String = BackupDefaults.coreLogLevel,
     val enableTrafficStatsNotification: Boolean = BackupDefaults.enableTrafficStatsNotification,
     val enableBroadcastControl: Boolean = BackupDefaults.enableBroadcastControl,
+    val enableResourceAutoUpdate: Boolean = BackupDefaults.enableResourceAutoUpdate,
+    val resourceAutoUpdateInterval: String = BackupDefaults.resourceAutoUpdateInterval,
     val resourceFileSource: Int = BackupDefaults.resourceFileSource,
     val customResourceFileGeositeCategoryAdsAllUrl: String =
         BackupDefaults.customResourceFileGeositeCategoryAdsAllUrl,
@@ -106,6 +107,10 @@ internal data class AppBackupSettings(
     val dnsDisableExpire: Boolean = BackupDefaults.dnsDisableExpire,
     val dnsTimeout: String = BackupDefaults.dnsTimeout,
     val transparentProxyPort: String = BackupDefaults.transparentProxyPort,
+    val ebpfLocalDataPlane: String = BackupDefaults.ebpfLocalDataPlane,
+    val ebpfSharedDataPlane: String = BackupDefaults.ebpfSharedDataPlane,
+    val ebpfLocalDnsMode: String = BackupDefaults.ebpfLocalDnsMode,
+    val ebpfSharedDnsMode: String = BackupDefaults.ebpfSharedDnsMode,
     val enableRootEbpfDirectCidrBypass: Boolean = BackupDefaults.enableRootEbpfDirectCidrBypass,
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     @SerialName("ebpfBypassRuleSetTags")
@@ -177,6 +182,10 @@ internal data class AppBackupOutboundGroup(
     val lastUpdateErrorSummary: String = "",
     val subscriptionEtag: String = "",
     val subscriptionLastModified: String = "",
+    val subscriptionUploadBytes: Long = 0L,
+    val subscriptionDownloadBytes: Long = 0L,
+    val subscriptionTotalBytes: Long = 0L,
+    val subscriptionExpireAtSeconds: Long = 0L,
 )
 
 @Serializable

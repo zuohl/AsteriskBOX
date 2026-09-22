@@ -2,7 +2,7 @@ English | [简体中文](README_zh_CN.md)
 
 # AsteriskBOX
 
-An Android sing-box GUI client. VPN Service mode uses [AndroidLibBoxLite](https://github.com/Asterisk4Magisk/AndroidLibBoxLite); ROOT modes execute the [reF1nd sing-box](https://github.com/reF1nd/sing-box-releases) build for Android.
+An Android sing-box GUI client.
 
 ## Telegram Channel
 
@@ -33,7 +33,6 @@ An Android sing-box GUI client. VPN Service mode uses [AndroidLibBoxLite](https:
 
 - Runs the bundled sing-box binary with the fixed TUN device `asterisk0`.
 - Uses sing-box-managed `auto_route` and `auto_redirect` instead of app-managed transparent routing.
-- Supports the System, gVisor, and Mixed TUN stacks.
 - Selected rule-set IP CIDRs are passed to `route_exclude_address_set`; domain rules do not apply.
 - Exact downstream interface names can be included for hotspot and tethering traffic.
 
@@ -65,6 +64,28 @@ An Android sing-box GUI client. VPN Service mode uses [AndroidLibBoxLite](https:
 - ROOT runtime files are stored in the app-private `files/sing-box` directory.
 - The bundled reF1nd sing-box ROOT core can be replaced from Resource Management.
 - Direct CIDR and custom resource files can be replaced locally or updated from configured URLs; rule sets remain part of the sing-box JSON configuration.
+
+## Broadcast Control
+
+Enable **Broadcast Control** in settings, then send an explicit broadcast to the receiver below. Actions use the `org.asterisk.zcc.abox.action.` prefix.
+
+| Operation | Action suffix |
+| --- | --- |
+| Start proxy | `PROXY_START` |
+| Stop proxy | `PROXY_STOP` |
+| Toggle proxy | `PROXY_TOGGLE` |
+| Update all URL subscriptions | `SUBSCRIPTION_UPDATE` |
+| Cancel broadcast subscription update | `SUBSCRIPTION_UPDATE_CANCEL` |
+| Update all resources | `RESOURCE_UPDATE` |
+| Cancel resource updates | `RESOURCE_UPDATE_CANCEL` |
+
+```sh
+adb shell am broadcast -n org.asterisk.zcc.abox/features.automation.BroadcastControlReceiver -a org.asterisk.zcc.abox.action.SUBSCRIPTION_UPDATE
+```
+
+Subscription updates skip local entries; cancellation preserves completed results and scheduled update settings. Resources use the current Resource Management configuration; resource cancellation also clears its shared queue. Repeated update commands of the same kind are merged while running.
+
+Updates run in the background without starting the proxy. Broadcast delivery does not mean the update has finished; check the `BroadcastControl` app logs for results.
 
 ## Development
 
@@ -109,3 +130,4 @@ appops set org.asterisk.zcc.abox ACTIVATE_VPN allow
 - [@topjohnwu/libsu](https://github.com/topjohnwu/libsu)
 - [@android/material3](https://developer.android.com/develop/ui/compose/designsystems/material3)
 - [@mayaxcn/china-ip-list](https://github.com/mayaxcn/china-ip-list)
+- [@xchacha20-poly1305/husi](https://github.com/xchacha20-poly1305/husi)

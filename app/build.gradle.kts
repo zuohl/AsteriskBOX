@@ -14,14 +14,19 @@ plugins {
 }
 
 val generatedSrcDir: Provider<Directory> = layout.buildDirectory.dir("generated/projectInfo")
-val generatedSingBoxCoreJniLibsDir: Provider<Directory> = layout.buildDirectory.dir("generated/singBoxCoreJniLibs")
 val isBuildingAppBundle = gradle.startParameter.taskNames.any { requestedTask ->
     requestedTask.substringAfterLast(':').startsWith("bundle", ignoreCase = true)
 }
 
 android {
-    namespace = ProjectConfig.PACKAGE_NAME
+    namespace = "app"
     compileSdk = ProjectConfig.TARGET_SDK
+
+    // Built-in Kotlin inherits this JVM target.
+    compileOptions {
+        sourceCompatibility = JavaVersion.toVersion(ProjectConfig.JVM_VERSION)
+        targetCompatibility = JavaVersion.toVersion(ProjectConfig.JVM_VERSION)
+    }
 
     defaultConfig {
         applicationId = ProjectConfig.PACKAGE_NAME
@@ -109,17 +114,20 @@ tasks.named("preBuild") {
 
 dependencies {
     implementation(libs.compose.ui)
+    implementation(libs.haze)
     implementation(libs.compose.foundation)
     implementation(libs.compose.material.icons.extended)
     implementation(libs.compose.material3)
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.navigationevent)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.work.runtime)
     implementation(libs.androidx.activity.compose)
     implementation(libs.coil)
     implementation(libs.coil.compose)
+    implementation(libs.dexlib2)
     implementation(dependencies.project(":asteriskd"))
     implementation(dependencies.project(":bpfmatcher"))
     implementation(dependencies.project(":bpf2socks"))
@@ -155,7 +163,6 @@ val generateProjectInfo = tasks.register<GenerateProjectInfoTask>("generateProje
     projectName.set(ProjectConfig.PROJECT_NAME)
     versionName.set(ProjectConfig.VERSION_NAME)
     versionCode.set(getGitVersionCode())
-    singBoxVersion.set(ProjectConfig.SING_BOX_VERSION)
     androidLibBoxLiteVersion.set(ProjectConfig.ANDROID_LIB_BOX_LITE_VERSION)
     hevSocks5TunnelVersion.set(ProjectConfig.HEV_SOCKS5_TUNNEL_VERSION)
     outputDirectory.set(generatedSrcDir.map { it.dir("kotlin") })
@@ -175,7 +182,6 @@ androidComponents {
             task.outputDirectory
         }
         variant.sources.assets?.addStaticSourceDirectory("build/generated/resourceFileAssets")
-        variant.sources.jniLibs?.addStaticSourceDirectory("build/generated/singBoxCoreJniLibs")
     }
 }
 

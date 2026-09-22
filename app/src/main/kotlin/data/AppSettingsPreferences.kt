@@ -99,7 +99,6 @@ internal class AppSettingsPreferences(
                 KeySingBoxProxySort,
                 defaults.singBoxProxySort,
             ),
-            singBoxTunStack = preferences.getInt(KeySingBoxTunStack, defaults.singBoxTunStack),
             singBoxControlPort = preferences.getString(
                 KeySingBoxControlPort,
                 defaults.singBoxControlPort,
@@ -149,6 +148,9 @@ internal class AppSettingsPreferences(
                 KeyEnableBroadcastControl,
                 defaults.enableBroadcastControl,
             ),
+            enableResourceAutoUpdate = preferences.getBoolean(KeyEnableResourceAutoUpdate, defaults.enableResourceAutoUpdate),
+            resourceAutoUpdateInterval = preferences.getString(KeyResourceAutoUpdateInterval, defaults.resourceAutoUpdateInterval)
+                ?: defaults.resourceAutoUpdateInterval,
             resourceFileSource = preferences.getInt(
                 KeyResourceFileSource,
                 defaults.resourceFileSource,
@@ -230,6 +232,10 @@ internal class AppSettingsPreferences(
                 KeyEnableRootEbpfDirectCidrBypass,
                 defaults.enableRootEbpfDirectCidrBypass,
             ),
+            ebpfLocalDataPlane = preferences.getString(KeyEbpfLocalDataPlane, defaults.ebpfLocalDataPlane) ?: defaults.ebpfLocalDataPlane,
+            ebpfSharedDataPlane = preferences.getString(KeyEbpfSharedDataPlane, defaults.ebpfSharedDataPlane) ?: defaults.ebpfSharedDataPlane,
+            ebpfLocalDnsMode = preferences.getString(KeyEbpfLocalDnsMode, defaults.ebpfLocalDnsMode) ?: defaults.ebpfLocalDnsMode,
+            ebpfSharedDnsMode = preferences.getString(KeyEbpfSharedDnsMode, defaults.ebpfSharedDnsMode) ?: defaults.ebpfSharedDnsMode,
             tunBypassRuleSetTags = preferences.getStringList(
                 if (preferences.contains(KeyTunBypassRuleSetTags)) {
                     KeyTunBypassRuleSetTags
@@ -392,7 +398,6 @@ internal const val KeyRunMode = "run_mode"
 internal const val KeySingBoxMode = "sing_box_mode"
 internal const val KeySingBoxProxyLayout = "sing_box_proxy_layout"
 internal const val KeySingBoxProxySort = "sing_box_proxy_sort"
-internal const val KeySingBoxTunStack = "sing_box_tun_stack"
 internal const val KeySingBoxControlPort = "sing_box_control_port"
 internal const val KeySingBoxControlSecret = "sing_box_control_secret"
 internal const val KeyEnableLocalDns = "enable_local_dns"
@@ -410,6 +415,8 @@ internal const val KeyTunIpv6Cidr = "tun_ipv6_cidr"
 internal const val KeyCoreLogLevel = "core_log_level"
 internal const val KeyEnableTrafficStatsNotification = "enable_traffic_stats_notification"
 internal const val KeyEnableBroadcastControl = "enable_broadcast_control"
+internal const val KeyEnableResourceAutoUpdate = "enable_resource_auto_update"
+internal const val KeyResourceAutoUpdateInterval = "resource_auto_update_interval"
 internal const val KeyResourceFileSource = "resource_file_source"
 internal const val KeyCustomResourceFileGeositeCategoryAdsAllUrl =
     "custom_resource_file_geosite_category_ads_all_url"
@@ -439,6 +446,10 @@ internal const val KeyTransparentProxyPort = "transparent_proxy_port"
 internal const val KeyEnableRootBootScript = "enable_root_boot_script"
 internal const val KeyEnableRootEbpfRules = "enable_root_ebpf_rules"
 internal const val KeyEnableRootEbpfDirectCidrBypass = "enable_root_ebpf_direct_cidr_bypass"
+internal const val KeyEbpfLocalDataPlane = "ebpf_local_data_plane"
+internal const val KeyEbpfSharedDataPlane = "ebpf_shared_data_plane"
+internal const val KeyEbpfLocalDnsMode = "ebpf_local_dns_mode"
+internal const val KeyEbpfSharedDnsMode = "ebpf_shared_dns_mode"
 internal const val KeyTunBypassRuleSetTags = "tun_bypass_rule_set_tags"
 private const val LegacyKeyEbpfBypassRuleSetTags = "ebpf_bypass_rule_set_tags"
 internal const val KeyEnableRootIpv6Disabler = "enable_root_ipv6_disabler"

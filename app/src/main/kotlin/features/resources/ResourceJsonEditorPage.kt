@@ -5,6 +5,7 @@
 
 package features.resources
 
+import ui.layout.codeEditorShowsSupportingContent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
@@ -45,7 +46,7 @@ import features.singbox.JsonCodeEditor
 import features.singbox.SingBoxCodeEditorState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import org.asterisk.zcc.abox.R
+import app.R
 import ui.components.EditorPageScaffold
 import ui.theme.AsteriskMotion
 import ui.theme.AsteriskShapeTokens
@@ -215,48 +216,55 @@ internal fun ResourceJsonEditorPage(
                 ResourceJsonEditorLoadState.Ready -> Column(
                     modifier = Modifier.fillMaxSize().padding(vertical = 12.dp),
                 ) {
-                    Text(
-                        stringResource(R.string.settings_resource_json_editor_content),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
                     AnimatedVisibility(
-                        visible = loadedSnapshot?.isDraft == true,
+                        visible = codeEditorShowsSupportingContent(editorState.isFocused),
                         enter = AsteriskMotion.contentEnter(),
                         exit = AsteriskMotion.contentExit(),
                     ) {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                            shape = AsteriskShapeTokens.InnerContainer,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
+                        Column {
+                            Text(
+                                stringResource(R.string.settings_resource_json_editor_content),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            AnimatedVisibility(
+                                visible = loadedSnapshot?.isDraft == true,
+                                enter = AsteriskMotion.contentEnter(),
+                                exit = AsteriskMotion.contentExit(),
                             ) {
-                                Icon(
-                                    Icons.Rounded.Description,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp),
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                )
-                                Text(
-                                    stringResource(R.string.settings_resource_json_editor_draft),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                )
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                    shape = AsteriskShapeTokens.InnerContainer,
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Icon(
+                                            Icons.Rounded.Description,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp),
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        )
+                                        Text(
+                                            stringResource(R.string.settings_resource_json_editor_draft),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        )
+                                    }
+                                }
                             }
+                            Text(
+                                stringResource(R.string.settings_resource_json_editor_content_summary),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
+                            )
                         }
                     }
-                    Text(
-                        stringResource(R.string.settings_resource_json_editor_content_summary),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
-                    )
                     Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
                         JsonCodeEditor(
-                            label = stringResource(R.string.settings_resource_json_editor_content),
                             state = editorState,
                             readOnly = saving,
                             modifier = Modifier.fillMaxSize(),

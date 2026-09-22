@@ -3,7 +3,6 @@
 
 package features.about
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,11 +13,10 @@ import androidx.compose.foundation.lazy.items
 import ui.icons.AsteriskIcons as Icons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import ui.components.AsteriskScaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import ui.components.AsteriskTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,7 +31,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.LocalIsWideScreen
 import app.LocalNavigator
-import org.asterisk.zcc.abox.R
+import app.R
 import features.about.license.Library
 import features.about.license.decodeAboutLibraries
 import ui.layout.pageContentPaddingWithCutout
@@ -73,10 +71,10 @@ fun LicensePage(
     val visibleLibraries = remember(libraries, query) {
         reduceLibraries(libraries, query)
     }
-    Scaffold(
+    AsteriskScaffold(
         topBar = {
-            Column(modifier = Modifier.background(MaterialTheme.colorScheme.surface)) {
-                TopAppBar(
+            Column {
+                AsteriskTopAppBar(
                     title = { Text(stringResource(R.string.license_title)) },
                     navigationIcon = {
                         IconButton(onClick = { navigator.pop() }) {

@@ -44,6 +44,9 @@
     <string name="qr_scan_choose_image">Choose from album</string>
 <!-- Common -->
     <string name="common_cancel">Cancel</string>
+    <string name="common_ok">OK</string>
+    <string name="common_error_required">Required</string>
+    <string name="common_error_positive_number">Must be greater than zero</string>
     <string name="common_clear">Clear</string>
     <string name="common_copy">Copy</string>
     <string name="common_share">Share</string>
@@ -69,6 +72,7 @@
     <string name="common_clipboard_unsupported_format">Unsupported clipboard format</string>
     <string name="common_replace">Replace</string>
     <string name="common_update">Update</string>
+    <string name="common_error_update_interval">Enter at least 0.25 hours</string>
     <string name="common_restore">Restore</string>
     <string name="common_more">More</string>
     <string name="string_list_item_empty">Entry cannot be empty</string>
@@ -78,7 +82,7 @@
     <!-- Navigation -->
     <string name="nav_dashboard">Home</string>
     <string name="nav_proxies">Proxies</string>
-    <string name="nav_apps">Apps</string>
+    <string name="nav_groups">Groups</string>
     <string name="nav_settings">Settings</string>
     <string name="common_back">Back</string>
     <string name="common_more_actions">More actions</string>
@@ -126,7 +130,7 @@
     <string name="monitor_sort_target">Target</string>
 
     <string name="monitor_connections_title">Connections</string>
-    <string name="monitor_connections_active">Active connections</string>
+    <string name="monitor_connections_active">Active</string>
     <string name="monitor_connections_focus_routes">Proxy %1$d · Direct %2$d</string>
     <string name="monitor_connections_status_summary">%1$s · %2$s</string>
     <string name="monitor_connections_live">Live</string>
@@ -183,6 +187,7 @@
     <string name="monitor_traffic_7_days">Last 7 days</string>
     <string name="monitor_traffic_30_days">Last 30 days</string>
     <string name="monitor_traffic_total">Total</string>
+    <string name="monitor_resource_source_info">CPU measurement</string>
     <string name="monitor_traffic_local_notice">Traffic history is recorded only in this app’s private local storage and is never sent to probe or subscription services.</string>
 
     <string name="monitor_network_title">Network status</string>
@@ -200,6 +205,46 @@
     <string name="monitor_network_error_timeout">The request timed out</string>
     <string name="monitor_network_error_request">The request failed</string>
     <string name="monitor_network_error_response">The service returned an invalid address</string>
+
+    <!-- Apple networkQuality test page -->
+    <string name="monitor_network_quality_title">Network quality test</string>
+    <string name="monitor_network_quality_settings_title">Test parameters</string>
+    <string name="monitor_network_quality_section_endpoint">Endpoint</string>
+    <string name="monitor_network_quality_endpoint_summary">Apple NetworkQuality config URL. Use the default unless you operate a custom mensura mirror.</string>
+    <string name="monitor_network_quality_section_timing">Timing</string>
+    <string name="monitor_network_quality_timing_summary">Upper bound for the entire measurement cycle.</string>
+    <string name="monitor_network_quality_section_options">Options</string>
+    <string name="monitor_network_quality_serial_summary">Run upload and download stages sequentially.</string>
+    <string name="monitor_network_quality_http3_summary">Probe over QUIC / HTTP/3 when the server supports it.</string>
+    <string name="monitor_network_quality_snackbar_done">Network quality test finished</string>
+    <string name="monitor_network_quality_fab_start">Start</string>
+    <string name="monitor_network_quality_fab_stop">Stop</string>
+    <string name="monitor_network_quality_info_action">About the metrics</string>
+    <string name="monitor_network_quality_settings_action">Test parameters</string>
+    <string name="monitor_network_quality_rating_good">Good</string>
+    <string name="monitor_network_quality_rating_fair">Fair</string>
+    <string name="monitor_network_quality_rating_poor">Poor</string>
+    <string name="monitor_network_quality_explanation_title">About these numbers</string>
+    <string name="monitor_network_quality_idle_latency_explanation">How quickly the link responds when no traffic is flowing. Under 300 ms is good for real-time work; 300–700 ms is acceptable; over 700 ms feels sluggish.</string>
+    <string name="monitor_network_quality_download_capacity_explanation">Sustained download throughput. Above 150 Mbps is great; 50–150 Mbps is acceptable; under 50 Mbps is constrained.</string>
+    <string name="monitor_network_quality_download_responsiveness_explanation">How many small downloads the link can finish per minute while busy. 500 RPM or more stays responsive under load; under 200 RPM means interactions queue up.</string>
+    <string name="monitor_network_quality_upload_capacity_explanation">Sustained upload throughput. Above 100 Mbps is great; 30–100 Mbps is acceptable; under 30 Mbps is constrained.</string>
+    <string name="monitor_network_quality_upload_responsiveness_explanation">How many small uploads the link can finish per minute while busy. Same scale as download responsiveness.</string>
+    <string name="monitor_network_quality_elapsed_time_explanation">Total time the test ran, rounded down to seconds. Pure artefact of the test — not a property of the link.</string>
+    <string name="monitor_network_quality_config_url">Config URL</string>
+    <string name="monitor_network_quality_max_runtime">Max runtime (seconds)</string>
+    <string name="monitor_network_quality_serial">Serial measurement</string>
+    <string name="monitor_network_quality_http3">HTTP/3</string>
+    <string name="monitor_network_quality_outbound_label">Outbound</string>
+    <string name="monitor_network_quality_outbound_default">Default</string>
+    <string name="monitor_network_quality_standalone_hint">Service is stopped. The test will run standalone without routing through the proxy and cannot select an outbound.</string>
+    <string name="monitor_network_quality_idle_latency">Idle latency</string>
+    <string name="monitor_network_quality_download_capacity">Download capacity</string>
+    <string name="monitor_network_quality_download_responsiveness">Download responsiveness</string>
+    <string name="monitor_network_quality_upload_capacity">Upload capacity</string>
+    <string name="monitor_network_quality_upload_responsiveness">Upload responsiveness</string>
+    <string name="monitor_network_quality_elapsed_time">Elapsed time</string>
+    <string name="monitor_network_quality_error_title">Network quality test failed</string>
 
     <!-- sing-box -->
     <string name="sing_box_dashboard_network_detection_checking">Checking…</string>
@@ -231,21 +276,17 @@
     <string name="sing_box_proxies_option_sort_default">Default</string>
     <string name="sing_box_proxies_option_sort_name">Name</string>
     <string name="sing_box_proxies_option_sort_delay">Delay</string>
-    <string name="settings_general">General</string>
-    <string name="settings_tun_stack">TUN stack</string>
-    <string name="settings_tun_stack_system">System</string>
-    <string name="settings_tun_stack_gvisor">gVisor</string>
-    <string name="settings_tun_stack_mixed">Mixed</string>
 
     <!-- Settings -->
+    <string name="settings_tools">Tools</string>
     <string name="settings_title">Settings</string>
+    <string name="settings_app">Appearance</string>
     <string name="settings_search_results">Search results</string>
     <string name="settings_search_no_results">No matching settings</string>
     <plurals name="settings_search_match_count">
         <item quantity="one">%1$d matching setting</item>
         <item quantity="other">%1$d matching settings</item>
     </plurals>
-    <string name="settings_theme">Theme</string>
     <string name="settings_color_mode">Theme</string>
     <string name="settings_language">Language</string>
     <string name="settings_theme_color">Accent color</string>
@@ -282,7 +323,7 @@
     <string name="settings_root_ebpf_selinux_policy_warning_confirm">Enable anyway</string>
     <string name="settings_root_ipv6_disabler">Disable system IPv6</string>
     <string name="settings_root_ipv6_disabler_summary">Prevent WebRTC IPv6 address leaks</string>
-    <string name="settings_vpn_local_dns">Enable local DNS</string>
+    <string name="settings_vpn_local_dns">Enable DNS hijacking</string>
     <string name="settings_vpn_local_dns_summary">Use the core to handle DNS requests</string>
     <string name="settings_local_proxy">Local proxy settings</string>
     <string name="settings_local_proxy_port">Local proxy port</string>
@@ -303,9 +344,8 @@
     <string name="settings_vpn_hev_tun">Use Hev TUN</string>
     <string name="settings_vpn_hev_tun_summary">Use hev-socks5-tunnel to create the TUN device</string>
     <string name="settings_tun">TUN settings</string>
-    <string name="settings_tun_summary">TUN stack {stack}, MTU {mtu}, VPN DNS {vpnDns}, IPv4 {ipv4}, IPv6 {ipv6}</string>
-    <string name="settings_tun_summary_without_dns">TUN stack {stack}, MTU {mtu}, IPv4 {ipv4}, IPv6 {ipv6}</string>
-    <string name="settings_tun_summary_without_stack">MTU {mtu}, IPv4 {ipv4}, IPv6 {ipv6}</string>
+    <string name="settings_tun_summary">MTU {mtu}, VPN DNS {vpnDns}, IPv4 {ipv4}, IPv6 {ipv6}</string>
+    <string name="settings_tun_summary_without_dns">MTU {mtu}, IPv4 {ipv4}, IPv6 {ipv6}</string>
     <string name="settings_tun_mtu">MTU</string>
     <string name="settings_tun_vpn_dns">VPN DNS</string>
     <string name="settings_tun_ipv4_cidr">IPv4 CIDR</string>
@@ -344,11 +384,11 @@
     <string name="settings_private_addresses_invalid">Invalid CIDR</string>
     <string name="settings_private_addresses_empty">No CIDR ranges added</string>
     <string name="settings_broadcast_control">Broadcast control</string>
-    <string name="settings_broadcast_control_summary">Allow external broadcasts to start and stop the proxy service</string>
+    <string name="settings_broadcast_control_summary">Allow external broadcasts to control app services</string>
     <string name="settings_ipv6_summary">Enable IPv6 support</string>
     <string name="settings_ipv6_prefer">IPv6 preferred</string>
     <string name="settings_ipv6_prefer_summary">Prefer IPv6 addresses when connecting</string>
-    <string name="settings_core">Core settings</string>
+    <string name="settings_core">General</string>
     <string name="settings_resource_management">Resource management</string>
     <string name="settings_resource_management_summary">Manage core files and GEO resource files</string>
     <string name="settings_resource_files_core_files">Core files</string>
@@ -365,6 +405,9 @@
     </plurals>
     <string name="settings_resource_files_source_value">Source: %1$s</string>
     <string name="settings_resource_files_last_check">Last check {time}</string>
+    <string name="settings_resource_files_auto_update_title">Automatic resource updates</string>
+    <string name="settings_resource_files_auto_update_summary">Periodically update resource files when connected</string>
+    <string name="settings_resource_files_auto_update_interval">Update interval (hours)</string>
     <string name="settings_resource_files_update">Update resource files</string>
     <string name="settings_resource_files_add">Add resource</string>
     <string name="settings_resource_files_add_source_hint">Choose where the rule-set file comes from</string>
@@ -426,6 +469,13 @@
     <string name="settings_resource_files_restored">{name} restored from bundled assets</string>
     <string name="settings_resource_files_deleted">{name} deleted</string>
     <string name="settings_log_level">Log level</string>
+    <string name="settings_ebpf_data_plane">Data plane</string>
+    <string name="settings_ebpf_dns_mode">DNS mode</string>
+    <string name="settings_ebpf_local_data_plane_summary">tc intercepts interface traffic; cgroup intercepts sockets.</string>
+    <string name="settings_ebpf_shared_data_plane_summary">socket_assign uses transparent listeners; packet_rewrite rewrites Ethernet packets.</string>
+    <string name="settings_ebpf_local_dns_mode_summary">hijack captures port 53; respect_policy follows app selection.</string>
+    <string name="settings_ebpf_shared_dns_mode_summary">hijack captures port 53; respect_policy follows client selection.</string>
+    <string name="settings_ebpf_dns_disabled">Local DNS is disabled; off is in effect.</string>
     <string name="settings_traffic_stats_notification">Show statistics</string>
     <string name="settings_traffic_stats_notification_summary">Show current speed and total traffic in notifications</string>
     <string name="settings_sniffer">Protocol sniffing</string>
@@ -592,8 +642,9 @@
     <string name="theme_color_violet">Violet</string>
     <string name="theme_color_yellow">Warm yellow</string>
     <string name="theme_color_orange">Vibrant orange</string>
-    <string name="theme_color_rose">Rose</string>
+    <string name="theme_color_sakura">Sakura pink</string>
     <string name="theme_color_cyan">Cyan blue</string>
+    <string name="theme_color_coffee">Coffee brown</string>
 
     <!-- About and licenses -->
     <string name="about_title">About</string>
@@ -619,10 +670,13 @@
     <string name="logs_paused">Paused</string>
     <string name="logs_pause">Pause log stream</string>
     <string name="logs_resume">Resume log stream</string>
+    <string name="logs_level_trace">Trace</string>
     <string name="logs_level_debug">Debug</string>
     <string name="logs_level_info">Info</string>
     <string name="logs_level_warning">Warning</string>
     <string name="logs_level_error">Error</string>
+    <string name="logs_level_fatal">Fatal</string>
+    <string name="logs_level_panic">Panic</string>
     <string name="logs_clear_title">Clear logs?</string>
     <string name="logs_clear_message">This permanently removes all entries in this log.</string>
 
@@ -631,9 +685,22 @@
     <string name="proxy_app_list_mode_blacklist">Blacklist mode</string>
     <string name="proxy_app_list_mode_whitelist">Whitelist mode</string>
     <string name="proxy_app_list_mode_global">All-app mode</string>
-    <string name="proxy_app_list_mode">App proxy mode</string>
     <string name="proxy_app_list_more_actions">More actions</string>
     <string name="proxy_app_list_show_system_apps">Show system apps</string>
+    <string name="proxy_app_list_scan_china_apps">Scan Chinese apps</string>
+    <string name="proxy_app_list_help">Help</string>
+    <string name="proxy_app_list_help_title">App proxy modes</string>
+    <string name="proxy_app_list_help_blacklist">Blacklist mode: apps on the blacklist bypass the proxy; everything else uses it.</string>
+    <string name="proxy_app_list_help_global">All-app mode: every app uses the proxy.</string>
+    <string name="proxy_app_list_help_whitelist">Whitelist mode: only apps on the whitelist use the proxy; everything else bypasses it.</string>
+    <string name="proxy_app_list_scan_china_progress">Scanned %1$d of %2$d, matched %3$d</string>
+    <string name="proxy_app_list_scan_china_done">Apps scanned: %1$d; Chinese apps found: %2$d</string>
+    <string name="proxy_app_list_scan_china_no_match">Scanned {scanned} apps, no Chinese apps found</string>
+    <string name="proxy_app_list_scan_china_skipped_global">Skipped in all-app mode</string>
+    <string name="proxy_app_list_invert_selection">Invert selection</string>
+    <string name="proxy_app_list_clear_selection">Clear selection</string>
+    <string name="proxy_app_list_invert_done">Selection inverted</string>
+    <string name="proxy_app_list_clear_done">Selection cleared</string>
     <string name="proxy_app_list_search_label">Search apps</string>
     <string name="proxy_app_list_entry_summary">{package}</string>
     <string name="proxy_app_list_loading">Loading apps…</string>
@@ -653,8 +720,9 @@
     <string name="proxy_service_stopped">Proxy service stopped</string>
 
     <!-- Outbound groups and outbounds -->
-    <string name="settings_group_management">Group management</string>
-    <string name="settings_group_management_summary">Edit subscription URLs, group names, and enabled status</string>
+    <string name="settings_network_quality_test">Network quality test</string>
+    <string name="settings_network_quality_test_summary">Measure download, upload, and responsiveness using the Apple networkQuality protocol</string>
+    <string name="settings_app_management_summary">Choose which installed apps use the proxy and how</string>
     <string name="settings_outbound_management">Outbound management</string>
     <string name="settings_outbound_management_summary">Import, add, and edit core outbound proxy servers</string>
     <string name="settings_selector_management">Selector management</string>
@@ -683,7 +751,6 @@
     <string name="outbound_group_custom_user_agent">Custom User-Agent</string>
     <string name="outbound_group_update_interval">Update interval (hours, optional)</string>
     <string name="outbound_group_update_interval_value">Every %1$s h</string>
-    <string name="outbound_group_update_interval_invalid">Enter at least 0.25 hours, or leave empty</string>
     <string name="outbound_group_update_via_proxy">Update through the running proxy</string>
     <string name="outbound_group_strict_import">Strict import</string>
     <string name="outbound_group_strict_import_summary">Keep existing nodes if any subscription entry is invalid</string>
@@ -696,9 +763,15 @@
     <string name="outbound_group_status_import_counts">Imported %1$d, skipped %2$d, duplicate %3$d</string>
     <string name="outbound_group_status_checked">%1$s · Checked %2$s</string>
     <string name="outbound_group_http_warning">This subscription uses unencrypted HTTP. HTTPS is recommended.</string>
+    <string name="outbound_group_subscription_traffic">Used %1$s / Total %2$s</string>
+    <string name="outbound_group_subscription_expire">Expires %1$s</string>
+    <string name="outbound_group_name_placeholder">Leave blank to auto-assign on first sync</string>
+    <string name="outbound_group_name_duplicate">%1$s(%2$d)</string>
     <string name="outbound_group_delete_title">Delete group?</string>
     <string name="outbound_group_delete_message">The group “%1$s” and all of its outbounds will be permanently deleted.</string>
     <string name="outbound_group_sync_failed">Unable to update group</string>
+    <string name="subscription_install_link_invalid">Invalid subscription link</string>
+    <string name="subscription_install_failed">Unable to import subscription</string>
     <string name="outbound_group_sync_all">Update all group subscriptions</string>
     <string name="outbound_group_sync_all_progress_title">Updating group subscriptions</string>
     <string name="outbound_group_sync_all_result_title">Subscription update results</string>
@@ -1303,4 +1376,31 @@
     <string name="settings_service_control_doze_note">Timers do not wake the device. If Android suspends the process, the latest missed action is reconciled after resume; stop wins when both are due.</string>
     <string name="settings_service_control_saving">Restarting…</string>
     <string name="settings_service_control_save_failed">Could not apply service control. Your edits were kept.</string>
+    <string name="monitor_connections_closed">Disconnected</string>
+    <string name="monitor_connections_total">Total connections</string>
+    <string name="monitor_connections_closed_time">Disconnection time</string>
+    <string name="monitor_connections_closed_empty">No disconnected connections recorded</string>
+    <string name="broadcast_update_notification_title">Updating subscriptions and resources</string>
+
+    <!-- Proxy error dialog -->
+    <string name="proxy_error_dialog_title">Failed to start proxy</string>
+    <string name="proxy_error_dialog_mode_title">Mode: %1$s</string>
+    <string name="proxy_error_dialog_occurred_at">Time: %1$s</string>
+    <string name="proxy_error_dialog_details">Error details</string>
+    <string name="proxy_error_dialog_device_info">Device &amp; system</string>
+    <string name="proxy_error_dialog_service_log">Start log</string>
+    <string name="proxy_error_dialog_diagnostics">Suggested actions</string>
+    <string name="proxy_error_dialog_copy">Copy log</string>
+    <string name="proxy_error_dialog_copied">Copied to clipboard</string>
+
+    <!-- Proxy error: eBPF tc data plane unavailable (confirmed on kernel 4.19 + KernelSU Next) -->
+    <string name="proxy_error_ebpf_tc_unsupported_explanation">The eBPF tc data plane needs both veth devices and the clsact qdisc. This kernel refuses to create a veth pair in the current network namespace (EOPNOTSUPP).</string>
+    <string name="proxy_error_ebpf_tc_unsupported_switch">Workaround: open Settings → Advanced settings, confirm eBPF (ROOT) is selected in Run mode, then under Proxy settings (eBPF) change Data plane from tc to cgroup and retry.</string>
+    <string name="proxy_error_ebpf_tc_unsupported_fallback">If cgroup also fails to start, open Settings → Advanced settings and select TUN (ROOT) in Run mode instead.</string>
+    <string name="proxy_error_ebpf_tc_unsupported_report">When reporting this, include the error text above and the asteriskd / sing-box section of logcat.</string>
+    <string name="shared_core_migration_title">App updated</string>
+    <string name="shared_core_migration_message">VPN and ROOT now share the built-in Core. Remove the custom Core to save space? You can still upload a custom Core later.</string>
+    <string name="shared_core_migration_stop_root">Any ROOT service will stop before removal.</string>
+    <string name="shared_core_migration_keep">Keep</string>
+    <string name="shared_core_migration_remove">Remove</string>
 </resources>

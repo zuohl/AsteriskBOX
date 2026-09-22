@@ -7,7 +7,6 @@ package features.logs
 
 import android.content.Context
 import android.net.Uri
-import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,7 +17,6 @@ import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -29,10 +27,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -54,11 +49,14 @@ import app.LocalNavigator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.asterisk.zcc.abox.R
+import app.R
 import ui.clipboard.setPlainText
 import ui.components.AsteriskActionButton
 import ui.components.AsteriskFilterChip
 import ui.components.AsteriskPinnedSearchArea
+import ui.components.AsteriskPullToRefreshBox
+import ui.components.AsteriskScaffold
+import ui.components.AsteriskTopAppBar
 import ui.layout.pageContentPaddingWithCutout
 import ui.layout.pageListPadding
 import ui.icons.AsteriskIcons as Icons
@@ -74,7 +72,6 @@ fun CoreLogsPage(
         title = stringResource(R.string.core_logs_title),
         repository = services.coreLogRepository,
         levelFilters = CoreLogLevelFilters,
-        rawLevelLabels = true,
         onClear = { context.clearCoreLogFile(SingBoxLogFile.Error) },
     )
 }
@@ -89,7 +86,6 @@ fun LogcatLogsPage(
         title = stringResource(R.string.logcat_logs_title),
         repository = services.logcatRepository,
         levelFilters = LogcatLogLevelFilters,
-        rawLevelLabels = false,
     )
 }
 
@@ -99,7 +95,6 @@ private fun LogViewerPage(
     title: String,
     repository: CoreLogRepository,
     levelFilters: List<LogLevelFilter>,
-    rawLevelLabels: Boolean,
     onClear: suspend () -> Unit = {},
 ) {
     val isWideScreen = LocalIsWideScreen.current
@@ -162,10 +157,10 @@ private fun LogViewerPage(
         }
     }
 
-    Scaffold(
+    AsteriskScaffold(
         topBar = {
-            Column(modifier = Modifier.background(MaterialTheme.colorScheme.surface)) {
-                TopAppBar(
+            Column {
+                AsteriskTopAppBar(
                     title = {
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -244,7 +239,6 @@ private fun LogViewerPage(
                         filters = levelFilters,
                         selected = levelFilter,
                         onSelected = { levelFilter = it },
-                        rawLevelLabels = rawLevelLabels,
                     )
                 }
             }
@@ -257,15 +251,17 @@ private fun LogViewerPage(
         )
         val listPadding = pageListPadding(contentPadding)
         val layoutDirection = LocalLayoutDirection.current
-        PullToRefreshBox(
+        AsteriskPullToRefreshBox(
             isRefreshing = refreshing,
             onRefresh = ::refresh,
-            modifier = Modifier.fillMaxSize().padding(top = listPadding.calculateTopPadding()),
+            indicatorTopPadding = listPadding.calculateTopPadding(),
+            modifier = Modifier.fillMaxSize(),
         ) {
             LazyColumn(
                 state = lazyListState,
                 contentPadding = PaddingValues(
                     start = listPadding.calculateStartPadding(layoutDirection),
+                    top = listPadding.calculateTopPadding(),
                     end = listPadding.calculateEndPadding(layoutDirection),
                     bottom = listPadding.calculateBottomPadding(),
                 ),
@@ -327,7 +323,6 @@ private fun LogLevelFilterRow(
     filters: List<LogLevelFilter>,
     selected: LogLevelFilter,
     onSelected: (LogLevelFilter) -> Unit,
-    rawLevelLabels: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -338,23 +333,21 @@ private fun LogLevelFilterRow(
             AsteriskFilterChip(
                 selected = selected == filter,
                 onClick = { onSelected(filter) },
-                label = when {
-                    filter == LogLevelFilter.All -> stringResource(R.string.common_all)
-                    rawLevelLabels -> filter.rawLevel.orEmpty()
-                    else -> stringResource(filter.logcatLabelResource())
-                },
+                label = stringResource(filter.labelResource()),
             )
         }
     }
 }
 
-private fun LogLevelFilter.logcatLabelResource(): Int = when (this) {
+private fun LogLevelFilter.labelResource(): Int = when (this) {
     LogLevelFilter.All -> R.string.common_all
+    LogLevelFilter.Trace -> R.string.logs_level_trace
     LogLevelFilter.Debug -> R.string.logs_level_debug
     LogLevelFilter.Info -> R.string.logs_level_info
-    LogLevelFilter.Warning -> R.string.logs_level_warning
+    LogLevelFilter.Warn, LogLevelFilter.Warning -> R.string.logs_level_warning
     LogLevelFilter.Error -> R.string.logs_level_error
-    else -> error("Unsupported Logcat level filter: $this")
+    LogLevelFilter.Fatal -> R.string.logs_level_fatal
+    LogLevelFilter.Panic -> R.string.logs_level_panic
 }
 
 private fun CoreLogEntry.copyText(): String = "$time  ${level.uppercase()}  $message"

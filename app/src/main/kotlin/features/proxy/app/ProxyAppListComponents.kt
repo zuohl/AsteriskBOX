@@ -3,6 +3,9 @@
 
 package features.proxy.app
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import ui.icons.AsteriskIcons as Icons
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -22,20 +25,19 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -43,10 +45,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import org.asterisk.zcc.abox.R
-import app.modes.ProxyAppListModeBlacklist
-import app.modes.ProxyAppListModeGlobal
-import app.modes.ProxyAppListModeWhitelist
+import app.R
 import coil3.compose.AsyncImage
 import features.proxy.app.model.AppPackageEntry
 import features.proxy.app.model.ProxyAppIconRequest
@@ -61,12 +60,15 @@ import ui.components.AsteriskSelectionCard
 import ui.text.formatTemplate
 import ui.theme.AsteriskMotion
 import ui.theme.AsteriskShapeTokens
-import ui.icons.AsteriskIcons as Icons
 
 internal enum class ProxyAppListMoreAction {
     ToggleSystemApps,
+    ScanChinaApps,
+    InvertSelection,
+    ClearSelection,
     ImportClipboard,
     ExportClipboard,
+    Help,
 }
 
 @Composable
@@ -123,12 +125,38 @@ internal fun ProxyAppListMoreActionsMenu(
                 trailingIcon = { AsteriskCheckbox(checked = showSystemApps, onCheckedChange = null) },
             )
             DropdownMenuItem(
+                text = { Text(stringResource(R.string.proxy_app_list_scan_china_apps)) },
+                onClick = {
+                    expanded = false
+                    onAction(ProxyAppListMoreAction.ScanChinaApps)
+                },
+                leadingIcon = { Icon(Icons.Rounded.Public, contentDescription = null) },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.proxy_app_list_invert_selection)) },
+                onClick = {
+                    expanded = false
+                    onAction(ProxyAppListMoreAction.InvertSelection)
+                },
+                leadingIcon = {
+                    Icon(Icons.AutoMirrored.Rounded.CompareArrows, contentDescription = null)
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.proxy_app_list_clear_selection)) },
+                onClick = {
+                    expanded = false
+                    onAction(ProxyAppListMoreAction.ClearSelection)
+                },
+                leadingIcon = { Icon(Icons.Rounded.Remove, contentDescription = null) },
+            )
+            DropdownMenuItem(
                 text = { Text(stringResource(R.string.common_import_from_clipboard)) },
                 onClick = {
                     expanded = false
                     onAction(ProxyAppListMoreAction.ImportClipboard)
                 },
-                leadingIcon = { Icon(Icons.Rounded.ContentPaste, contentDescription = null) },
+                leadingIcon = { Icon(Icons.Rounded.FileDownload, contentDescription = null) },
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.common_export_to_clipboard)) },
@@ -138,43 +166,39 @@ internal fun ProxyAppListMoreActionsMenu(
                 },
                 leadingIcon = { Icon(Icons.Rounded.FileUpload, contentDescription = null) },
             )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.proxy_app_list_help)) },
+                onClick = {
+                    expanded = false
+                    onAction(ProxyAppListMoreAction.Help)
+                },
+                leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Help, contentDescription = null) },
+            )
         }
     }
 }
 
 @Composable
-internal fun ProxyAppListModeMenu(
+internal fun ProxyAppListModeSegmentedRow(
     modes: List<String>,
     selectedIndex: Int,
     onSelectedIndexChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { expanded = true }) {
-            Icon(Icons.Rounded.Tune, stringResource(R.string.proxy_app_list_mode))
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            modes.forEachIndexed { index, mode ->
-                DropdownMenuItem(
-                    text = { Text(mode) },
-                    leadingIcon = { Icon(proxyAppListModeIcon(index), contentDescription = null) },
-                    onClick = {
-                        expanded = false
-                        onSelectedIndexChange(index)
-                    },
-                    trailingIcon = { RadioButton(selected = selectedIndex == index, onClick = null) },
-                )
+    val safeIndex = if (selectedIndex in modes.indices) selectedIndex else 0
+    SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth()) {
+        modes.forEachIndexed { index, mode ->
+            SegmentedButton(
+                selected = safeIndex == index,
+                onClick = { onSelectedIndexChange(index) },
+                shape = SegmentedButtonDefaults.itemShape(
+                    index = index,
+                    count = modes.size,
+                ),
+            ) {
+                Text(mode)
             }
         }
-    }
-}
-
-internal fun proxyAppListModeIcon(mode: Int): ImageVector {
-    return when (mode) {
-        ProxyAppListModeBlacklist -> Icons.Rounded.Block
-        ProxyAppListModeWhitelist -> Icons.Rounded.CheckCircle
-        ProxyAppListModeGlobal -> Icons.Rounded.Public
-        else -> Icons.Rounded.Tune
     }
 }
 

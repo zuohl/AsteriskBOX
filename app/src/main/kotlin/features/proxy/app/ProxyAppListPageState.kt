@@ -18,7 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.res.stringResource
-import org.asterisk.zcc.abox.R
+import app.R
 import features.proxy.app.model.AppPackageEntry
 import features.proxy.app.model.ProxyAppListItem
 import features.proxy.app.model.ProxyAppListPreparedData
@@ -56,6 +56,7 @@ internal class ProxyAppListPageState {
     var searchValue by mutableStateOf("")
     var debouncedSearchValue by mutableStateOf("")
     var showSystemApps by mutableStateOf(false)
+    var scanProgress by mutableStateOf<ScanProgressState?>(null)
 
     fun requestRefresh() {
         if (!loadingApps) {

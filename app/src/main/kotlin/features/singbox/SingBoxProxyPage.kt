@@ -5,10 +5,10 @@
 
 package features.singbox
 
+import ui.components.AsteriskDropdownMenuItem
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.calculateEndPadding
-import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -41,11 +39,10 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Scaffold
+import ui.components.AsteriskScaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import ui.components.AsteriskTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -66,7 +63,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInParent
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.res.stringResource
@@ -86,7 +82,7 @@ import app.LocalAppServices
 import app.LocalAppStateStore
 import app.LocalIsWideScreen
 import app.LocalUpdateAppState
-import org.asterisk.zcc.abox.R
+import app.R
 import app.collectAppState
 import app.isManagedSingBoxTag
 import app.managedOutboundGroupSelectorTag
@@ -114,6 +110,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import ui.layout.pageContentPaddingWithCutout
+import ui.isInDarkTheme
 import ui.layout.pageListPadding
 import ui.theme.AsteriskMotion
 
@@ -344,10 +341,10 @@ fun SingBoxProxyPage(
         }
     }
 
-    Scaffold(
+    AsteriskScaffold(
         topBar = {
-            Column(modifier = Modifier.background(MaterialTheme.colorScheme.surface)) {
-                TopAppBar(
+            Column {
+                AsteriskTopAppBar(
                     title = { Text(stringResource(R.string.sing_box_proxies_title)) },
                     actions = {
                         AnimatedVisibility(
@@ -401,12 +398,6 @@ fun SingBoxProxyPage(
             isWideScreen = isWideScreen,
         )
         val listPadding = pageListPadding(contentPadding, bottomExtra = 104.dp)
-        val layoutDirection = LocalLayoutDirection.current
-        val pageListContentPadding = PaddingValues(
-            start = listPadding.calculateStartPadding(layoutDirection),
-            end = listPadding.calculateEndPadding(layoutDirection),
-            bottom = listPadding.calculateBottomPadding(),
-        )
 
         AnimatedContent(
             targetState = contentState == SingBoxProxyContentState.ServiceStopped,
@@ -454,8 +445,8 @@ fun SingBoxProxyPage(
                             LazyVerticalGrid(
                                 columns = GridCells.Fixed(columns),
                                 state = pageGridState,
-                                modifier = Modifier.padding(top = listPadding.calculateTopPadding()),
-                                contentPadding = pageListContentPadding,
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = listPadding,
                                 verticalArrangement = Arrangement.spacedBy(SingBoxProxyNodeGridSpacing),
                                 horizontalArrangement = Arrangement.spacedBy(SingBoxProxyNodeGridSpacing),
                             ) {
@@ -774,15 +765,14 @@ private fun SingBoxProxyOptionsMenu(
                             R.string.sing_box_proxies_option_layout_multiple,
                             Icons.Rounded.GridView,
                         ),
-                    ).forEach { (value, label, icon) ->
-                        DropdownMenuItem(
-                            text = { Text(stringResource(label)) },
+                    ).forEach { (value, label, _) ->
+                        AsteriskDropdownMenuItem(
+                            text = stringResource(label),
+                            selected = layout == value,
                             onClick = {
                                 dismissMenu()
                                 onLayoutChange(value)
                             },
-                            leadingIcon = { Icon(icon, contentDescription = null) },
-                            trailingIcon = { RadioButton(selected = layout == value, onClick = null) },
                         )
                     }
                 }
@@ -810,15 +800,14 @@ private fun SingBoxProxyOptionsMenu(
                             R.string.sing_box_proxies_option_sort_delay,
                             Icons.Rounded.Speed,
                         ),
-                    ).forEach { (value, label, icon) ->
-                        DropdownMenuItem(
-                            text = { Text(stringResource(label)) },
+                    ).forEach { (value, label, _) ->
+                        AsteriskDropdownMenuItem(
+                            text = stringResource(label),
+                            selected = sort == value,
                             onClick = {
                                 dismissMenu()
                                 onSortChange(value)
                             },
-                            leadingIcon = { Icon(icon, contentDescription = null) },
-                            trailingIcon = { RadioButton(selected = sort == value, onClick = null) },
                         )
                     }
                 }
@@ -1084,15 +1073,17 @@ private fun delayColor(
     delayStatus: SingBoxProxyDelayStatus,
     delay: Int?,
 ): Color {
+    val darkTheme = isInDarkTheme()
     return when (delayStatus) {
-        SingBoxProxyDelayStatus.NotTested -> MaterialTheme.colorScheme.onSurfaceVariant
-        SingBoxProxyDelayStatus.Testing -> MaterialTheme.colorScheme.primary
-        SingBoxProxyDelayStatus.Failed -> MaterialTheme.colorScheme.error
+        SingBoxProxyDelayStatus.NotTested, SingBoxProxyDelayStatus.Testing -> MaterialTheme.colorScheme.onSurfaceVariant
+        SingBoxProxyDelayStatus.Failed -> if (darkTheme) Color(0xFFF12522) else Color(0xFFE94634)
         SingBoxProxyDelayStatus.Measured -> when {
             delay == null -> MaterialTheme.colorScheme.onSurfaceVariant
-            delay < 300 -> MaterialTheme.colorScheme.primary
-            delay < 500 -> MaterialTheme.colorScheme.tertiary
-            else -> MaterialTheme.colorScheme.error
+            delay < 0 -> if (darkTheme) Color(0xFFF12522) else Color(0xFFE94634)
+            delay < 300 -> if (darkTheme) Color(0xFF6BD58A) else Color(0xFF128A3C)
+            delay < 600 -> if (darkTheme) Color(0xFFFFC857) else Color(0xFFD18A00)
+            delay < 900 -> if (darkTheme) Color(0xFFFF9B63) else Color(0xFFE06400)
+            else -> if (darkTheme) Color(0xFFF12522) else Color(0xFFE94634)
         }
     }
 }

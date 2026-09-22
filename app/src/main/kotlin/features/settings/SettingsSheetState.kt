@@ -7,6 +7,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import app.AppState
+import engine.singbox.DefaultEbpfSharedDataPlane
+import engine.singbox.DefaultEbpfDnsMode
 import features.settings.sheets.sanitizeIgnoredInterfaceSelectors
 import features.settings.sheets.sanitizeExternalInterfaces
 import features.settings.sheets.sanitizePrivateAddressCidrs
@@ -41,9 +43,13 @@ internal class SettingsSheetState(
 
     var showTunSharedNetwork by mutableStateOf(false)
     var tunSharedNetworkInterfacesDraft by mutableStateOf(emptyList<String>())
+    var ebpfSharedDataPlaneDraft by mutableStateOf(DefaultEbpfSharedDataPlane)
+    var ebpfSharedDnsModeDraft by mutableStateOf(DefaultEbpfDnsMode)
 
     var showTunBypassRuleSets by mutableStateOf(false)
     var tunBypassRuleSetTagsDraft by mutableStateOf(emptyList<String>())
+
+    var showNetworkQualityTest by mutableStateOf(false)
 
     fun openLocalProxySettings(appState: AppState) {
         localProxySettingsDraft = appState.toLocalProxySettingsDraft()
@@ -93,6 +99,8 @@ internal class SettingsSheetState(
     }
 
     fun openTunSharedNetwork(appState: AppState) {
+        ebpfSharedDataPlaneDraft = appState.ebpfSharedDataPlane
+        ebpfSharedDnsModeDraft = appState.ebpfSharedDnsMode
         tunSharedNetworkInterfacesDraft =
             appState.tunSharedNetworkInterfaces.sanitizeTunSharedNetworkInterfaces()
         showTunSharedNetwork = true
@@ -101,6 +109,10 @@ internal class SettingsSheetState(
     fun openTunBypassRuleSets(appState: AppState) {
         tunBypassRuleSetTagsDraft = sanitizeTunBypassRuleSetTags(appState.tunBypassRuleSetTags)
         showTunBypassRuleSets = true
+    }
+
+    fun openNetworkQualityTest() {
+        showNetworkQualityTest = true
     }
 }
 

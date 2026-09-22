@@ -16,13 +16,21 @@ import engine.root.mode.RootModeCatalog
 import engine.root.mode.RootModeDefinition
 import engine.root.mode.DefaultTproxyPort as ModeDefaultTproxyPort
 import engine.root.mode.DefaultTun2SocksProxyPort as ModeDefaultTun2SocksProxyPort
+import engine.root.publication.rootRuntimeLayout
+import engine.root.runtime.ProxyErrorBus
+import engine.root.runtime.RootEbpfFailureAnalyzer
+import engine.root.runtime.RootFailureReport
+import engine.root.runtime.RootFailureWatcher
 import engine.root.runtime.RootRuntimeBusyException
 import engine.root.runtime.RootRuntimeConflictException
 import engine.root.runtime.RootSupervisorController
 import engine.root.runtime.toStableProxyEngineStatus
+import engine.singbox.runtime.restoreRootSingBoxMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.cancellation.CancellationException
 import system.RootShellGateway
 
@@ -56,6 +64,7 @@ internal class RootModeEngine(
         controller.preflightStart(definition.daemonMode, explicitRestart = false) ?: return null
         val restored = buildLocalProxyOptions(request)
         val confirmed = controller.preflightStart(definition.daemonMode, explicitRestart = false) ?: return null
+        restoreRootSingBoxMode(request.appState)
         restored?.let(LocalProxyRuntime::update) ?: LocalProxyRuntime.clear()
         return controller.proxyStatus(confirmed, runMode, definition.daemonMode)
     }
@@ -78,6 +87,9 @@ internal class RootModeEngine(
         val rootContext = context.prepareRootConfigBuildContext(request)
         val config = definition.buildConfig(rootContext)
         require(config.asteriskdConfig.mode == definition.daemonMode)
+        // A new attempt begins: a failure from it must be publishable even while the previous
+        // failure is still the newest record in the supervisor state file.
+        RootFailureWatcher.beginAttempt()
         return runCatching {
             val snapshot = if (explicitRestart) {
                 controller.restart(config.root, config.asteriskdConfig)
@@ -85,6 +97,7 @@ internal class RootModeEngine(
                 controller.start(config.root, config.asteriskdConfig)
             }
             controller.requireRunning(snapshot, definition.daemonMode)
+            restoreStartedMode(request)
             config.localProxyOptions?.let(LocalProxyRuntime::update) ?: LocalProxyRuntime.clear()
             controller.proxyStatus(snapshot, runMode, definition.daemonMode)
         }.onFailure {
@@ -92,6 +105,26 @@ internal class RootModeEngine(
         }.getOrElse { error ->
             if (error is CancellationException) throw error
             if (error is RootRuntimeConflictException || error is RootRuntimeBusyException) throw error
+            // Surface a diagnostic dialog for start failures that happen synchronously (for
+            // example the launcher script refusing to run). Failures that happen after the
+            // supervisor already reached `running` are picked up by RootFailureWatcher.
+            val occurredAt = System.currentTimeMillis()
+            val report = RootFailureReport.build(
+                context = context,
+                shell = rootAccess,
+                layout = context.rootRuntimeLayout(),
+                occurredAtEpochMillis = occurredAt,
+            )
+            ProxyErrorBus.publish(
+                RootEbpfFailureAnalyzer.analyze(
+                    runMode = runMode,
+                    error = error,
+                    occurredAtEpochMillis = occurredAt,
+                ).copy(
+                    deviceInfo = report.deviceInfo,
+                    serviceLog = report.serviceLog,
+                ),
+            )
             throw IllegalStateException(
                 context.getString(definition.startFailedErrorResId, error.message.orEmpty()),
                 error,
@@ -120,8 +153,12 @@ internal class RootModeEngine(
         if (!rootAccess.hasRootAccess()) error(context.getString(definition.rootRequiredErrorResId))
         val config = definition.buildConfig(context.prepareRootConfigBuildContext(request))
         require(config.asteriskdConfig.mode == definition.daemonMode)
+        // Reconfiguring can start a Service attempt of its own, so it counts as a new attempt:
+        // without this a failure repeating the previous code would be suppressed.
+        RootFailureWatcher.beginAttempt()
         val wasRunning = controller.reconfigureServiceControl(config.root, config.asteriskdConfig)
         if (wasRunning) {
+            restoreStartedMode(request)
             config.localProxyOptions?.let(LocalProxyRuntime::update) ?: LocalProxyRuntime.clear()
         } else {
             LocalProxyRuntime.clear()
@@ -131,6 +168,19 @@ internal class RootModeEngine(
 
     suspend fun ownsRuntime(): Boolean {
         return controller.ownsRuntime()
+    }
+
+    private suspend fun restoreStartedMode(request: ProxyEngineStartRequest) {
+        try {
+            restoreRootSingBoxMode(request.appState)
+        } catch (error: Exception) {
+            // Do not leave a newly started cycle running in an unconfirmed mode.
+            withContext(NonCancellable) {
+                runCatching { controller.stopOwn() }.exceptionOrNull()?.let(error::addSuppressed)
+            }
+            LocalProxyRuntime.clear()
+            throw error
+        }
     }
 
     override suspend fun status(): ProxyEngineStatus {

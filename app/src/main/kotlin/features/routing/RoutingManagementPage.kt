@@ -37,10 +37,10 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import ui.components.AsteriskScaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import ui.components.AsteriskTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -88,7 +88,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.asterisk.zcc.abox.R
+import app.R
 import sh.calvin.reorderable.ReorderableItem
 import ui.components.AsteriskExpressiveCard
 import ui.components.AsteriskInfoChip
@@ -104,6 +104,8 @@ import ui.components.StringListEditor
 import ui.components.WarningConfirmDialog
 import ui.components.draggedCardShadow
 import ui.components.localizedLabel
+import ui.components.rememberReorderPreview
+import ui.components.reorderByIds
 import ui.components.longPressReorderDragHandle
 import ui.components.managedInboundChoices
 import ui.components.rememberAsteriskReorderableLazyGridState
@@ -188,9 +190,9 @@ internal fun RoutingManagementPage(
         }
     }
 
-    Scaffold(
+    AsteriskScaffold(
         topBar = {
-            TopAppBar(
+            AsteriskTopAppBar(
                 title = {
                     Column {
                         Text(stringResource(R.string.routing_title))
@@ -245,9 +247,9 @@ internal fun RoutingManagementPage(
             onFinalOutboundChange = { outbound ->
                 updateAppState { state -> state.copy(routeFinal = outbound) }
             },
-            onMove = { fromIndex, toIndex ->
+            onReorder = { orderedIds ->
                 updateAppState { state ->
-                    state.copy(routeRules = state.routeRules.moveRouteRule(fromIndex, toIndex))
+                    state.copy(routeRules = state.routeRules.reorderByIds(orderedIds, SingBoxRouteRuleState::id))
                 }
             },
             onEnabledChange = { rule, enabled ->
@@ -269,54 +271,54 @@ internal fun RoutingManagementPage(
             },
             onDelete = { pendingDelete = it },
         )
-    }
 
-    RoutingSettingsSheet(
-        show = editingRouteSettings,
-        initialDraft = appState.toRoutingSettingsDraft(),
-        saving = savingRouteSettings,
-        onDismiss = { editingRouteSettings = false },
-        onSave = { saved ->
-            if (!savingRouteSettings) {
-                val baseState = appState
-                val candidateState = baseState.withRoutingSettings(saved)
-                savingRouteSettings = true
-                scope.launch {
-                    try {
-                        withContext(Dispatchers.IO) {
-                            validateSingBoxRuntimeConfiguration(context, candidateState)
-                        }
-                        var committed = false
-                        updateAppState { current ->
-                            if (current === baseState) {
-                                committed = true
-                                candidateState
-                            } else {
-                                current
+        RoutingSettingsSheet(
+            show = editingRouteSettings,
+            initialDraft = appState.toRoutingSettingsDraft(),
+            saving = savingRouteSettings,
+            onDismiss = { editingRouteSettings = false },
+            onSave = { saved ->
+                if (!savingRouteSettings) {
+                    val baseState = appState
+                    val candidateState = baseState.withRoutingSettings(saved)
+                    savingRouteSettings = true
+                    scope.launch {
+                        try {
+                            withContext(Dispatchers.IO) {
+                                validateSingBoxRuntimeConfiguration(context, candidateState)
                             }
-                        }
-                        if (committed) {
-                            editingRouteSettings = false
-                        } else {
+                            var committed = false
+                            updateAppState { current ->
+                                if (current === baseState) {
+                                    committed = true
+                                    candidateState
+                                } else {
+                                    current
+                                }
+                            }
+                            if (committed) {
+                                editingRouteSettings = false
+                            } else {
+                                tipNotifier.show(settingsSaveFailedMessage)
+                            }
+                        } catch (error: Throwable) {
+                            if (error is CancellationException) throw error
+                            reportFailure(
+                                context = FailureLogContext(
+                                    operation = "save_route_settings",
+                                    stage = "validate",
+                                ),
+                                error = error,
+                            )
                             tipNotifier.show(settingsSaveFailedMessage)
+                        } finally {
+                            savingRouteSettings = false
                         }
-                    } catch (error: Throwable) {
-                        if (error is CancellationException) throw error
-                        reportFailure(
-                            context = FailureLogContext(
-                                operation = "save_route_settings",
-                                stage = "validate",
-                            ),
-                            error = error,
-                        )
-                        tipNotifier.show(settingsSaveFailedMessage)
-                    } finally {
-                        savingRouteSettings = false
                     }
                 }
-            }
-        },
-    )
+            },
+        )
+    }
 
     WarningConfirmDialog(
         show = pendingDelete != null,
@@ -366,18 +368,22 @@ private fun RoutingRuleGrid(
     globalLabel: String,
     onOpenRouteSettings: () -> Unit,
     onFinalOutboundChange: (String) -> Unit,
-    onMove: (Int, Int) -> Unit,
+    onReorder: (List<Int>) -> Unit,
     onEnabledChange: (SingBoxRouteRuleState, Boolean) -> Unit,
     onEdit: (SingBoxRouteRuleState) -> Unit,
     onDelete: (SingBoxRouteRuleState) -> Unit,
 ) {
+    val preview = rememberReorderPreview(rules, SingBoxRouteRuleState::id) { ids ->
+        onReorder(ids)
+        true
+    }
     val gridState = rememberLazyGridState()
     val reorderableState = rememberAsteriskReorderableLazyGridState(
         lazyGridState = gridState,
         itemCount = rules.size,
         indexOffset = 2,
         scrollThresholdPadding = verticalReorderScrollThresholdPadding(contentPadding),
-        onMove = onMove,
+        onMove = preview.onMove,
     )
     LazyVerticalGrid(
         columns = GridCells.Fixed(columns),
@@ -414,7 +420,7 @@ private fun RoutingRuleGrid(
             }
         } else {
             items(
-                items = rules,
+                items = preview.items,
                 key = SingBoxRouteRuleState::id,
                 contentType = { "route-rule" },
             ) { rule ->
@@ -441,6 +447,8 @@ private fun RoutingRuleGrid(
                                 scope = this,
                                 enabled = rules.size > 1,
                                 state = reorderableState,
+                                onDragStarted = preview.onDragStarted,
+                                onDragStopped = preview.onDragStopped,
                             ),
                     )
                 }

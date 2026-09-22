@@ -29,11 +29,11 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import ui.components.AsteriskScaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import ui.components.AsteriskTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -92,7 +92,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
-import org.asterisk.zcc.abox.R
+import app.R
 import ui.components.AsteriskExpressiveCard
 import ui.components.AsteriskFocusSurface
 import ui.components.AsteriskPageCard
@@ -236,22 +236,6 @@ fun SingBoxDashboardPage(
                     HomeModeRuntimeAction.None -> null
                     HomeModeRuntimeAction.PatchRuntime ->
                         services.singBoxRuntime.patchMode(modeChange.runtimeAppState).exceptionOrNull()
-                    HomeModeRuntimeAction.RestartService ->
-                        when (val result = services.proxyServiceUseCase.restart(modeChange.runtimeAppState)) {
-                            is ProxyServiceResult.Success -> {
-                                updateAppState { state ->
-                                    state.copy(
-                                        proxyRunning = result.proxyRunning,
-                                        localProxyPort = result.appState?.localProxyPort ?: state.localProxyPort,
-                                        singBoxControlPort =
-                                            result.appState?.singBoxControlPort ?: state.singBoxControlPort,
-                                    )
-                                }
-                                null
-                            }
-                            is ProxyServiceResult.Failed -> result.error
-                        }
-
                 }
                 failure?.let { error ->
                     if (modeChange.persistSelection) {
@@ -277,9 +261,9 @@ fun SingBoxDashboardPage(
         }
     }
 
-    Scaffold(
+    AsteriskScaffold(
         topBar = {
-            TopAppBar(
+            AsteriskTopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
             )
         },
@@ -631,7 +615,7 @@ private fun MonitoringEntryCard(
                     Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(
                     text = summary,

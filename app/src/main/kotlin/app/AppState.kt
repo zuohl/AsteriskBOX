@@ -12,8 +12,10 @@ import app.modes.RunModeVpnService
 import app.modes.SingBoxModeRule
 import app.modes.SingBoxProxyLayoutAuto
 import app.modes.SingBoxProxySortDefault
-import app.modes.SingBoxTunStackGvisor
 import engine.singbox.DefaultSingBoxControlPort
+import engine.singbox.DefaultEbpfLocalDataPlane
+import engine.singbox.DefaultEbpfSharedDataPlane
+import engine.singbox.DefaultEbpfDnsMode
 import engine.singbox.DefaultSingBoxDnsCacheCapacity
 import engine.singbox.DefaultSingBoxDnsFinal
 import engine.singbox.DefaultSingBoxDnsRules
@@ -59,7 +61,6 @@ data class AppState(
     val singBoxMode: Int = SingBoxModeRule,
     val singBoxProxyLayout: Int = SingBoxProxyLayoutAuto,
     val singBoxProxySort: Int = SingBoxProxySortDefault,
-    val singBoxTunStack: Int = SingBoxTunStackGvisor,
     val singBoxControlPort: String = DefaultSingBoxControlPort.toString(),
     val singBoxControlSecret: String = "",
     val enableLocalDns: Boolean = true,
@@ -81,6 +82,8 @@ data class AppState(
     val coreLogLevel: String = DefaultSingBoxLogLevel,
     val enableTrafficStatsNotification: Boolean = false,
     val enableBroadcastControl: Boolean = false,
+    val enableResourceAutoUpdate: Boolean = false,
+    val resourceAutoUpdateInterval: String = "24",
     val resourceFileSource: Int = ResourceFileSourceDefault,
     val customResourceFileGeositeCategoryAdsAllUrl: String = "",
     val customResourceFileGeositeGoogleUrl: String = "",
@@ -117,6 +120,10 @@ data class AppState(
     val enableRootBootScript: Boolean = false,
     val enableRootEbpfRules: Boolean = false,
     val enableRootEbpfDirectCidrBypass: Boolean = false,
+    val ebpfLocalDataPlane: String = DefaultEbpfLocalDataPlane,
+    val ebpfSharedDataPlane: String = DefaultEbpfSharedDataPlane,
+    val ebpfLocalDnsMode: String = DefaultEbpfDnsMode,
+    val ebpfSharedDnsMode: String = DefaultEbpfDnsMode,
     val tunBypassRuleSetTags: List<String> = emptyList(),
     val enableRootIpv6Disabler: Boolean = false,
     val socks5ProxyPort: String = RootModeEngine.DefaultTun2SocksProxyPort.toString(),

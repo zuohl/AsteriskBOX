@@ -5,20 +5,20 @@ package features.settings
 
 import engine.singbox.SingBoxLogLevels
 
-internal enum class SettingsGeneralItem {
-    OutboundGroups,
-    Resources,
+internal enum class SettingsToolsItem {
+    NetworkQualityTest,
 }
 
-internal val SettingsGeneralItems = listOf(
-    SettingsGeneralItem.OutboundGroups,
-    SettingsGeneralItem.Resources,
+internal val SettingsToolsItems = listOf(
+    SettingsToolsItem.NetworkQualityTest,
 )
 
 internal enum class SettingsCoreItem {
     DnsManagement,
     Sniffer,
     Outbounds,
+    AppManagement,
+    Resources,
     Selectors,
     Endpoints,
     Routing,
@@ -26,12 +26,14 @@ internal enum class SettingsCoreItem {
 }
 
 internal val SettingsCoreItems = listOf(
+    SettingsCoreItem.Resources,
     SettingsCoreItem.DnsManagement,
     SettingsCoreItem.Sniffer,
     SettingsCoreItem.Outbounds,
     SettingsCoreItem.Endpoints,
     SettingsCoreItem.Selectors,
     SettingsCoreItem.Routing,
+    SettingsCoreItem.AppManagement,
     SettingsCoreItem.LogLevel,
 )
 

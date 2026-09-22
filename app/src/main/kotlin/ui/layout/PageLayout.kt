@@ -6,8 +6,7 @@ package ui.layout
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import ui.components.AsteriskTopAppBar
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
@@ -43,6 +42,16 @@ fun Modifier.pageReadableWidth(): Modifier = this
 @Composable
 fun Modifier.pageHorizontalPadding(): Modifier = pageReadableWidth()
     .padding(horizontal = rememberPageGutter())
+
+@Composable
+fun Modifier.cutoutHorizontalPadding(): Modifier {
+    val layoutDirection = LocalLayoutDirection.current
+    val cutoutPadding = WindowInsets.displayCutout.asPaddingValues()
+    return padding(
+        start = cutoutPadding.calculateStartPadding(layoutDirection),
+        end = cutoutPadding.calculateEndPadding(layoutDirection),
+    )
+}
 
 fun Modifier.pageScrollModifiers(
     topAppBarScrollBehavior: TopAppBarScrollBehavior,
@@ -131,7 +140,7 @@ fun AdaptiveTopAppBar(
     actions: @Composable RowScope.() -> Unit = {},
     bottomContent: @Composable () -> Unit = {},
 ) {
-    TopAppBar(
+    AsteriskTopAppBar(
         title = {
             androidx.compose.foundation.layout.Column {
                 Text(title, style = MaterialTheme.typography.titleLarge)
@@ -149,10 +158,6 @@ fun AdaptiveTopAppBar(
         scrollBehavior = scrollBehavior,
         navigationIcon = navigationIcon,
         actions = actions,
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            scrolledContainerColor = MaterialTheme.colorScheme.surface,
-        ),
     )
 }
 

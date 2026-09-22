@@ -16,9 +16,7 @@ import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -32,7 +30,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import app.AppState
 import app.CustomResourceFileState
 import app.CustomResourceFileStatus
 import app.LocalAppServices
@@ -40,19 +37,20 @@ import app.LocalAppStateStore
 import app.LocalIsWideScreen
 import app.LocalNavigator
 import app.LocalUpdateAppState
+import app.R
 import app.ResourceFileKind
 import app.ResourceFilesStatus
 import app.collectAppState
+import app.navigation.Route
 import app.nextAvailableCustomResourceFileId
 import app.resourceFileUpdateSource
 import app.statusOf
 import app.withRemovedManagedRuleSets
-import app.navigation.Route
-import engine.network.toPortOrNull
 import features.resources.runtime.ResourceFileBatchDownloadFailedException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
-import org.asterisk.zcc.abox.R
+import ui.components.AsteriskScaffold
+import ui.components.AsteriskTopAppBar
 import ui.layout.pageContentPaddingWithCutout
 import ui.layout.pageListPadding
 import ui.text.formatTemplate
@@ -65,7 +63,8 @@ fun ResourceManagementPage(
 ) {
     val isWideScreen = LocalIsWideScreen.current
     val navigator = LocalNavigator.current
-    val appState by LocalAppStateStore.current.collectAppState()
+    val stateStore = LocalAppStateStore.current
+    val appState by stateStore.collectAppState()
     val updateAppState = LocalUpdateAppState.current
     val services = LocalAppServices.current
     val resourceFileUseCase = services.resourceFileUseCase
@@ -92,6 +91,7 @@ fun ResourceManagementPage(
     val editCustomResourceFileNameState = rememberTextFieldState()
     val editCustomResourceFileUrlState = rememberTextFieldState()
     var showCustomSourceEditor by remember { mutableStateOf(false) }
+    var showResourceAutoUpdateSheet by remember { mutableStateOf(false) }
     val sourceGeositeCategoryAdsAllUrlState = rememberTextFieldState()
     val sourceGeositeGoogleUrlState = rememberTextFieldState()
     val sourceGeositeCnUrlState = rememberTextFieldState()
@@ -429,9 +429,9 @@ fun ResourceManagementPage(
             status.customResourceFiles.map { file -> file.status.updatedAtMillis }
         ).maxOrNull() ?: 0L
 
-    Scaffold(
+    AsteriskScaffold(
         topBar = {
-            TopAppBar(
+            AsteriskTopAppBar(
                 title = { Text(stringResource(R.string.settings_resource_management)) },
                 navigationIcon = {
                     IconButton(onClick = { navigator.pop() }) {
@@ -495,6 +495,7 @@ fun ResourceManagementPage(
                         )
                     },
                     onCancel = resourceFileUpdateCoordinator::cancelAll,
+                    onSettings = { showResourceAutoUpdateSheet = true },
                 )
             }
             item(key = "resource_core_section") {
@@ -512,13 +513,23 @@ fun ResourceManagementPage(
                     description = stringResource(R.string.settings_resource_files_root_only),
                     onReplace = {
                         runResourceFileAction(
-                            action = { resourceFileUseCase.replace(kind, appState.customResourceFiles) },
+                            action = {
+                                services.replaceSingBoxCore(
+                                    currentState = { stateStore.state.value },
+                                    onRootStopped = { updateAppState { it.copy(proxyRunning = false) } },
+                                )
+                            },
                             successMessage = replacedMessage.formatTemplate("name" to kind.displayName),
                         )
                     },
                     onRestore = {
                         runResourceFileAction(
-                            action = { resourceFileUseCase.restoreBundled(kind, appState.customResourceFiles) },
+                            action = {
+                                services.restoreSharedSingBoxCore(
+                                    state = appState,
+                                    onRootStopped = { updateAppState { it.copy(proxyRunning = false) } },
+                                )
+                            },
                             successMessage = restoredMessage.formatTemplate("name" to kind.displayName),
                         )
                     },
@@ -607,6 +618,18 @@ fun ResourceManagementPage(
                 }
             }
         }
+        ResourceAutoUpdateSheet(
+            show = showResourceAutoUpdateSheet,
+            enabled = appState.enableResourceAutoUpdate,
+            interval = appState.resourceAutoUpdateInterval,
+            onDismissRequest = { showResourceAutoUpdateSheet = false },
+            onSave = { enabled, interval ->
+                updateAppState { state ->
+                    state.copy(enableResourceAutoUpdate = enabled, resourceAutoUpdateInterval = interval)
+                }
+                showResourceAutoUpdateSheet = false
+            },
+        )
         ResourceAddSourceSheet(
             show = showResourceAddSourceSheet,
             onDismissRequest = {
@@ -725,14 +748,7 @@ private fun ResourceSectionTitle(text: String) {
     )
 }
 
-private fun AppState.resourceFileUpdateOptions(): ResourceFileUpdateOptions {
-    return ResourceFileUpdateOptions(
-        useRunningProxy = proxyRunning,
-        fallbackProxyPort = localProxyPort.toPortOrNull(),
-        fallbackProxyUsername = localProxyUsername,
-        fallbackProxyPassword = localProxyPassword,
-    )
-}
+
 
 private fun ResourceFilesStatus.statusOf(customFile: CustomResourceFileState): CustomResourceFileStatus {
     return customResourceFiles.firstOrNull { fileStatus -> fileStatus.file.id == customFile.id }

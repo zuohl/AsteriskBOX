@@ -44,6 +44,9 @@
     <string name="qr_scan_choose_image">从相册选择</string>
 <!-- Common -->
     <string name="common_cancel">取消</string>
+    <string name="common_ok">确定</string>
+    <string name="common_error_required">必填</string>
+    <string name="common_error_positive_number">必须大于零</string>
     <string name="common_clear">清除</string>
     <string name="common_copy">复制</string>
     <string name="common_share">分享</string>
@@ -69,6 +72,7 @@
     <string name="common_clipboard_unsupported_format">剪贴板格式不支持</string>
     <string name="common_replace">替换</string>
     <string name="common_update">更新</string>
+    <string name="common_error_update_interval">请输入不少于 0.25 小时的数值</string>
     <string name="common_restore">恢复</string>
     <string name="common_more">更多</string>
     <string name="string_list_item_empty">条目不能为空</string>
@@ -78,7 +82,7 @@
     <!-- Navigation -->
     <string name="nav_dashboard">首页</string>
     <string name="nav_proxies">代理</string>
-    <string name="nav_apps">应用</string>
+    <string name="nav_groups">分组</string>
     <string name="nav_settings">设置</string>
     <string name="common_back">返回</string>
     <string name="common_more_actions">更多操作</string>
@@ -181,6 +185,7 @@
     <string name="monitor_traffic_7_days">近 7 日</string>
     <string name="monitor_traffic_30_days">近 30 日</string>
     <string name="monitor_traffic_total">合计</string>
+    <string name="monitor_resource_source_info">CPU 统计说明</string>
     <string name="monitor_traffic_local_notice">流量历史仅记录在应用私有本地存储中，不会发送到探测服务或订阅源。</string>
 
     <string name="monitor_network_title">网络状态</string>
@@ -198,6 +203,46 @@
     <string name="monitor_network_error_timeout">请求超时</string>
     <string name="monitor_network_error_request">请求失败</string>
     <string name="monitor_network_error_response">探测服务返回了无效地址</string>
+
+    <!-- Apple networkQuality test page -->
+    <string name="monitor_network_quality_title">网络质量测试</string>
+    <string name="monitor_network_quality_settings_title">测试参数</string>
+    <string name="monitor_network_quality_section_endpoint">端点</string>
+    <string name="monitor_network_quality_endpoint_summary">Apple NetworkQuality 配置 URL。除非你自建 mensura 镜像,否则保持默认即可。</string>
+    <string name="monitor_network_quality_section_timing">时长</string>
+    <string name="monitor_network_quality_timing_summary">整次测量的最长时间上限。</string>
+    <string name="monitor_network_quality_section_options">选项</string>
+    <string name="monitor_network_quality_serial_summary">串行执行上行与下行测量阶段。</string>
+    <string name="monitor_network_quality_http3_summary">当服务端支持时,使用 QUIC / HTTP/3 探测。</string>
+    <string name="monitor_network_quality_snackbar_done">网络质量测试完成</string>
+    <string name="monitor_network_quality_fab_start">开始</string>
+    <string name="monitor_network_quality_fab_stop">停止</string>
+    <string name="monitor_network_quality_info_action">参数说明</string>
+    <string name="monitor_network_quality_settings_action">测试参数</string>
+    <string name="monitor_network_quality_rating_good">良好</string>
+    <string name="monitor_network_quality_rating_fair">一般</string>
+    <string name="monitor_network_quality_rating_poor">较差</string>
+    <string name="monitor_network_quality_explanation_title">关于这些数值</string>
+    <string name="monitor_network_quality_idle_latency_explanation">空闲时链路的响应延迟。300 毫秒以内对实时交互足够好,300–700 毫秒可以接受,超过 700 毫秒会明显迟滞。</string>
+    <string name="monitor_network_quality_download_capacity_explanation">持续下载吞吐。高于 150 Mbps 为优秀,50–150 Mbps 为可接受,低于 50 Mbps 即视为受限。</string>
+    <string name="monitor_network_quality_download_responsiveness_explanation">链路过载下每分钟可完成的小下载次数。500 RPM 以上保持流畅,低于 200 RPM 时交互会被排队。</string>
+    <string name="monitor_network_quality_upload_capacity_explanation">持续上传吞吐。高于 100 Mbps 为优秀,30–100 Mbps 为可接受,低于 30 Mbps 即视为受限。</string>
+    <string name="monitor_network_quality_upload_responsiveness_explanation">链路过载下每分钟可完成的小上传次数,与下行响应度相同的阈值。</string>
+    <string name="monitor_network_quality_elapsed_time_explanation">本次测试运行的总时长,向下取整到秒。仅反映测试本身,不代表链路质量。</string>
+    <string name="monitor_network_quality_config_url">配置 URL</string>
+    <string name="monitor_network_quality_max_runtime">最长耗时(秒)</string>
+    <string name="monitor_network_quality_serial">串行测量</string>
+    <string name="monitor_network_quality_http3">HTTP/3</string>
+    <string name="monitor_network_quality_outbound_label">出站</string>
+    <string name="monitor_network_quality_outbound_default">默认</string>
+    <string name="monitor_network_quality_standalone_hint">服务未启动。测试将以独立模式运行,不走代理,也无法选择出站。</string>
+    <string name="monitor_network_quality_idle_latency">空闲延迟</string>
+    <string name="monitor_network_quality_download_capacity">下行带宽</string>
+    <string name="monitor_network_quality_download_responsiveness">下行响应度</string>
+    <string name="monitor_network_quality_upload_capacity">上行带宽</string>
+    <string name="monitor_network_quality_upload_responsiveness">上行响应度</string>
+    <string name="monitor_network_quality_elapsed_time">总耗时</string>
+    <string name="monitor_network_quality_error_title">网络质量测试失败</string>
 
     <!-- sing-box -->
     <string name="sing_box_dashboard_network_detection_checking">检测中…</string>
@@ -229,20 +274,16 @@
     <string name="sing_box_proxies_option_sort_default">默认</string>
     <string name="sing_box_proxies_option_sort_name">名称</string>
     <string name="sing_box_proxies_option_sort_delay">延迟</string>
-    <string name="settings_general">常规</string>
-    <string name="settings_tun_stack">TUN 栈</string>
-    <string name="settings_tun_stack_system">System</string>
-    <string name="settings_tun_stack_gvisor">gVisor</string>
-    <string name="settings_tun_stack_mixed">Mixed</string>
 
     <!-- Settings -->
+    <string name="settings_tools">工具</string>
     <string name="settings_title">设置</string>
+    <string name="settings_app">外观</string>
     <string name="settings_search_results">搜索结果</string>
     <string name="settings_search_no_results">没有匹配的设置项</string>
     <plurals name="settings_search_match_count">
         <item quantity="other">匹配 %1$d 个设置项</item>
     </plurals>
-    <string name="settings_theme">主题</string>
     <string name="settings_color_mode">主题</string>
     <string name="settings_language">语言</string>
     <string name="settings_theme_color">强调色</string>
@@ -279,7 +320,7 @@
     <string name="settings_root_ebpf_selinux_policy_warning_confirm">仍然启用</string>
     <string name="settings_root_ipv6_disabler">禁用系统 IPv6</string>
     <string name="settings_root_ipv6_disabler_summary">防止 WebRTC 泄露 IPv6 地址</string>
-    <string name="settings_vpn_local_dns">启用本地 DNS</string>
+    <string name="settings_vpn_local_dns">启用 DNS 劫持</string>
     <string name="settings_vpn_local_dns_summary">使用核心处理 DNS 请求</string>
     <string name="settings_local_proxy">本地代理设置</string>
     <string name="settings_local_proxy_port">本地代理端口</string>
@@ -300,9 +341,8 @@
     <string name="settings_vpn_hev_tun">使用 Hev TUN</string>
     <string name="settings_vpn_hev_tun_summary">使用 hev-socks5-tunnel 创建 TUN 设备</string>
     <string name="settings_tun">TUN 设置</string>
-    <string name="settings_tun_summary">TUN 栈 {stack}，MTU {mtu}，VPN DNS {vpnDns}，IPv4 {ipv4}，IPv6 {ipv6}</string>
-    <string name="settings_tun_summary_without_dns">TUN 栈 {stack}，MTU {mtu}，IPv4 {ipv4}，IPv6 {ipv6}</string>
-    <string name="settings_tun_summary_without_stack">MTU {mtu}，IPv4 {ipv4}，IPv6 {ipv6}</string>
+    <string name="settings_tun_summary">MTU {mtu}，VPN DNS {vpnDns}，IPv4 {ipv4}，IPv6 {ipv6}</string>
+    <string name="settings_tun_summary_without_dns">MTU {mtu}，IPv4 {ipv4}，IPv6 {ipv6}</string>
     <string name="settings_tun_mtu">MTU</string>
     <string name="settings_tun_vpn_dns">VPN DNS</string>
     <string name="settings_tun_ipv4_cidr">IPv4 CIDR</string>
@@ -341,11 +381,11 @@
     <string name="settings_private_addresses_invalid">无效 CIDR</string>
     <string name="settings_private_addresses_empty">还没有添加 CIDR 地址</string>
     <string name="settings_broadcast_control">广播控制</string>
-    <string name="settings_broadcast_control_summary">允许外部广播启动和停止代理服务</string>
+    <string name="settings_broadcast_control_summary">允许外部广播控制应用服务</string>
     <string name="settings_ipv6_summary">启用 IPv6 支持</string>
     <string name="settings_ipv6_prefer">IPv6 优先</string>
     <string name="settings_ipv6_prefer_summary">连接时优先使用 IPv6 地址</string>
-    <string name="settings_core">核心设置</string>
+    <string name="settings_core">常规</string>
     <string name="settings_resource_management">资源管理</string>
     <string name="settings_resource_management_summary">管理核心文件与GEO资源文件</string>
     <string name="settings_resource_files_core_files">核心文件</string>
@@ -361,6 +401,9 @@
     </plurals>
     <string name="settings_resource_files_source_value">来源：%1$s</string>
     <string name="settings_resource_files_last_check">最近检查 {time}</string>
+    <string name="settings_resource_files_auto_update_title">资源自动更新</string>
+    <string name="settings_resource_files_auto_update_summary">联网时定期更新资源文件</string>
+    <string name="settings_resource_files_auto_update_interval">更新周期（小时）</string>
     <string name="settings_resource_files_update">更新资源文件</string>
     <string name="settings_resource_files_add">新增资源</string>
     <string name="settings_resource_files_add_source_hint">选择规则集文件的来源</string>
@@ -421,6 +464,13 @@
     <string name="settings_resource_files_restored">{name} 已恢复为内置文件</string>
     <string name="settings_resource_files_deleted">{name} 已删除</string>
     <string name="settings_log_level">日志等级</string>
+    <string name="settings_ebpf_data_plane">数据面</string>
+    <string name="settings_ebpf_dns_mode">DNS 模式</string>
+    <string name="settings_ebpf_local_data_plane_summary">tc 接管接口流量；cgroup 接管 socket。</string>
+    <string name="settings_ebpf_shared_data_plane_summary">socket_assign 使用透明监听器；packet_rewrite 改写以太网报文。</string>
+    <string name="settings_ebpf_local_dns_mode_summary">hijack 接管 53 端口；respect_policy 遵循应用筛选。</string>
+    <string name="settings_ebpf_shared_dns_mode_summary">hijack 接管 53 端口；respect_policy 遵循客户端筛选。</string>
+    <string name="settings_ebpf_dns_disabled">本地 DNS 已关闭，当前使用 off。</string>
     <string name="settings_traffic_stats_notification">显示统计数据</string>
     <string name="settings_traffic_stats_notification_summary">在通知中显示当前速度和累计流量</string>
     <string name="settings_sniffer">协议嗅探</string>
@@ -586,8 +636,9 @@
     <string name="theme_color_violet">紫罗兰</string>
     <string name="theme_color_yellow">暖黄色</string>
     <string name="theme_color_orange">活力橙</string>
-    <string name="theme_color_rose">玫红色</string>
+    <string name="theme_color_sakura">樱花粉</string>
     <string name="theme_color_cyan">青蓝色</string>
+    <string name="theme_color_coffee">咖啡色</string>
 
     <!-- About and licenses -->
     <string name="about_title">关于</string>
@@ -612,10 +663,13 @@
     <string name="logs_paused">已暂停</string>
     <string name="logs_pause">暂停日志流</string>
     <string name="logs_resume">继续日志流</string>
+    <string name="logs_level_trace">追踪</string>
     <string name="logs_level_debug">调试</string>
     <string name="logs_level_info">信息</string>
     <string name="logs_level_warning">警告</string>
     <string name="logs_level_error">错误</string>
+    <string name="logs_level_fatal">致命</string>
+    <string name="logs_level_panic">恐慌</string>
     <string name="logs_clear_title">清除日志？</string>
     <string name="logs_clear_message">此操作会永久移除当前日志中的全部条目。</string>
 
@@ -624,9 +678,22 @@
     <string name="proxy_app_list_mode_blacklist">黑名单模式</string>
     <string name="proxy_app_list_mode_whitelist">白名单模式</string>
     <string name="proxy_app_list_mode_global">全应用模式</string>
-    <string name="proxy_app_list_mode">代理模式</string>
     <string name="proxy_app_list_more_actions">更多操作</string>
     <string name="proxy_app_list_show_system_apps">显示系统应用</string>
+    <string name="proxy_app_list_scan_china_apps">扫描中国应用</string>
+    <string name="proxy_app_list_help">帮助</string>
+    <string name="proxy_app_list_help_title">分应用代理模式</string>
+    <string name="proxy_app_list_help_blacklist">黑名单模式：仅名单中的应用不使用代理，其他应用均使用代理。</string>
+    <string name="proxy_app_list_help_global">全应用模式：所有应用均使用代理。</string>
+    <string name="proxy_app_list_help_whitelist">白名单模式：仅名单中的应用使用代理，其他应用均不使用代理。</string>
+    <string name="proxy_app_list_scan_china_progress">已扫描 %1$d / %2$d，命中 %3$d</string>
+    <string name="proxy_app_list_scan_china_done">已扫描 %1$d 个应用，发现 %2$d 个中国应用</string>
+    <string name="proxy_app_list_scan_china_no_match">已扫描 {scanned} 个应用，未发现中国应用</string>
+    <string name="proxy_app_list_scan_china_skipped_global">全应用模式下已跳过</string>
+    <string name="proxy_app_list_invert_selection">反选</string>
+    <string name="proxy_app_list_clear_selection">清空</string>
+    <string name="proxy_app_list_invert_done">已反选</string>
+    <string name="proxy_app_list_clear_done">已清空</string>
     <string name="proxy_app_list_search_label">搜索应用名称</string>
     <string name="proxy_app_list_entry_summary">{package}</string>
     <string name="proxy_app_list_loading">正在加载应用列表…</string>
@@ -646,8 +713,9 @@
     <string name="proxy_service_stopped">代理服务已停止</string>
 
     <!-- Outbound groups and outbounds -->
-    <string name="settings_group_management">分组管理</string>
-    <string name="settings_group_management_summary">编辑订阅地址、分组名和启用状态</string>
+    <string name="settings_network_quality_test">网络质量测试</string>
+    <string name="settings_network_quality_test_summary">使用 Apple networkQuality 协议测量下行、上行与响应度</string>
+    <string name="settings_app_management_summary">选择哪些应用使用代理以及代理方式</string>
     <string name="settings_outbound_management">出站管理</string>
     <string name="settings_outbound_management_summary">导入、添加、编辑核心出站代理服务器</string>
     <string name="settings_selector_management">选择器管理</string>
@@ -675,7 +743,6 @@
     <string name="outbound_group_custom_user_agent">自定义 User-Agent</string>
     <string name="outbound_group_update_interval">更新间隔（小时，可选）</string>
     <string name="outbound_group_update_interval_value">每 %1$s 小时</string>
-    <string name="outbound_group_update_interval_invalid">请输入不少于 0.25 小时的数值，或留空</string>
     <string name="outbound_group_update_via_proxy">通过当前运行的代理更新</string>
     <string name="outbound_group_strict_import">严格导入</string>
     <string name="outbound_group_strict_import_summary">订阅中任一条目无效时保留现有节点</string>
@@ -688,9 +755,15 @@
     <string name="outbound_group_status_import_counts">导入 %1$d，跳过 %2$d，重复 %3$d</string>
     <string name="outbound_group_status_checked">%1$s · 检查于 %2$s</string>
     <string name="outbound_group_http_warning">该订阅使用未加密的 HTTP，建议改用 HTTPS。</string>
+    <string name="outbound_group_subscription_traffic">已用 %1$s / 总量 %2$s</string>
+    <string name="outbound_group_subscription_expire">过期 %1$s</string>
+    <string name="outbound_group_name_placeholder">留空则首次同步后自动命名</string>
+    <string name="outbound_group_name_duplicate">%1$s(%2$d)</string>
     <string name="outbound_group_delete_title">删除分组？</string>
     <string name="outbound_group_delete_message">分组“%1$s”及其中的所有出站将被永久删除。</string>
     <string name="outbound_group_sync_failed">分组更新失败</string>
+    <string name="subscription_install_link_invalid">无效的订阅链接</string>
+    <string name="subscription_install_failed">无法导入订阅</string>
     <string name="outbound_group_sync_all">更新全部分组订阅</string>
     <string name="outbound_group_sync_all_progress_title">正在更新分组订阅</string>
     <string name="outbound_group_sync_all_result_title">订阅更新结果</string>
@@ -1284,4 +1357,31 @@
     <string name="settings_service_control_doze_note">定时器不会唤醒设备。Android 挂起进程时，将在恢复后补偿最近一次错过的动作；同时到期时停止优先。</string>
     <string name="settings_service_control_saving">正在重启…</string>
     <string name="settings_service_control_save_failed">服务控制应用失败，编辑内容已保留。</string>
+    <string name="monitor_connections_closed">已断开</string>
+    <string name="monitor_connections_total">连接总数</string>
+    <string name="monitor_connections_closed_time">断开时间</string>
+    <string name="monitor_connections_closed_empty">暂无已断开连接记录</string>
+    <string name="broadcast_update_notification_title">正在更新订阅和资源</string>
+
+    <!-- Proxy error dialog -->
+    <string name="proxy_error_dialog_title">代理启动失败</string>
+    <string name="proxy_error_dialog_mode_title">模式：%1$s</string>
+    <string name="proxy_error_dialog_occurred_at">时间：%1$s</string>
+    <string name="proxy_error_dialog_details">错误详情</string>
+    <string name="proxy_error_dialog_device_info">设备与系统</string>
+    <string name="proxy_error_dialog_service_log">启动日志</string>
+    <string name="proxy_error_dialog_diagnostics">建议操作</string>
+    <string name="proxy_error_dialog_copy">复制日志</string>
+    <string name="proxy_error_dialog_copied">已复制到剪贴板</string>
+
+    <!-- Proxy error: eBPF tc data plane unavailable (confirmed on kernel 4.19 + KernelSU Next) -->
+    <string name="proxy_error_ebpf_tc_unsupported_explanation">eBPF tc 数据面需要内核同时支持 veth 设备与 clsact qdisc。当前内核拒绝在当前网络命名空间内创建 veth pair（内核返回 EOPNOTSUPP）。</string>
+    <string name="proxy_error_ebpf_tc_unsupported_switch">临时方案：进入 设置 → 高级设置，在 运行模式 中确认已选择 eBPF（ROOT）；再在 代理设置（eBPF） 中把 数据面 从 tc 改为 cgroup，然后重试。</string>
+    <string name="proxy_error_ebpf_tc_unsupported_fallback">若 cgroup 也无法启动：进入 设置 → 高级设置，在 运行模式 中改选 TUN（ROOT）作为备用方案。</string>
+    <string name="proxy_error_ebpf_tc_unsupported_report">上报时请附上上方错误原文，以及 logcat 中 asteriskd / sing-box 相关段落。</string>
+    <string name="shared_core_migration_title">软件已更新</string>
+    <string name="shared_core_migration_message">VPN 和 ROOT 现已共用内置 Core。是否移除自定义 Core 以节省空间？之后仍可上传自定义 Core。</string>
+    <string name="shared_core_migration_stop_root">移除前将停止 ROOT 服务。</string>
+    <string name="shared_core_migration_keep">保留</string>
+    <string name="shared_core_migration_remove">移除</string>
 </resources>

@@ -25,78 +25,63 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntSize
 import engine.singbox.DefaultSingBoxLogLevel
-import org.asterisk.zcc.abox.R
+import engine.singbox.EbpfLocalDataPlanes
+import engine.singbox.EbpfDnsModes
+import app.R
+import ui.components.IconAccent
 import ui.icons.AsteriskIcons as Icons
 import ui.theme.AsteriskMotion
-
-@Composable
-internal fun settingsTunStackOptions() = listOf(
-    stringResource(R.string.settings_tun_stack_system),
-    stringResource(R.string.settings_tun_stack_gvisor),
-    stringResource(R.string.settings_tun_stack_mixed),
-)
 
 internal fun settingsCoreLogLevelLabels(): List<String> =
     SettingsCoreLogLevelOptions
 
 @Composable
-internal fun SettingsThemeSection(
+internal fun SettingsAppSection(
+    languageOptions: List<String>,
+    languageMode: Int,
     colorModeOptions: List<String>,
     colorMode: Int,
     keyColorOptions: List<String>,
     seedIndex: Int,
-    languageOptions: List<String>,
-    languageMode: Int,
     onColorModeChange: (Int) -> Unit,
     onSeedIndexChange: (Int) -> Unit,
     onLanguageModeChange: (Int) -> Unit,
 ) {
-    SmallTitle(text = stringResource(R.string.settings_theme))
+    SmallTitle(text = stringResource(R.string.settings_app))
     SettingsSectionCard {
-        OverlayDropdownPreference(
-            title = stringResource(R.string.settings_color_mode),
-            icon = Icons.Rounded.DarkMode,
-            items = colorModeOptions,
-            selectedIndex = colorMode,
-            onSelectedIndexChange = onColorModeChange,
-        )
-        OverlayDropdownPreference(
-            title = stringResource(R.string.settings_theme_color),
-            icon = Icons.Rounded.Palette,
-            items = keyColorOptions,
-            selectedIndex = seedIndex,
-            onSelectedIndexChange = onSeedIndexChange,
-        )
         OverlayDropdownPreference(
             title = stringResource(R.string.settings_language),
             icon = Icons.Rounded.Language,
             items = languageOptions,
             selectedIndex = languageMode,
             onSelectedIndexChange = onLanguageModeChange,
+            accent = IconAccent.MaskBlue,
         )
     }
+    ThemeSettingsContent(
+        colorModeOptions = colorModeOptions,
+        colorMode = colorMode,
+        keyColorOptions = keyColorOptions,
+        seedIndex = seedIndex,
+        onColorModeChange = onColorModeChange,
+        onSeedIndexChange = onSeedIndexChange,
+    )
 }
 
 @Composable
-internal fun SettingsGeneralSection(
-    onOpenOutboundGroups: () -> Unit,
-    onOpenResourceManagement: () -> Unit,
+internal fun SettingsToolsSection(
+    onOpenNetworkQualityTest: () -> Unit,
 ) {
-    SmallTitle(text = stringResource(R.string.settings_general))
+    SmallTitle(text = stringResource(R.string.settings_tools))
     SettingsSectionCard {
-        SettingsGeneralItems.forEach { item ->
+        SettingsToolsItems.forEach { item ->
             when (item) {
-                SettingsGeneralItem.OutboundGroups -> ArrowPreference(
-                    title = stringResource(R.string.settings_group_management),
-                    icon = Icons.Rounded.AccountTree,
-                    summary = stringResource(R.string.settings_group_management_summary),
-                    onClick = onOpenOutboundGroups,
-                )
-                SettingsGeneralItem.Resources -> ArrowPreference(
-                    title = stringResource(R.string.settings_resource_management),
-                    icon = Icons.Rounded.Folder,
-                    summary = stringResource(R.string.settings_resource_management_summary),
-                    onClick = onOpenResourceManagement,
+                SettingsToolsItem.NetworkQualityTest -> ArrowPreference(
+                    title = stringResource(R.string.settings_network_quality_test),
+                    icon = Icons.Rounded.Speed,
+                    summary = stringResource(R.string.settings_network_quality_test_summary),
+                    onClick = onOpenNetworkQualityTest,
+                    accent = IconAccent.MaskBlueVariant,
                 )
             }
         }
@@ -110,6 +95,8 @@ internal fun SettingsCoreSection(
     onOpenDnsManagement: () -> Unit,
     onOpenSnifferSettings: () -> Unit,
     onOpenOutbounds: () -> Unit,
+    onOpenApps: () -> Unit,
+    onOpenResourceManagement: () -> Unit,
     onOpenSelectors: () -> Unit,
     onOpenEndpoints: () -> Unit,
     onOpenRouting: () -> Unit,
@@ -129,36 +116,56 @@ internal fun SettingsCoreSection(
                     icon = Icons.Rounded.Dns,
                     summary = stringResource(R.string.settings_dns_summary),
                     onClick = onOpenDnsManagement,
+                    accent = IconAccent.MaskBlueVariant,
                 )
                 SettingsCoreItem.Sniffer -> ArrowPreference(
                     title = stringResource(R.string.settings_sniffer),
                     icon = Icons.Rounded.TravelExplore,
                     summary = snifferSettingsSummary,
                     onClick = onOpenSnifferSettings,
+                    accent = IconAccent.MaskGreen,
                 )
                 SettingsCoreItem.Outbounds -> ArrowPreference(
                     title = stringResource(R.string.settings_outbound_management),
                     icon = Icons.Rounded.Router,
                     summary = stringResource(R.string.settings_outbound_management_summary),
                     onClick = onOpenOutbounds,
+                    accent = IconAccent.MaskBlue,
+                )
+                SettingsCoreItem.AppManagement -> ArrowPreference(
+                    title = stringResource(R.string.proxy_app_list_title),
+                    icon = Icons.Rounded.Apps,
+                    summary = stringResource(R.string.settings_app_management_summary),
+                    onClick = onOpenApps,
+                    accent = IconAccent.MaskPurple,
+                )
+                SettingsCoreItem.Resources -> ArrowPreference(
+                    title = stringResource(R.string.settings_resource_management),
+                    icon = Icons.Rounded.Folder,
+                    summary = stringResource(R.string.settings_resource_management_summary),
+                    onClick = onOpenResourceManagement,
+                    accent = IconAccent.MaskOrange,
                 )
                 SettingsCoreItem.Selectors -> ArrowPreference(
                     title = stringResource(R.string.settings_selector_management),
                     icon = Icons.Rounded.Tune,
                     summary = stringResource(R.string.settings_selector_management_summary),
                     onClick = onOpenSelectors,
+                    accent = IconAccent.MaskGrey,
                 )
                 SettingsCoreItem.Endpoints -> ArrowPreference(
                     title = stringResource(R.string.settings_endpoint_management),
                     icon = Icons.Rounded.VpnLock,
                     summary = stringResource(R.string.settings_endpoint_management_summary),
                     onClick = onOpenEndpoints,
+                    accent = IconAccent.MaskRed,
                 )
                 SettingsCoreItem.Routing -> ArrowPreference(
                     title = stringResource(R.string.settings_routing_management),
                     icon = Icons.AutoMirrored.Rounded.AltRoute,
                     summary = stringResource(R.string.settings_routing_management_summary),
                     onClick = onOpenRouting,
+                    accent = IconAccent.MaskGreen,
                 )
                 SettingsCoreItem.LogLevel -> OverlayDropdownPreference(
                     title = stringResource(R.string.settings_log_level),
@@ -168,6 +175,7 @@ internal fun SettingsCoreSection(
                     onSelectedIndexChange = { index ->
                         SettingsCoreLogLevelOptions.getOrNull(index)?.let(onCoreLogLevelChange)
                     },
+                    accent = IconAccent.MaskRed,
                 )
             }
         }
@@ -194,6 +202,7 @@ internal fun SettingsAdvancedSection(
             summary = stringResource(R.string.settings_broadcast_control_summary),
             checked = enableBroadcastControl,
             onCheckedChange = onEnableBroadcastControlChange,
+            accent = IconAccent.MaskYellow,
         )
         SwitchPreference(
             title = stringResource(R.string.common_ipv6),
@@ -201,6 +210,7 @@ internal fun SettingsAdvancedSection(
             summary = stringResource(R.string.settings_ipv6_summary),
             checked = enableIpv6,
             onCheckedChange = onEnableIpv6Change,
+            accent = IconAccent.MaskBlue,
         )
         AnimatedVisibility(
             visible = enableIpv6,
@@ -213,6 +223,7 @@ internal fun SettingsAdvancedSection(
                 summary = stringResource(R.string.settings_ipv6_prefer_summary),
                 checked = enableIpv6Prefer,
                 onCheckedChange = onEnableIpv6PreferChange,
+                accent = IconAccent.MaskGreen,
             )
         }
         OverlayDropdownPreference(
@@ -221,6 +232,7 @@ internal fun SettingsAdvancedSection(
             items = runModeOptions,
             selectedIndex = selectedRunModeIndex.coerceIn(runModeOptions.indices),
             onSelectedIndexChange = onRunModeChange,
+            accent = IconAccent.MaskPurple,
         )
     }
 }
@@ -229,6 +241,9 @@ internal fun SettingsAdvancedSection(
 internal fun SettingsProxyModeSections(
     runMode: Int,
     localProxySettingsSummary: String,
+    ebpfLocalDataPlane: String,
+    ebpfLocalDnsMode: String,
+    enableLocalDns: Boolean,
     enableTrafficStatsNotification: Boolean,
     enableVpnAppendHttpProxy: Boolean,
     enableVpnHevTun: Boolean,
@@ -243,6 +258,8 @@ internal fun SettingsProxyModeSections(
     ignoredInterfacesSummary: String,
     privateAddressCidrsSummary: String,
     onOpenLocalProxySettings: () -> Unit,
+    onEbpfLocalDataPlaneChange: (String) -> Unit,
+    onEbpfLocalDnsModeChange: (String) -> Unit,
     onEnableTrafficStatsNotificationChange: (Boolean) -> Unit,
     onEnableVpnAppendHttpProxyChange: (Boolean) -> Unit,
     onEnableVpnHevTunChange: (Boolean) -> Unit,
@@ -272,6 +289,7 @@ internal fun SettingsProxyModeSections(
                     icon = Icons.Rounded.Router,
                     summary = localProxySettingsSummary,
                     onClick = onOpenLocalProxySettings,
+                    accent = IconAccent.MaskBlue,
                 )
                 SwitchPreference(
                     title = stringResource(R.string.settings_traffic_stats_notification),
@@ -279,6 +297,7 @@ internal fun SettingsProxyModeSections(
                     summary = stringResource(R.string.settings_traffic_stats_notification_summary),
                     checked = enableTrafficStatsNotification,
                     onCheckedChange = onEnableTrafficStatsNotificationChange,
+                    accent = IconAccent.MaskPink,
                 )
                 SwitchPreference(
                     title = stringResource(R.string.settings_vpn_append_http_proxy),
@@ -286,6 +305,7 @@ internal fun SettingsProxyModeSections(
                     summary = stringResource(R.string.settings_vpn_append_http_proxy_summary),
                     checked = enableVpnAppendHttpProxy,
                     onCheckedChange = onEnableVpnAppendHttpProxyChange,
+                    accent = IconAccent.MaskOrange,
                 )
                 SwitchPreference(
                     title = stringResource(R.string.settings_vpn_hev_tun),
@@ -293,12 +313,14 @@ internal fun SettingsProxyModeSections(
                     summary = stringResource(R.string.settings_vpn_hev_tun_summary),
                     checked = enableVpnHevTun,
                     onCheckedChange = onEnableVpnHevTunChange,
+                    accent = IconAccent.MaskYellow,
                 )
                 ArrowPreference(
                     title = stringResource(R.string.settings_tun),
                     icon = Icons.Rounded.SettingsInputComponent,
                     summary = tunSettingsSummary,
                     onClick = onOpenTunSettings,
+                    accent = IconAccent.MaskBlueVariant,
                 )
             }
         }
@@ -332,6 +354,7 @@ internal fun SettingsProxyModeSections(
                         summary = stringResource(R.string.settings_root_boot_script_summary),
                         checked = enableRootBootScript,
                         onCheckedChange = onEnableRootBootScriptChange,
+                        accent = IconAccent.MaskPink,
                     )
                 }
                 ArrowPreference(
@@ -339,6 +362,7 @@ internal fun SettingsProxyModeSections(
                     icon = Icons.Rounded.PowerSettingsNew,
                     summary = stringResource(R.string.settings_service_control_summary),
                     onClick = onOpenServiceControl,
+                    accent = IconAccent.MaskPink,
                 )
                 AnimatedVisibility(
                     visible = runMode != RunModeBpf2Socks && runMode != RunModeEbpf && runMode != RunModeTun,
@@ -351,6 +375,7 @@ internal fun SettingsProxyModeSections(
                         summary = stringResource(R.string.settings_root_ebpf_matcher_summary),
                         checked = enableRootEbpfRules,
                         onCheckedChange = onEnableRootEbpfRulesChange,
+                        accent = IconAccent.MaskPurple,
                     )
                 }
                 AnimatedVisibility(
@@ -377,6 +402,7 @@ internal fun SettingsProxyModeSections(
                                 icon = Icons.Rounded.Route,
                                 summary = tunBypassRuleSetsSummary,
                                 onClick = onOpenTunBypassRuleSets,
+                                accent = IconAccent.MaskGreen,
                             )
                         } else {
                             SwitchPreference(
@@ -389,6 +415,7 @@ internal fun SettingsProxyModeSections(
                                 ),
                                 checked = enableRootEbpfDirectCidrBypass,
                                 onCheckedChange = onEnableRootEbpfDirectCidrBypassChange,
+                                accent = IconAccent.MaskGreen,
                             )
                         }
                     }
@@ -404,7 +431,41 @@ internal fun SettingsProxyModeSections(
                         summary = stringResource(R.string.settings_root_ipv6_disabler_summary),
                         checked = enableRootIpv6Disabler,
                         onCheckedChange = onEnableRootIpv6DisablerChange,
+                        accent = IconAccent.MaskBlue,
                     )
+                }
+                AnimatedVisibility(
+                    visible = runMode == RunModeEbpf,
+                    enter = AsteriskMotion.contentEnter(),
+                    exit = AsteriskMotion.contentExit(),
+                ) {
+                    Column {
+                        OverlayDropdownPreference(
+                            title = stringResource(R.string.settings_ebpf_data_plane),
+                            icon = Icons.Rounded.AccountTree,
+                            summary = stringResource(R.string.settings_ebpf_local_data_plane_summary),
+                            items = EbpfLocalDataPlanes,
+                            selectedIndex = EbpfLocalDataPlanes.indexOf(ebpfLocalDataPlane).coerceAtLeast(0),
+                            onSelectedIndexChange = { index ->
+                                EbpfLocalDataPlanes.getOrNull(index)?.let(onEbpfLocalDataPlaneChange)
+                            },
+                            accent = IconAccent.MaskPurple,
+                        )
+                        OverlayDropdownPreference(
+                            title = stringResource(R.string.settings_ebpf_dns_mode),
+                            icon = Icons.Rounded.Dns,
+                            summary = stringResource(
+                                if (enableLocalDns) R.string.settings_ebpf_local_dns_mode_summary
+                                else R.string.settings_ebpf_dns_disabled,
+                            ),
+                            items = EbpfDnsModes,
+                            selectedIndex = EbpfDnsModes.indexOf(ebpfLocalDnsMode).coerceAtLeast(0),
+                            onSelectedIndexChange = { index ->
+                                EbpfDnsModes.getOrNull(index)?.let(onEbpfLocalDnsModeChange)
+                            },
+                            accent = IconAccent.MaskBlueVariant,
+                        )
+                    }
                 }
                 SwitchPreference(
                     title = stringResource(R.string.settings_traffic_stats_notification),
@@ -412,12 +473,14 @@ internal fun SettingsProxyModeSections(
                     summary = stringResource(R.string.settings_traffic_stats_notification_summary),
                     checked = enableTrafficStatsNotification,
                     onCheckedChange = onEnableTrafficStatsNotificationChange,
+                    accent = IconAccent.MaskPink,
                 )
                 ArrowPreference(
                     title = stringResource(R.string.settings_local_proxy),
                     icon = Icons.Rounded.Router,
                     summary = localProxySettingsSummary,
                     onClick = onOpenLocalProxySettings,
+                    accent = IconAccent.MaskBlue,
                 )
                 AnimatedVisibility(
                     visible = runMode == RunModeTun || runMode == RunModeTun2Socks,
@@ -429,6 +492,7 @@ internal fun SettingsProxyModeSections(
                         icon = Icons.Rounded.SettingsInputComponent,
                         summary = tunSettingsSummary,
                         onClick = onOpenTunSettings,
+                        accent = IconAccent.MaskBlueVariant,
                     )
                 }
                 AnimatedVisibility(
@@ -441,6 +505,7 @@ internal fun SettingsProxyModeSections(
                         icon = Icons.Rounded.Cable,
                         summary = externalInterfacesSummary,
                         onClick = onOpenExternalInterfaces,
+                        accent = IconAccent.MaskGrey,
                     )
                 }
                 AnimatedVisibility(
@@ -453,6 +518,7 @@ internal fun SettingsProxyModeSections(
                         icon = Icons.Rounded.Cable,
                         summary = externalInterfacesSummary,
                         onClick = onOpenExternalInterfaces,
+                        accent = IconAccent.MaskGrey,
                     )
                 }
                 AnimatedVisibility(
@@ -465,6 +531,7 @@ internal fun SettingsProxyModeSections(
                         icon = Icons.Rounded.Block,
                         summary = ignoredInterfacesSummary,
                         onClick = onOpenIgnoredInterfaces,
+                        accent = IconAccent.MaskRed,
                     )
                 }
                 AnimatedVisibility(
@@ -477,6 +544,7 @@ internal fun SettingsProxyModeSections(
                         icon = Icons.Rounded.HomeWork,
                         summary = privateAddressCidrsSummary,
                         onClick = onOpenPrivateAddresses,
+                        accent = IconAccent.MaskOrange,
                     )
                 }
             }
@@ -495,11 +563,13 @@ internal fun SettingsLogsSection(
             title = stringResource(R.string.settings_core_logs),
             icon = Icons.AutoMirrored.Rounded.Article,
             onClick = onOpenCoreLogs,
+            accent = IconAccent.MaskGreen,
         )
         ArrowPreference(
             title = stringResource(R.string.settings_logcat),
             icon = Icons.Rounded.Terminal,
             onClick = onOpenLogcatLogs,
+            accent = IconAccent.MaskPurple,
         )
     }
 }
@@ -519,6 +589,7 @@ internal fun SettingsBackupRestoreSection(
             icon = Icons.Rounded.FileUpload,
             enabled = !busy,
             onClick = onBackupUserData,
+            accent = IconAccent.MaskYellow,
         )
         ArrowPreference(
             title = stringResource(R.string.settings_restore_user_data),
@@ -526,6 +597,7 @@ internal fun SettingsBackupRestoreSection(
             icon = Icons.Rounded.FileDownload,
             enabled = !busy,
             onClick = onRestoreUserData,
+            accent = IconAccent.MaskYellow,
         )
         AnimatedVisibility(
             visible = progressText != null,
@@ -560,11 +632,13 @@ internal fun SettingsAboutSection(
             title = stringResource(R.string.settings_about_project),
             icon = Icons.AutoMirrored.Rounded.Help,
             onClick = onOpenAbout,
+            accent = IconAccent.MaskBlue,
         )
         ArrowPreference(
             title = stringResource(R.string.settings_open_source_licenses),
             icon = Icons.Rounded.Policy,
             onClick = onOpenLicenses,
+            accent = IconAccent.MaskGrey,
         )
     }
 }

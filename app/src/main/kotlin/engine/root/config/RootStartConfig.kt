@@ -24,7 +24,6 @@ internal data class RootConfigRuntimePaths(
 
 internal data class RootStartConfig(
     val singBoxConfigBytes: ByteArray,
-    val publicationStagingDirectory: String,
     val runtimePaths: RootConfigRuntimePaths,
     val directCidrIpv4Path: String,
     val directCidrIpv6Path: String,
@@ -43,7 +42,6 @@ internal data class RootStartConfig(
         if (this === other) return true
         if (other !is RootStartConfig) return false
         return singBoxConfigBytes.contentEquals(other.singBoxConfigBytes) &&
-            publicationStagingDirectory == other.publicationStagingDirectory &&
             runtimePaths == other.runtimePaths &&
             directCidrIpv4Path == other.directCidrIpv4Path &&
             directCidrIpv6Path == other.directCidrIpv6Path &&
@@ -58,7 +56,6 @@ internal data class RootStartConfig(
 
     override fun hashCode(): Int {
         var result = singBoxConfigBytes.contentHashCode()
-        result = 31 * result + publicationStagingDirectory.hashCode()
         result = 31 * result + runtimePaths.hashCode()
         result = 31 * result + directCidrIpv4Path.hashCode()
         result = 31 * result + directCidrIpv6Path.hashCode()

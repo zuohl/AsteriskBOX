@@ -25,7 +25,6 @@ internal class RootConfigBuildContext(
     fun buildRootStartConfig(): RootStartConfig {
         return appState.toRootStartConfig(
             singBoxConfigBytes = SingBoxConfigFactory.buildConfigBytes(androidContext, appState),
-            publicationStagingDirectory = androidContext.cacheDir.absolutePath,
             resourceFilePaths = resourceFilePaths,
         )
     }
@@ -46,13 +45,11 @@ internal fun Context.prepareRootConfigBuildContext(request: ProxyEngineStartRequ
 
 private fun AppState.toRootStartConfig(
     singBoxConfigBytes: ByteArray,
-    publicationStagingDirectory: String,
     resourceFilePaths: SingBoxResourceFilePaths,
 ): RootStartConfig {
     val dataDirectory = File(resourceFilePaths.dataDir)
     return RootStartConfig(
         singBoxConfigBytes = singBoxConfigBytes,
-        publicationStagingDirectory = publicationStagingDirectory,
         runtimePaths = RootConfigRuntimePaths(
             coreExecutablePath = resourceFilePaths.singBoxCorePath,
             coreConfigPath = File(dataDirectory, "config.json").absolutePath,

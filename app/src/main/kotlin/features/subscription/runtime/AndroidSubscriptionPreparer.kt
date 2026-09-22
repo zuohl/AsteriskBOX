@@ -13,6 +13,8 @@ import features.subscription.usecase.SubscriptionSyncStage
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import utils.decodeContentDispositionFilename
+import utils.runCancellableHttpRequest
 import java.net.HttpURLConnection
 import java.net.URI
 import java.nio.charset.StandardCharsets
@@ -29,12 +31,14 @@ internal sealed interface AndroidSubscriptionPreparation {
         val subscriptionInfo: SubscriptionInfo,
         val etag: String = "",
         val lastModified: String = "",
+        val remoteName: String? = null,
     ) : AndroidSubscriptionPreparation
 
     data class NotModified(
         val subscriptionInfo: SubscriptionInfo,
         val etag: String,
         val lastModified: String,
+        val remoteName: String? = null,
     ) : AndroidSubscriptionPreparation
 
     data class Failure(
@@ -44,6 +48,7 @@ internal sealed interface AndroidSubscriptionPreparation {
         val subscriptionInfo: SubscriptionInfo? = null,
         val etag: String = "",
         val lastModified: String = "",
+        val remoteName: String? = null,
     ) : AndroidSubscriptionPreparation
 }
 
@@ -67,13 +72,15 @@ internal class AndroidSubscriptionPreparer(
             SubscriptionSyncStage.Decrypting
         }
         var downloaded: DownloadedSubscription? = null
+        var downloadedRawName: String? = null
         var decryptedContent: String? = null
         return try {
             val source = if (sourceContent == null) {
                 onStage(SubscriptionSyncStage.Downloading)
                 stage = SubscriptionSyncStage.Downloading
-                withContext(Dispatchers.IO) {
+                runCancellableHttpRequest { track ->
                     downloadSubscription(
+                        track = track,
                         sourceUrl = sourceUrl,
                         userAgent = userAgent,
                         hwid = fetchOptions.hwid.trim().ifBlank { installationHwid },
@@ -88,9 +95,13 @@ internal class AndroidSubscriptionPreparer(
                             subscriptionInfo = result.subscriptionInfo,
                             etag = result.etag,
                             lastModified = result.lastModified,
+                            remoteName = result.remoteName,
                         )
                     }
-                }.let { result -> (result as DownloadedSubscription.Content).content }
+                }.let { result ->
+                    downloadedRawName = (result as DownloadedSubscription.Content).remoteName
+                    result.content
+                }
             } else {
                 requireImportTextWithinLimit(sourceContent)
             }
@@ -115,6 +126,7 @@ internal class AndroidSubscriptionPreparer(
                 subscriptionInfo = downloaded?.subscriptionInfo ?: SubscriptionInfo(),
                 etag = downloaded?.etag.orEmpty(),
                 lastModified = downloaded?.lastModified.orEmpty(),
+                remoteName = downloadedRawName,
             )
         } catch (error: CancellationException) {
             throw error
@@ -126,9 +138,10 @@ internal class AndroidSubscriptionPreparer(
                 subscriptionInfo = downloaded?.subscriptionInfo,
                 etag = downloaded?.etag.orEmpty(),
                 lastModified = downloaded?.lastModified.orEmpty(),
+                remoteName = downloadedRawName,
             )
         }
-    }
+        }
 }
 
 private sealed interface DownloadedSubscription {
@@ -141,16 +154,19 @@ private sealed interface DownloadedSubscription {
         override val subscriptionInfo: SubscriptionInfo,
         override val etag: String,
         override val lastModified: String,
+        val remoteName: String? = null,
     ) : DownloadedSubscription
 
     data class NotModified(
         override val subscriptionInfo: SubscriptionInfo,
         override val etag: String,
         override val lastModified: String,
+        val remoteName: String? = null,
     ) : DownloadedSubscription
 }
 
 private fun downloadSubscription(
+    track: (HttpURLConnection) -> Unit,
     sourceUrl: String,
     userAgent: String,
     hwid: String,
@@ -163,6 +179,7 @@ private fun downloadSubscription(
         if (proxy == null) url.openConnection() else url.openConnection(proxy.proxy)
     ) as HttpURLConnection
     try {
+        track(connection)
         connection.instanceFollowRedirects = true
         connection.connectTimeout = ConnectTimeoutMillis
         connection.readTimeout = ReadTimeoutMillis
@@ -187,11 +204,15 @@ private fun downloadSubscription(
         val subscriptionInfo = connection
             .getHeaderField(SubscriptionUserInfoHeader)
             .toSubscriptionInfo()
+        val remoteName = decodeContentDispositionFilename(
+            connection.getHeaderField(ContentDispositionHeader),
+        )
         if (responseCode == HttpURLConnection.HTTP_NOT_MODIFIED) {
             return DownloadedSubscription.NotModified(
                 subscriptionInfo = subscriptionInfo,
                 etag = responseEtag,
                 lastModified = responseLastModified,
+                remoteName = remoteName,
             )
         }
         if (responseCode !in 200..299) {
@@ -209,11 +230,13 @@ private fun downloadSubscription(
             )
         }
         val content = connection.inputStream.use(InputStream::readImportUtf8WithinLimit)
+        val rawContentDisposition = connection.getHeaderField(ContentDispositionHeader).orEmpty()
         return DownloadedSubscription.Content(
             content = content,
             subscriptionInfo = subscriptionInfo,
             etag = responseEtag,
             lastModified = responseLastModified,
+            remoteName = decodeContentDispositionFilename(rawContentDisposition),
         )
     } finally {
         connection.disconnect()
@@ -280,6 +303,7 @@ private fun String.decryptAgeIfNeeded(ageSecretKey: String): String {
 }
 
 private const val SubscriptionUserInfoHeader = "subscription-userinfo"
+private const val ContentDispositionHeader = "content-disposition"
 private const val EtagHeader = "ETag"
 private const val LastModifiedHeader = "Last-Modified"
 private const val DefaultUserAgent = "sing-box"

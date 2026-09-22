@@ -3,6 +3,12 @@
 
 package app
 
+import features.resources.runtime.ResourceAutoUpdateScheduler
+import features.resources.resourceAutoUpdateIntervalMillis
+import features.resources.ResourceFileUseCase
+import features.resources.ResourceFileUpdateCoordinator
+import features.resources.ResourceFileUpdateRequest
+import features.resources.runtime.AndroidResourceFileDownloadCancellation
 import android.app.Application
 import data.AndroidAppStateStore
 import data.AppSettingsPreferences
@@ -25,6 +31,7 @@ import features.subscription.runtime.toSubscriptionFetchOptions
 import features.subscription.usecase.OutboundSubscriptionUpdater
 import features.subscription.usecase.SubscriptionStateGateway
 import features.subscription.usecase.prepareSubscription
+import features.subscription.usecase.SubscriptionInstallConfig
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
@@ -53,6 +60,13 @@ class AsteriskApplication : Application(), SingletonImageLoader.Factory {
     }
     internal val stateStore: AndroidAppStateStore by lazy {
         AndroidAppStateStore.get(applicationContext)
+    }
+    internal val subscriptionInstallConfig by lazy {
+        SubscriptionInstallConfig(
+            currentState = { stateStore.state.value },
+            repository = outboundRepository,
+            updater = outboundSubscriptionUpdater,
+        )
     }
     internal val outboundRepository: OutboundRepository by lazy {
         OutboundRepository(
@@ -131,6 +145,48 @@ class AsteriskApplication : Application(), SingletonImageLoader.Factory {
             validate = { state ->
                 validateSingBoxRuntimeConfiguration(applicationContext, state)
             },
+            formatDuplicateName = { name, ordinal ->
+                applicationContext.getString(R.string.outbound_group_name_duplicate, name, ordinal)
+            },
+        )
+    }
+
+    private val resourceFileUseCase by lazy {
+        ResourceFileUseCase(
+            context = this,
+            resourceFilePicker = { null },
+            currentAppState = { stateStore.state.value },
+        )
+    }
+    internal val resourceFileUpdateCoordinator by lazy {
+        ResourceFileUpdateCoordinator(
+            scope = appScope,
+            execute = { request ->
+                when (request) {
+                    is ResourceFileUpdateRequest.BuiltIn -> resourceFileUseCase.update(
+                        kind = request.kind,
+                        source = request.source,
+                        options = request.options,
+                        customResourceFiles = request.customResourceFiles,
+                    )
+                    is ResourceFileUpdateRequest.Custom -> resourceFileUseCase.updateCustom(
+                        customFile = request.file,
+                        options = request.options,
+                        customResourceFiles = request.customResourceFiles,
+                    )
+                    is ResourceFileUpdateRequest.CustomBatch -> resourceFileUseCase.updateCustomBatch(
+                        customFiles = request.files,
+                        options = request.options,
+                        allCustomResourceFiles = request.customResourceFiles,
+                    )
+                    is ResourceFileUpdateRequest.All -> resourceFileUseCase.update(
+                        source = request.source,
+                        options = request.options,
+                        customResourceFiles = request.customResourceFiles,
+                    )
+                }
+            },
+            cancelRunning = AndroidResourceFileDownloadCancellation::cancel,
         )
     }
 
@@ -147,6 +203,13 @@ class AsteriskApplication : Application(), SingletonImageLoader.Factory {
             AndroidLibboxRuntime.setup(this)
             AndroidCoreLogRepository.initialize(applicationContext)
             return
+        }
+        appScope.launch {
+            val scheduler = ResourceAutoUpdateScheduler(applicationContext)
+            stateStore.state
+                .map { state -> resourceAutoUpdateIntervalMillis(state.enableResourceAutoUpdate, state.resourceAutoUpdateInterval) }
+                .distinctUntilChanged()
+                .collect(scheduler::reconcile)
         }
         AndroidLibboxRuntime.setup(this)
         AndroidLogcatRepository.initialize(applicationContext)

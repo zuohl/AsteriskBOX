@@ -15,7 +15,7 @@
         },
         {
             "uniqueId": "com.github.asterisk4magisk:libbox",
-            "artifactVersion": "v1.15.0-alpha.2-reF1nd",
+            "artifactVersion": "v1.15.0-alpha.6-reF1nd-android.1",
             "name": "AndroidLibBoxLite",
             "description": "Pinned Android JNI and command API bindings for sing-box.",
             "website": "https://github.com/Asterisk4Magisk/AndroidLibBoxLite",
@@ -54,7 +54,7 @@
         },
         {
             "uniqueId": "github:Asterisk4Magisk/asteriskd",
-            "artifactVersion": "v2.0.27",
+            "artifactVersion": "v2.0.33",
             "name": "asteriskd",
             "description": "A root Android daemon that synchronizes local-address bypass rules and pinned eBPF maps.",
             "website": "https://github.com/Asterisk4Magisk/asteriskd",
@@ -67,7 +67,7 @@
         },
         {
             "uniqueId": "github:Asterisk4Magisk/bpf2socks",
-            "artifactVersion": "v1.0.14",
+            "artifactVersion": "v1.0.15",
             "name": "bpf2socks",
             "description": "A root Android/Linux traffic bridge that forwards TCP and UDP through a SOCKS5 upstream using eBPF.",
             "website": "https://github.com/Asterisk4Magisk/bpf2socks",
@@ -93,7 +93,7 @@
         },
         {
             "uniqueId": "io.coil-kt.coil3:coil",
-            "artifactVersion": "3.6.2",
+            "artifactVersion": "3.6.3",
             "name": "coil",
             "description": "An image loading library for Android and Compose Multiplatform.",
             "website": "https://github.com/coil-kt/coil",
@@ -106,7 +106,7 @@
         },
         {
             "uniqueId": "io.coil-kt.coil3:coil-compose",
-            "artifactVersion": "3.6.2",
+            "artifactVersion": "3.6.3",
             "name": "coil-compose",
             "description": "An image loading library for Android and Compose Multiplatform.",
             "website": "https://github.com/coil-kt/coil",
@@ -145,7 +145,7 @@
         },
         {
             "uniqueId": "org.jetbrains.compose.material3:material3",
-            "artifactVersion": "1.12.0-alpha03",
+            "artifactVersion": "1.13.0-alpha01",
             "name": "Compose Material3 Components",
             "description": "Compose Material You Design Components library",
             "website": "https://github.com/JetBrains/compose-multiplatform",
@@ -170,6 +170,19 @@
             ]
         },
         {
+            "uniqueId": "com.android.tools.smali:smali-dexlib2",
+            "artifactVersion": "3.0.10",
+            "name": "dexlib2",
+            "description": "dexlib2 is a library for reading/modifying/writing Android dex files",
+            "website": "https://github.com/google/smali",
+            "scm": {
+                "url": "https://github.com/google/smali/tree/master/dexlib2"
+            },
+            "licenses": [
+                "BSD-3-Clause"
+            ]
+        },
+        {
             "uniqueId": "io.github.rosemoe:editor",
             "artifactVersion": "0.24.6",
             "name": "editor",
@@ -180,6 +193,19 @@
             },
             "licenses": [
                 "LGPL v2.1"
+            ]
+        },
+        {
+            "uniqueId": "dev.chrisbanes.haze:haze",
+            "artifactVersion": "1.7.3",
+            "name": "Haze",
+            "description": "Haze",
+            "website": "https://github.com/chrisbanes/haze/",
+            "scm": {
+                "url": "https://github.com/chrisbanes/haze/"
+            },
+            "licenses": [
+                "Apache-2.0"
             ]
         },
         {
@@ -197,7 +223,7 @@
         },
         {
             "uniqueId": "com.github.android-password-store:kage",
-            "artifactVersion": "0.6.0",
+            "artifactVersion": "0.7.0",
             "name": "kage",
             "description": "Kotlin implementation of the age file encryption library",
             "website": "https://github.com/Android-Password-Store/kage",
@@ -210,7 +236,7 @@
         },
         {
             "uniqueId": "org.jetbrains.kotlin:kotlin-stdlib",
-            "artifactVersion": "2.4.10",
+            "artifactVersion": "2.4.20",
             "name": "Kotlin Stdlib",
             "description": "Kotlin Standard Library",
             "website": "https://kotlinlang.org/",
@@ -236,7 +262,7 @@
         },
         {
             "uniqueId": "io.ktor:ktor-http",
-            "artifactVersion": "3.5.2",
+            "artifactVersion": "3.6.0",
             "name": "ktor-http",
             "description": "Ktor is a framework for quickly creating web applications in Kotlin with minimal effort.",
             "website": "https://github.com/ktorio/ktor",
@@ -255,6 +281,19 @@
             "website": "https://github.com/topjohnwu/libsu",
             "scm": {
                 "url": "https://github.com/topjohnwu/libsu"
+            },
+            "licenses": [
+                "Apache-2.0"
+            ]
+        },
+        {
+            "uniqueId": "androidx.lifecycle:lifecycle-runtime-compose",
+            "artifactVersion": "2.11.0",
+            "name": "Lifecycle Runtime Compose",
+            "description": "Compose integration with Lifecycle",
+            "website": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.11.0",
+            "scm": {
+                "url": "https://cs.android.com/androidx/platform/frameworks/support"
             },
             "licenses": [
                 "Apache-2.0"
@@ -301,10 +340,10 @@
         },
         {
             "uniqueId": "androidx.room:room-runtime",
-            "artifactVersion": "2.8.4",
+            "artifactVersion": "2.8.5",
             "name": "Room-Runtime",
             "description": "Android Room-Runtime",
-            "website": "https://developer.android.com/jetpack/androidx/releases/room#2.8.4",
+            "website": "https://developer.android.com/jetpack/androidx/releases/room#2.8.5",
             "scm": {
                 "url": "https://cs.android.com/androidx/platform/frameworks/support"
             },
@@ -313,13 +352,13 @@
             ]
         },
         {
-            "uniqueId": "github:reF1nd/sing-box-releases",
-            "artifactVersion": "v1.15.0-alpha.2-reF1nd",
-            "name": "sing-box reF1nd build",
-            "description": "A reF1nd build of the sing-box proxy platform used by AsteriskBOX ROOT modes.",
-            "website": "https://github.com/reF1nd/sing-box-releases",
+            "uniqueId": "github:reF1nd/sing-box",
+            "artifactVersion": null,
+            "name": "sing-box (reF1nd)",
+            "description": "The sing-box proxy core shared by VPN and ROOT through AndroidLibBoxLite.",
+            "website": "https://github.com/reF1nd/sing-box",
             "scm": {
-                "url": "https://github.com/reF1nd/sing-box-releases"
+                "url": "https://github.com/reF1nd/sing-box"
             },
             "licenses": [
                 "GPL-3.0"

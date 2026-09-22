@@ -3,7 +3,6 @@
 
 package features.settings
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,8 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import ui.components.AsteriskScaffold
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
@@ -34,7 +32,7 @@ import app.LocalIsWideScreen
 import app.LocalNavigator
 import app.LocalUpdateAppState
 import app.ProjectInfo
-import org.asterisk.zcc.abox.R
+import app.R
 import app.collectAppState
 import app.managedRuleSetChoices
 import app.withPrunedManagedInboundReferences
@@ -87,9 +85,9 @@ fun SettingsPage(
     val topAppBarScrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     var searchQuery by rememberSaveable { mutableStateOf("") }
 
-    Scaffold(
+    AsteriskScaffold(
         topBar = {
-            Column(modifier = Modifier.background(MaterialTheme.colorScheme.surface)) {
+            Column {
                 AdaptiveTopAppBar(
                     title = stringResource(R.string.settings_title),
                     subtitle = "v${ProjectInfo.VERSION_NAME} (${ProjectInfo.VERSION_CODE})",
@@ -176,7 +174,6 @@ private fun SettingsContent(
         .indexOfFirst { item -> item.first == appState.runMode }
         .takeIf { index -> index >= 0 }
         ?: 0
-    val tunStackOptions = settingsTunStackOptions()
     val keyColorOptions = listOf(
         stringResource(R.string.theme_color_default),
         stringResource(R.string.theme_color_blue),
@@ -184,8 +181,9 @@ private fun SettingsContent(
         stringResource(R.string.theme_color_violet),
         stringResource(R.string.theme_color_yellow),
         stringResource(R.string.theme_color_orange),
-        stringResource(R.string.theme_color_rose),
+        stringResource(R.string.theme_color_sakura),
         stringResource(R.string.theme_color_cyan),
+        stringResource(R.string.theme_color_coffee),
     ).take(KeyColors.size + 1)
     val rootRequiredMessage = stringResource(R.string.settings_root_required)
     val rootBootScriptFailedMessage = stringResource(R.string.settings_root_boot_script_failed)
@@ -281,16 +279,17 @@ private fun SettingsContent(
         snifferTimeout = appState.snifferTimeout,
     )
     val tunSettingsSummary = tunSettingsSummary(
-        tunStack = tunStackOptions[appState.singBoxTunStack.coerceIn(tunStackOptions.indices)],
         mtu = appState.tunMtu,
         vpnDns = appState.tunVpnDns,
         ipv4Cidr = appState.tunIpv4Cidr,
         ipv6Cidr = appState.tunIpv6Cidr,
-        showTunStack = appState.runMode != RunModeTun2Socks,
         showVpnDns = appState.runMode == RunModeVpnService,
     )
+    val ebpfLocalDataPlane = appState.ebpfLocalDataPlane
+    val ebpfLocalDnsMode = appState.ebpfLocalDnsMode
     val sheetState = rememberSettingsSheetState(updateAppState)
     val nestedSearchEntries = settingsNestedSearchEntries(
+        showEbpfOptions = appState.runMode == RunModeEbpf,
         useTunSharedNetwork = (appState.runMode == RunModeEbpf || appState.runMode == RunModeTun),
         onOpenDns = {
             navigator.push(Route.DnsManagement(openSettings = true))
@@ -310,6 +309,10 @@ private fun SettingsContent(
         onOpenPrivateAddresses = { sheetState.openPrivateAddresses(appState) },
     )
     val topLevelSearchItems = settingsTopLevelSearchItems(
+        showEbpfOptions = appState.runMode == RunModeEbpf,
+        ebpfLocalDataPlane = ebpfLocalDataPlane,
+        ebpfLocalDnsMode = ebpfLocalDnsMode,
+        enableLocalDns = appState.enableLocalDns,
         useTunSharedNetwork = (appState.runMode == RunModeEbpf || appState.runMode == RunModeTun),
         colorModeOptions = colorModeOptions,
         colorMode = appState.colorMode,
@@ -364,25 +367,6 @@ private fun SettingsContent(
                     )
                 }
             }
-            item(key = "settings_theme") {
-                SettingsThemeSection(
-                    colorModeOptions = colorModeOptions,
-                    colorMode = appState.colorMode,
-                    keyColorOptions = keyColorOptions,
-                    seedIndex = appState.seedIndex,
-                    languageOptions = languageOptions,
-                    languageMode = appState.languageMode,
-                    onColorModeChange = { index -> updateAppState { state -> state.copy(colorMode = index) } },
-                    onSeedIndexChange = { index -> updateAppState { state -> state.copy(seedIndex = index) } },
-                    onLanguageModeChange = { index -> updateAppState { state -> state.copy(languageMode = index) } },
-                )
-            }
-            item(key = "settings_general") {
-                SettingsGeneralSection(
-                    onOpenOutboundGroups = { navigator.push(Route.OutboundGroupList) },
-                    onOpenResourceManagement = { navigator.push(Route.ResourceManagement) },
-                )
-            }
             item(key = "settings_core") {
                 SettingsCoreSection(
                     snifferSettingsSummary = snifferSummary,
@@ -390,6 +374,8 @@ private fun SettingsContent(
                     onOpenDnsManagement = { navigator.push(Route.DnsManagement()) },
                     onOpenSnifferSettings = { sheetState.openSnifferSettings(appState) },
                     onOpenOutbounds = { navigator.push(Route.OutboundList) },
+                    onOpenApps = { navigator.push(Route.ProxyAppList) },
+                    onOpenResourceManagement = { navigator.push(Route.ResourceManagement) },
                     onOpenSelectors = { navigator.push(Route.SelectorManagement) },
                     onOpenEndpoints = { navigator.push(Route.EndpointList) },
                     onOpenRouting = { navigator.push(Route.RoutingManagement) },
@@ -464,6 +450,9 @@ private fun SettingsContent(
                 SettingsProxyModeSections(
                     runMode = appState.runMode,
                     localProxySettingsSummary = localProxySettingsSummary,
+                    ebpfLocalDataPlane = ebpfLocalDataPlane,
+                    ebpfLocalDnsMode = ebpfLocalDnsMode,
+                    enableLocalDns = appState.enableLocalDns,
                     enableTrafficStatsNotification = appState.enableTrafficStatsNotification,
                     enableVpnAppendHttpProxy = appState.enableVpnAppendHttpProxy,
                     enableVpnHevTun = appState.enableVpnHevTun,
@@ -478,6 +467,12 @@ private fun SettingsContent(
                     ignoredInterfacesSummary = ignoredInterfacesSummary,
                     privateAddressCidrsSummary = privateAddressCidrsSummary,
                     onOpenLocalProxySettings = { sheetState.openLocalProxySettings(appState) },
+                    onEbpfLocalDataPlaneChange = { value ->
+                        updateAppState { state -> state.copy(ebpfLocalDataPlane = value) }
+                    },
+                    onEbpfLocalDnsModeChange = { value ->
+                        updateAppState { state -> state.copy(ebpfLocalDnsMode = value) }
+                    },
                     onEnableTrafficStatsNotificationChange = { enabled ->
                         updateAppState { state -> state.copy(enableTrafficStatsNotification = enabled) }
                     },
@@ -592,6 +587,28 @@ private fun SettingsContent(
                     onOpenPrivateAddresses = { sheetState.openPrivateAddresses(appState) },
                 )
             }
+            item(key = "settings_app") {
+                SettingsAppSection(
+                    languageOptions = languageOptions,
+                    languageMode = appState.languageMode,
+                    colorModeOptions = listOf(
+                        stringResource(R.string.option_follow_system),
+                        stringResource(R.string.option_light),
+                        stringResource(R.string.option_dark),
+                    ),
+                    colorMode = appState.colorMode,
+                    keyColorOptions = keyColorOptions,
+                    seedIndex = appState.seedIndex,
+                    onColorModeChange = { index -> updateAppState { state -> state.copy(colorMode = index) } },
+                    onSeedIndexChange = { index -> updateAppState { state -> state.copy(seedIndex = index) } },
+                    onLanguageModeChange = { index -> updateAppState { state -> state.copy(languageMode = index) } },
+                )
+            }
+            item(key = "settings_tools") {
+                SettingsToolsSection(
+                    onOpenNetworkQualityTest = { sheetState.openNetworkQualityTest() },
+                )
+            }
             item(key = "settings_backup_restore") {
                 SettingsBackupRestoreSection(
                     progressText = backupRestoreProgressText,
@@ -650,7 +667,6 @@ private fun SettingsContent(
         SettingsBottomSheetsHost(
             appState = appState,
             sheetState = sheetState,
-            tunStackOptions = tunStackOptions,
             tunBypassRuleSetChoices = tunBypassRuleSetChoices,
             updateAppState = updateAppState,
         )

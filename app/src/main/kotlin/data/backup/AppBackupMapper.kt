@@ -12,6 +12,7 @@ import app.CustomResourceFileState
 import app.OutboundGroupState
 import app.OutboundGroupUpdateStatus
 import app.OutboundState
+import app.SubscriptionInfo
 import app.SingBoxDnsRuleState
 import app.SingBoxDnsRuleTypeLogical
 import app.SingBoxEndpointState
@@ -78,7 +79,6 @@ private fun AppState.toBackupSettings(): AppBackupSettings =
         singBoxMode = singBoxMode,
         singBoxProxyLayout = singBoxProxyLayout,
         singBoxProxySort = singBoxProxySort,
-        singBoxTunStack = singBoxTunStack,
         singBoxControlPort = singBoxControlPort,
         singBoxControlSecret = singBoxControlSecret,
         enableLocalDns = enableLocalDns,
@@ -96,6 +96,8 @@ private fun AppState.toBackupSettings(): AppBackupSettings =
         coreLogLevel = coreLogLevel,
         enableTrafficStatsNotification = enableTrafficStatsNotification,
         enableBroadcastControl = enableBroadcastControl,
+        enableResourceAutoUpdate = enableResourceAutoUpdate,
+        resourceAutoUpdateInterval = resourceAutoUpdateInterval,
         resourceFileSource = resourceFileSource,
         customResourceFileGeositeCategoryAdsAllUrl = customResourceFileGeositeCategoryAdsAllUrl,
         customResourceFileGeositeGoogleUrl = customResourceFileGeositeGoogleUrl,
@@ -116,6 +118,10 @@ private fun AppState.toBackupSettings(): AppBackupSettings =
         dnsDisableExpire = dnsDisableExpire,
         dnsTimeout = dnsTimeout,
         transparentProxyPort = transparentProxyPort,
+        ebpfLocalDataPlane = ebpfLocalDataPlane,
+        ebpfSharedDataPlane = ebpfSharedDataPlane,
+        ebpfLocalDnsMode = ebpfLocalDnsMode,
+        ebpfSharedDnsMode = ebpfSharedDnsMode,
         enableRootEbpfDirectCidrBypass = enableRootEbpfDirectCidrBypass,
         tunBypassRuleSetTags = tunBypassRuleSetTags,
         enableRootIpv6Disabler = enableRootIpv6Disabler,
@@ -191,6 +197,10 @@ private fun OutboundGroupState.toBackup(): AppBackupOutboundGroup =
         lastUpdateErrorSummary = lastUpdateErrorSummary,
         subscriptionEtag = subscriptionEtag,
         subscriptionLastModified = subscriptionLastModified,
+        subscriptionUploadBytes = subscriptionInfo.uploadBytes,
+        subscriptionDownloadBytes = subscriptionInfo.downloadBytes,
+        subscriptionTotalBytes = subscriptionInfo.totalBytes,
+        subscriptionExpireAtSeconds = subscriptionInfo.expireAtSeconds,
     )
 
 private fun OutboundState.toBackup(): AppBackupOutbound =
@@ -271,7 +281,6 @@ private fun AppBackupData.toAppState(): AppState {
         singBoxMode = settings.singBoxMode,
         singBoxProxyLayout = settings.singBoxProxyLayout,
         singBoxProxySort = settings.singBoxProxySort,
-        singBoxTunStack = settings.singBoxTunStack,
         singBoxControlPort = settings.singBoxControlPort,
         singBoxControlSecret = settings.singBoxControlSecret,
         enableLocalDns = settings.enableLocalDns,
@@ -290,6 +299,8 @@ private fun AppBackupData.toAppState(): AppState {
         coreLogLevel = settings.coreLogLevel,
         enableTrafficStatsNotification = settings.enableTrafficStatsNotification,
         enableBroadcastControl = settings.enableBroadcastControl,
+        enableResourceAutoUpdate = settings.enableResourceAutoUpdate,
+        resourceAutoUpdateInterval = settings.resourceAutoUpdateInterval,
         resourceFileSource = settings.resourceFileSource,
         customResourceFileGeositeCategoryAdsAllUrl = settings.customResourceFileGeositeCategoryAdsAllUrl,
         customResourceFileGeositeGoogleUrl = settings.customResourceFileGeositeGoogleUrl,
@@ -321,6 +332,10 @@ private fun AppBackupData.toAppState(): AppState {
         transparentProxyPort = settings.transparentProxyPort,
         enableRootBootScript = false,
         enableRootEbpfRules = false,
+        ebpfLocalDataPlane = settings.ebpfLocalDataPlane,
+        ebpfSharedDataPlane = settings.ebpfSharedDataPlane,
+        ebpfLocalDnsMode = settings.ebpfLocalDnsMode,
+        ebpfSharedDnsMode = settings.ebpfSharedDnsMode,
         enableRootEbpfDirectCidrBypass = settings.enableRootEbpfDirectCidrBypass,
         tunBypassRuleSetTags = settings.tunBypassRuleSetTags
             ?: settings.legacyEbpfBypassRuleSetTags,
@@ -360,6 +375,12 @@ private fun AppBackupOutboundGroup.toState(): OutboundGroupState =
         lastUpdateErrorSummary = lastUpdateErrorSummary,
         subscriptionEtag = subscriptionEtag,
         subscriptionLastModified = subscriptionLastModified,
+        subscriptionInfo = SubscriptionInfo(
+            uploadBytes = subscriptionUploadBytes.coerceAtLeast(0L),
+            downloadBytes = subscriptionDownloadBytes.coerceAtLeast(0L),
+            totalBytes = subscriptionTotalBytes.coerceAtLeast(0L),
+            expireAtSeconds = subscriptionExpireAtSeconds.coerceAtLeast(0L),
+        ),
     )
 
 private fun AppBackupOutbound.toState(): OutboundState =
@@ -453,7 +474,11 @@ private fun SingBoxRouteRuleState.outboundReferences(): List<String> =
 private fun SingBoxDnsRuleState.dnsServerReferences(
     includeAction: Boolean,
 ): List<String> = buildList {
-    if (includeAction) add(server)
+    if (includeAction) {
+        when (action.trim()) {
+            "route", "evaluate" -> add(server)
+        }
+    }
     if (type == SingBoxDnsRuleTypeLogical) {
         logicalRules.forEach { rule ->
             addAll(rule.dnsServerReferences(includeAction = false))

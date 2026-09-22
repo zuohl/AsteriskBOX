@@ -11,13 +11,12 @@ import org.gradle.api.tasks.TaskAction
 object ProjectConfig {
     const val JVM_VERSION = 26
     const val PROJECT_NAME = "AsteriskBOX"
-    const val VERSION_NAME = "1.1.7"
+    const val VERSION_NAME = "1.1.10-dev"
     const val PACKAGE_NAME = "org.asterisk.zcc.abox"
-    const val ASTERISKD_VERSION = "v2.0.27"
-    const val BPF2SOCKS_VERSION = "v1.0.14"
+    const val ASTERISKD_VERSION = "v2.0.33"
+    const val BPF2SOCKS_VERSION = "v1.0.15"
     const val BPF_MATCHER_VERSION = "v1.0.1"
-    const val ANDROID_LIB_BOX_LITE_VERSION = "v1.15.0-alpha.2-reF1nd"
-    const val SING_BOX_VERSION = ANDROID_LIB_BOX_LITE_VERSION
+    const val ANDROID_LIB_BOX_LITE_VERSION = "v1.15.0-alpha.6-reF1nd-android.1"
     const val HEV_SOCKS5_TUNNEL_VERSION = "2.17.1"
     const val TARGET_SDK = 37
     const val MIN_SDK = 26
@@ -44,9 +43,6 @@ abstract class GenerateProjectInfoTask : DefaultTask() {
     abstract val versionCode: Property<Int>
 
     @get:Input
-    abstract val singBoxVersion: Property<String>
-
-    @get:Input
     abstract val androidLibBoxLiteVersion: Property<String>
 
     @get:Input
@@ -68,7 +64,6 @@ abstract class GenerateProjectInfoTask : DefaultTask() {
                 const val PROJECT_NAME = "${projectName.get()}"
                 const val VERSION_NAME = "${versionName.get()}"
                 const val VERSION_CODE = ${versionCode.get()}
-                const val SING_BOX_VERSION = "${singBoxVersion.get()}"
                 const val ANDROID_LIB_BOX_LITE_VERSION = "${androidLibBoxLiteVersion.get()}"
                 const val HEV_SOCKS5_TUNNEL_VERSION = "${hevSocks5TunnelVersion.get()}"
             }

@@ -11,12 +11,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import ui.theme.AsteriskShapeTokens
+import kotlin.math.abs
 
 @Composable
 internal fun AsteriskPageCard(
@@ -118,14 +122,17 @@ internal fun AsteriskModalBottomSheet(
     if (!renderSheet) return
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
-        modifier = modifier,
+        // Keep the top inset independent of the sheet offset to avoid changing drag anchors.
+        modifier = modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)),
         sheetState = sheetState,
         sheetGesturesEnabled = dismissEnabled,
         shape = AsteriskShapeTokens.Sheet,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         dragHandle = { BottomSheetDefaults.DragHandle() },
         contentWindowInsets = {
-            WindowInsets.safeDrawing.union(WindowInsets.ime)
+            WindowInsets.safeDrawing
+                .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
+                .union(WindowInsets.ime)
         },
     ) {
         Column(
@@ -179,31 +186,29 @@ internal fun shouldAllowSheetStateChange(
     targetValue != SheetValue.Hidden || !show || dismissEnabled
 
 internal class SheetGestureHandoffGuard {
-    private var gestureActive = false
-    private var contentConsumed = false
+    private var hasScrollDecision = false
+    private var canDragSheet = false
 
     fun startGesture() {
-        gestureActive = true
-        contentConsumed = false
+        hasScrollDecision = false
+        canDragSheet = false
     }
 
-    fun ensureGestureStarted() {
-        if (gestureActive) return
-        startGesture()
-    }
-
-    fun recordContentConsumption(deltaY: Float) {
-        if (gestureActive && deltaY != 0f) {
-            contentConsumed = true
-        }
+    fun recordScroll(consumedY: Float, availableY: Float) {
+        if (hasScrollDecision) return
+        // Scroll startup or an ancestor consuming the delta can leave no vertical movement.
+        // Wait for movement before deciding who owns this gesture.
+        if (consumedY == 0f && availableY == 0f) return
+        hasScrollDecision = true
+        // decide once, allowing subpixel consumption at the content boundary.
+        canDragSheet = availableY > 0f && abs(consumedY) < 0.5f
     }
 
     fun shouldConsumeDownwardRemainder(remainderY: Float): Boolean =
-        gestureActive && contentConsumed && remainderY > 0f
+        hasScrollDecision && !canDragSheet && remainderY > 0f
 
     fun endGesture() {
-        gestureActive = false
-        contentConsumed = false
+        startGesture()
     }
 }
 
@@ -214,21 +219,13 @@ private class SheetContentNestedScrollConnection : NestedScrollConnection {
         handoffGuard.startGesture()
     }
 
-    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-        if (source == NestedScrollSource.UserInput) {
-            handoffGuard.ensureGestureStarted()
-        }
-        return Offset.Zero
-    }
-
     override fun onPostScroll(
         consumed: Offset,
         available: Offset,
         source: NestedScrollSource,
     ): Offset {
         if (source == NestedScrollSource.UserInput) {
-            handoffGuard.ensureGestureStarted()
-            handoffGuard.recordContentConsumption(consumed.y)
+            handoffGuard.recordScroll(consumed.y, available.y)
         }
         return if (handoffGuard.shouldConsumeDownwardRemainder(available.y)) {
             Offset(x = 0f, y = available.y)

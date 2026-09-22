@@ -3,7 +3,6 @@
 
 package app
 
-import org.asterisk.zcc.abox.R
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -20,33 +19,29 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
-import ui.icons.AsteriskIcons as Icons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
-import androidx.navigation3.ui.NavDisplay
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
@@ -57,34 +52,38 @@ import app.navigation.Route
 import app.navigation.rememberMainDestinationState
 import features.about.AboutPage
 import features.about.LicensePage
+import features.dns.DnsManagementPage
+import features.dns.DnsRuleEditorPage
+import features.endpoint.EndpointEditorPage
+import features.endpoint.EndpointListPage
 import features.logs.CoreLogsPage
 import features.logs.LogcatLogsPage
 import features.monitoring.connections.ConnectionsMonitorPage
 import features.monitoring.network.NetworkMonitorPage
 import features.monitoring.resource.ResourceMonitorPage
 import features.monitoring.traffic.TrafficMonitorPage
-import features.outbound.OutboundGroupListPage
 import features.outbound.OutboundEditorPage
+import features.outbound.OutboundGroupListPage
 import features.outbound.OutboundListPage
-import features.endpoint.EndpointEditorPage
-import features.endpoint.EndpointListPage
-import features.dns.DnsManagementPage
-import features.dns.DnsRuleEditorPage
-import features.selector.SelectorManagementPage
-import features.selector.SelectorEditorPage
-import features.singbox.SingBoxDashboardPage
-import features.singbox.SingBoxProxyPage
 import features.proxy.app.ProxyAppListPage
-import features.resources.ResourceManagementPage
 import features.resources.ResourceJsonEditorPage
+import features.resources.ResourceManagementPage
 import features.routing.RouteRuleEditorPage
 import features.routing.RoutingManagementPage
+import features.selector.SelectorEditorPage
+import features.selector.SelectorManagementPage
 import features.settings.SettingsPage
+import features.singbox.SingBoxDashboardPage
+import features.singbox.SingBoxProxyDestination
+import ui.components.AsteriskFloatingNavigationBar
+import ui.components.AsteriskFloatingNavigationItem
+import ui.components.AsteriskScaffold
 import ui.layout.pageWindowPadding
 import ui.layout.shouldShowNavigationRail
 import ui.layout.shouldShowSplitPane
+import ui.navigation.AsteriskNavDisplay
 import ui.theme.AsteriskMotion
-import androidx.compose.runtime.getValue
+import ui.icons.AsteriskIcons as Icons
 
 private data class MainNavigationItem(
     val destination: MainDestination,
@@ -96,14 +95,14 @@ private data class MainNavigationItem(
 private fun mainNavigationItems(): List<MainNavigationItem> {
     val home = stringResource(R.string.nav_dashboard)
     val proxies = stringResource(R.string.nav_proxies)
-    val apps = stringResource(R.string.nav_apps)
+    val groups = stringResource(R.string.nav_groups)
     val settings = stringResource(R.string.nav_settings)
 
-    return remember(home, proxies, apps, settings) {
+    return remember(home, proxies, groups, settings) {
         listOf(
             MainNavigationItem(MainDestination.Home, home, Icons.Rounded.Home),
             MainNavigationItem(MainDestination.Proxies, proxies, Icons.AutoMirrored.Rounded.AltRoute),
-            MainNavigationItem(MainDestination.Apps, apps, Icons.Rounded.Apps),
+            MainNavigationItem(MainDestination.Groups, groups, Icons.AutoMirrored.Rounded.Wysiwyg),
             MainNavigationItem(MainDestination.Settings, settings, Icons.Rounded.Settings),
         )
     }
@@ -172,8 +171,18 @@ fun AppContent(
                         )
                     }
                 }
-                entry<Route.OutboundGroupList> {
-                    OutboundGroupListPage(padding = padding)
+                entry<Route.OutboundGroupCreate> {
+                    OutboundGroupListPage(
+                        padding = padding,
+                        createOnOpen = true,
+                        onBack = navigator::pop,
+                    )
+                }
+                entry<Route.ProxyAppList> {
+                    ProxyAppListPage(
+                        padding = padding,
+                        onBack = navigator::pop,
+                    )
                 }
                 entry<Route.OutboundList> {
                     OutboundListPage(padding = padding)
@@ -270,13 +279,18 @@ fun AppContent(
                 entryDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator()),
                 entryProvider = entryProvider,
             )
-            NavDisplay(
+            AsteriskNavDisplay(
                 entries = entries,
                 onBack = { navigator.pop() },
                 transitionSpec = AsteriskMotion.navigationForward(),
                 popTransitionSpec = AsteriskMotion.navigationBack(),
                 predictivePopTransitionSpec = AsteriskMotion.predictiveNavigationBack(),
             )
+
+            // Global error dialog — visible across every nav destination so the user sees the
+            // diagnostic immediately on the home page after a failed proxy start, regardless of
+            // which tab they are on.
+            features.singbox.ProxyErrorHost()
         }
     }
 }
@@ -322,7 +336,7 @@ private fun WideScreenContent(
                 )
             }
         }
-        Scaffold(
+        AsteriskScaffold(
             modifier = Modifier
                 .fillMaxSize(),
             contentWindowInsets =
@@ -348,7 +362,7 @@ private fun CompactScreenLayout(
     padding: PaddingValues,
     mainDestinationState: MainDestinationState,
 ) {
-    Scaffold(
+    AsteriskScaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
             MainNavigationBar(
@@ -372,14 +386,13 @@ private fun MainNavigationBar(
     modifier: Modifier = Modifier,
 ) {
     val selectedDestination = mainDestinationState.current
-    NavigationBar(modifier = modifier) {
+    AsteriskFloatingNavigationBar(modifier = modifier) {
         navigationItems.forEach { item ->
-            NavigationBarItem(
+            AsteriskFloatingNavigationItem(
                 selected = selectedDestination == item.destination,
                 onClick = { mainDestinationState.select(item.destination) },
-                icon = { Icon(imageVector = item.icon, contentDescription = null) },
-                label = { Text(item.label) },
-                alwaysShowLabel = true,
+                icon = item.icon,
+                label = item.label,
             )
         }
     }
@@ -402,8 +415,8 @@ private fun MainDestinationContent(
             key(destination) {
                 when (destination) {
                     MainDestination.Home -> SingBoxDashboardPage(padding = padding)
-                    MainDestination.Proxies -> SingBoxProxyPage(padding = padding)
-                    MainDestination.Apps -> ProxyAppListPage(padding = padding)
+                    MainDestination.Proxies -> SingBoxProxyDestination(padding = padding)
+                    MainDestination.Groups -> OutboundGroupListPage(padding = padding)
                     MainDestination.Settings -> SettingsPage(padding = padding)
                 }
             }

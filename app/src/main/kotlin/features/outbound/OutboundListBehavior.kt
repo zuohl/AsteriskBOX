@@ -63,7 +63,7 @@ internal fun resolveOutboundListColumns(
 }
 
 internal fun outboundListBottomExtraDp(): Int {
-    return OutboundListBaseBottomExtraDp + OutboundCardHeightDp + OutboundGridSpacingDp
+    return OutboundListBaseBottomExtraDp
 }
 
 internal fun parseOutboundImportContent(

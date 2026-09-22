@@ -6,7 +6,7 @@ package features.settings
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import org.asterisk.zcc.abox.R
+import app.R
 import ui.icons.AsteriskIcons as Icons
 
 internal data class SettingsSearchEntry(
@@ -30,6 +30,10 @@ internal fun filterSettingsSearchEntries(
 
 @Composable
 internal fun settingsTopLevelSearchItems(
+    showEbpfOptions: Boolean,
+    ebpfLocalDataPlane: String,
+    ebpfLocalDnsMode: String,
+    enableLocalDns: Boolean,
     useTunSharedNetwork: Boolean,
     colorModeOptions: List<String>,
     colorMode: Int,
@@ -54,32 +58,32 @@ internal fun settingsTopLevelSearchItems(
     val coreLogLevelLabels = settingsCoreLogLevelLabels()
     return listOfNotNull(
         SettingsSearchItem(
-            SettingsSectionId.Theme,
+            SettingsSectionId.Apps,
             stringResource(R.string.settings_color_mode),
             value = optionValue(colorModeOptions, colorMode),
             optionText = colorModeOptions,
         ),
         SettingsSearchItem(
-            SettingsSectionId.Theme,
+            SettingsSectionId.Apps,
             stringResource(R.string.settings_theme_color),
             value = optionValue(keyColorOptions, seedIndex),
             optionText = keyColorOptions,
         ),
         SettingsSearchItem(
-            SettingsSectionId.Theme,
+            SettingsSectionId.Apps,
             stringResource(R.string.settings_language),
             value = optionValue(languageOptions, languageMode),
             optionText = languageOptions,
         ),
         SettingsSearchItem(
-            SettingsSectionId.General,
-            stringResource(R.string.settings_group_management),
-            stringResource(R.string.settings_group_management_summary),
-        ),
-        SettingsSearchItem(
-            SettingsSectionId.General,
+            SettingsSectionId.Core,
             stringResource(R.string.settings_resource_management),
             stringResource(R.string.settings_resource_management_summary),
+        ),
+        SettingsSearchItem(
+            SettingsSectionId.Core,
+            stringResource(R.string.proxy_app_list_title),
+            stringResource(R.string.settings_app_management_summary),
         ),
         SettingsSearchItem(
             SettingsSectionId.Core,
@@ -208,20 +212,37 @@ internal fun settingsTopLevelSearchItems(
                 privateAddressesSummary,
             )
         },
-        SettingsSearchItem(SettingsSectionId.Logs, stringResource(R.string.settings_core_logs)),
-        SettingsSearchItem(SettingsSectionId.Logs, stringResource(R.string.settings_logcat)),
+        if (showEbpfOptions) SettingsSearchItem(
+            SettingsSectionId.Tproxy,
+            stringResource(R.string.settings_ebpf_data_plane),
+            summary = stringResource(R.string.settings_ebpf_local_data_plane_summary),
+            value = ebpfLocalDataPlane,
+            optionText = engine.singbox.EbpfLocalDataPlanes,
+        ) else null,
+        if (showEbpfOptions) SettingsSearchItem(
+            SettingsSectionId.Tproxy,
+            stringResource(R.string.settings_ebpf_dns_mode),
+            summary = stringResource(
+                if (enableLocalDns) R.string.settings_ebpf_local_dns_mode_summary
+                else R.string.settings_ebpf_dns_disabled,
+            ),
+            value = ebpfLocalDnsMode,
+            optionText = engine.singbox.EbpfDnsModes,
+        ) else null,
+        SettingsSearchItem(SettingsSectionId.Apps, stringResource(R.string.settings_core_logs)),
+        SettingsSearchItem(SettingsSectionId.Apps, stringResource(R.string.settings_logcat)),
         SettingsSearchItem(
-            SettingsSectionId.BackupRestore,
+            SettingsSectionId.Apps,
             stringResource(R.string.settings_backup_user_data),
             stringResource(R.string.settings_backup_user_data_summary),
         ),
         SettingsSearchItem(
-            SettingsSectionId.BackupRestore,
+            SettingsSectionId.Apps,
             stringResource(R.string.settings_restore_user_data),
             stringResource(R.string.settings_restore_user_data_summary),
         ),
-        SettingsSearchItem(SettingsSectionId.About, stringResource(R.string.settings_about_project)),
-        SettingsSearchItem(SettingsSectionId.About, stringResource(R.string.settings_open_source_licenses)),
+        SettingsSearchItem(SettingsSectionId.Apps, stringResource(R.string.settings_about_project)),
+        SettingsSearchItem(SettingsSectionId.Apps, stringResource(R.string.settings_open_source_licenses)),
         SettingsSearchItem(
             SettingsSectionId.Advanced,
             title = stringResource(R.string.common_boolean),
@@ -252,6 +273,7 @@ internal fun SettingsNestedSearchResults(
 
 @Composable
 internal fun settingsNestedSearchEntries(
+    showEbpfOptions: Boolean,
     useTunSharedNetwork: Boolean,
     onOpenDns: () -> Unit,
     onOpenSniffer: () -> Unit,
@@ -301,7 +323,6 @@ internal fun settingsNestedSearchEntries(
         stringResource(R.string.settings_local_proxy_password),
     )
     val tunItems = listOf(
-        stringResource(R.string.settings_tun_stack),
         stringResource(R.string.settings_tun_mtu),
         stringResource(R.string.settings_tun_vpn_dns),
         stringResource(R.string.settings_tun_ipv4_cidr),
@@ -321,7 +342,19 @@ internal fun settingsNestedSearchEntries(
         )
     }
 
+    val ebpfDataPlane = stringResource(R.string.settings_ebpf_data_plane)
+    val ebpfDnsMode = stringResource(R.string.settings_ebpf_dns_mode)
     return buildList {
+        if (showEbpfOptions) {
+            add(SettingsSearchEntry(ebpfDataPlane, externalInterfaces, Icons.Rounded.AccountTree, onOpenExternalInterfaces))
+            add(SettingsSearchEntry(ebpfDnsMode, externalInterfaces, Icons.Rounded.Dns, onOpenExternalInterfaces))
+            engine.singbox.EbpfSharedDataPlanes.forEach {
+                add(SettingsSearchEntry(it, "$externalInterfaces · $ebpfDataPlane", Icons.Rounded.AccountTree, onOpenExternalInterfaces))
+            }
+            engine.singbox.EbpfDnsModes.forEach {
+                add(SettingsSearchEntry(it, "$externalInterfaces · $ebpfDnsMode", Icons.Rounded.Dns, onOpenExternalInterfaces))
+            }
+        }
         dnsItems.forEach { add(SettingsSearchEntry(it, dns, Icons.Rounded.Dns, onOpenDns)) }
         snifferItems.forEach { add(SettingsSearchEntry(it, sniffer, Icons.Rounded.TravelExplore, onOpenSniffer)) }
         localProxyItems.forEach { add(SettingsSearchEntry(it, localProxy, Icons.Rounded.Router, onOpenLocalProxy)) }

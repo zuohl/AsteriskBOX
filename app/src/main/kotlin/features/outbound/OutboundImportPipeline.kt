@@ -203,29 +203,15 @@ private fun invalidRecognizedOutboundDocument(
 private object MihomoYamlOutboundParser {
     private val loader = Load(LoadSettings.builder().build())
 
-    fun parse(content: String): List<ImportedSingBoxOutbound> {
-        val outcome = parseOutcomeOrNull(content)
-            ?: throw IllegalArgumentException("Mihomo YAML must contain proxies")
-        if (outcome.accepted.isEmpty()) {
-            throw IllegalArgumentException(
-                outcome.issues.firstOrNull()?.message ?: "No supported proxy outbounds found",
-            )
-        }
-        return outcome.accepted
-    }
-
     fun parseOutcomeOrNull(content: String): ImportOutcome<ImportedSingBoxOutbound>? {
         val loaded = runCatching { loader.loadFromString(content) as? Map<*, *> }
-        val root = loaded.getOrNull()
-        if (root == null) {
-            return if (MihomoProxiesHeader.containsMatchIn(content)) {
-                invalidRecognizedOutboundDocument(
-                    format = OutboundImportFormat.YAML,
-                    message = "Invalid Mihomo YAML import document",
-                )
-            } else {
-                null
-            }
+        val root = loaded.getOrNull() ?: return if (MihomoProxiesHeader.containsMatchIn(content)) {
+            invalidRecognizedOutboundDocument(
+                format = OutboundImportFormat.YAML,
+                message = "Invalid Mihomo YAML import document",
+            )
+        } else {
+            null
         }
         if ("proxies" !in root) return null
         val proxies = root["proxies"] as? List<*>
@@ -816,17 +802,6 @@ private object ProxyUrlOutboundParser {
         """(?i)(?:socks(?:4a?|5h?)?|https?|ss|vmess|vless|trojan|hysteria|hy1|shadowtls|tuic|hysteria2|hy2|anytls|snell|ssh|tor|naive(?:\+(?:https|quic))?|wg|wireguard|awg|warp)://[^\s<>"']+""",
     )
 
-    fun parse(content: String): List<ImportedSingBoxOutbound> {
-        val outcome = parseOutcomeOrNull(content)
-            ?: throw IllegalArgumentException("No proxy URLs found")
-        if (outcome.accepted.isEmpty()) {
-            throw IllegalArgumentException(
-                outcome.issues.firstOrNull()?.message ?: "No supported proxy outbounds found",
-            )
-        }
-        return outcome.accepted
-    }
-
     fun parseOutcomeOrNull(content: String): ImportOutcome<ImportedSingBoxOutbound>? {
         val links = buildList {
             content.lineSequence().forEachIndexed { lineIndex, line ->
@@ -1226,7 +1201,7 @@ private object ProxyUrlOutboundParser {
             listOf("pcs", "vcn", "pqv", "spx")
                 .none { field -> source.string(field).isNotBlank() },
         ) { "Unsupported VMess security option" }
-        require(!tlsMode.equals("reality") || source.string("pbk").isNotBlank()) {
+        require(tlsMode != "reality" || source.string("pbk").isNotBlank()) {
             "VMess Reality public key is required"
         }
         val queryLike = mapOf(
@@ -1432,14 +1407,21 @@ private object ProxyUrlOutboundParser {
                     putNotBlank("method", query.first("method"))
                 }
                 "ws" -> {
-                    putNotBlank("path", query.first("path"))
+                    val (path, pathEarlyData) = extractWebSocketPathEarlyData(query.first("path"))
+                    putNotBlank("path", path)
                     query.first("host").takeIf(String::isNotBlank)?.let { host ->
                         put("headers", buildJsonObject { put("Host", host) })
                     }
-                    putPositive("max_early_data", query.int("ed", "max-early-data"))
+                    val explicitEarlyData = query.first("ed", "max-early-data")
+                    putPositive(
+                        "max_early_data",
+                        if (explicitEarlyData.isNotBlank()) query.int("ed", "max-early-data") else pathEarlyData,
+                    )
                     putNotBlank(
                         "early_data_header_name",
-                        query.first("eh", "early-data-header-name"),
+                        query.first("eh", "early-data-header-name").ifBlank {
+                            if (pathEarlyData > 0) "Sec-WebSocket-Protocol" else ""
+                        },
                     )
                 }
                 "grpc" -> {
@@ -1474,32 +1456,27 @@ internal fun decodeBase64ImportPayload(
 ): String? {
     val compact = value.trim().filterNot(Char::isWhitespace)
     val padded = compact + "=".repeat((4 - compact.length % 4) % 4)
-    return sequenceOf(Base64.UrlSafe, Base64.Default)
-        .mapNotNull { decoder ->
-            runCatching { decoder.decode(padded) }.getOrNull()
+    return sequenceOf(Base64.UrlSafe, Base64.Default).firstNotNullOfOrNull { decoder ->
+        runCatching { decoder.decode(padded) }.getOrNull()
+    }?.let { decoded ->
+        if (decoded.size > maxDecodedBytes) {
+            throw ImportLimitException(
+                reason = ImportIssueReason.INPUT_TOO_LARGE,
+                message = "Decoded import content exceeds the allowed size",
+            )
         }
-        .firstOrNull()
-        ?.let { decoded ->
-            if (decoded.size > maxDecodedBytes) {
-                throw ImportLimitException(
-                    reason = ImportIssueReason.INPUT_TOO_LARGE,
-                    message = "Decoded import content exceeds the allowed size",
-                )
-            }
-            decoded.decodeToString()
-        }
+        decoded.decodeToString()
+    }
 }
 
 private fun decodeBase64(value: String): String? {
     val compact = value.trim().filterNot(Char::isWhitespace)
     val padded = compact + "=".repeat((4 - compact.length % 4) % 4)
-    return sequenceOf(Base64.UrlSafe, Base64.Default)
-        .mapNotNull { decoder ->
-            runCatching {
-                decoder.decode(padded).decodeToString()
-            }.getOrNull()
-        }
-        .firstOrNull()
+    return sequenceOf(Base64.UrlSafe, Base64.Default).firstNotNullOfOrNull { decoder ->
+        runCatching {
+            decoder.decode(padded).decodeToString()
+        }.getOrNull()
+    }
 }
 
 private data class IndexedProxyLink(
@@ -1540,6 +1517,24 @@ private fun tooManyOutboundCandidates(
         ),
     ),
 )
+
+// Xray-style WS paths carry early data in the query; sing-box needs explicit fields.
+// Keep unrelated query components byte-for-byte (including order and escaping).
+private fun extractWebSocketPathEarlyData(path: String): Pair<String, Int> {
+    val fragmentIndex = path.indexOf('#').takeIf { it >= 0 } ?: path.length
+    val queryIndex = path.indexOf('?').takeIf { it in 0 until fragmentIndex }
+        ?: return path to 0
+    val parts = path.substring(queryIndex + 1, fragmentIndex).split('&')
+    val earlyDataPart = parts.firstOrNull { decodeComponent(it.substringBefore('=')) == "ed" }
+        ?: return path to 0
+    val earlyData = decodeComponent(earlyDataPart.substringAfter('=', "")).toIntOrNull()
+        ?.takeIf { it > 0 } ?: return path to 0
+    val remaining = parts.filterNot { decodeComponent(it.substringBefore('=')) == "ed" }
+    val cleanPath = path.substring(0, queryIndex) +
+        (if (remaining.isEmpty()) "" else "?" + remaining.joinToString("&")) +
+        path.substring(fragmentIndex)
+    return cleanPath to earlyData
+}
 
 private fun parseQuery(rawQuery: String?): Map<String, List<String>> {
     if (rawQuery.isNullOrBlank()) return emptyMap()
@@ -1626,11 +1621,11 @@ private fun normalizePortRanges(value: String): List<String> =
                 val normalized = item.replace(Regex("""^(\d+)-(\d+)$"""), "$1:$2")
                 val bounds = normalized.split(':')
                     .mapNotNull(String::toIntOrNull)
-                when {
-                    bounds.size == 1 && bounds[0] in 1..65535 -> Unit
-                    bounds.size == 2 &&
-                        bounds[0] in 1..65535 &&
-                        bounds[1] in bounds[0]..65535 -> Unit
+                when (bounds.size) {
+                    1 if bounds[0] in 1..65535 -> Unit
+                    2 if bounds[0] in 1..65535 &&
+                            bounds[1] in bounds[0]..65535 -> Unit
+
                     else -> return emptyList()
                 }
                 result += normalized
@@ -1803,8 +1798,6 @@ private fun Map<*, *>.naiveExtraHeaders(): JsonObject? {
     }
 }
 
-private fun Map<*, *>.list(name: String): List<*> = get(name) as? List<*> ?: emptyList<Any?>()
-
 private fun Map<*, *>.stringList(name: String): List<String> = when (val value = get(name)) {
     is Iterable<*> -> value.mapNotNull { item -> item?.toString()?.takeIf(String::isNotBlank) }
     null -> emptyList()
@@ -1869,8 +1862,7 @@ private fun normalizeShadowsocksPlugin(
     if (normalizedName != "obfs-local") return normalizedName to options
     val normalizedOptions = options.split(';')
         .map(String::trim)
-        .filter(String::isNotBlank)
-        .map { option ->
+        .filter(String::isNotBlank).joinToString(";") { option ->
             val key = option.substringBefore('=')
             val value = option.substringAfter('=', "")
             when {
@@ -1879,7 +1871,6 @@ private fun normalizeShadowsocksPlugin(
                 else -> option
             }
         }
-        .joinToString(";")
     return normalizedName to normalizedOptions
 }
 
@@ -1889,7 +1880,7 @@ private fun Map<*, *>.portRanges(name: String): List<String> =
 private fun Map<*, *>.hopIntervals(name: String): Pair<String, String> {
     val value = get(name)?.toString()?.trim().orEmpty()
     if (value.isBlank()) return "" to ""
-    val range = Regex("""^(\d+(?:\.\d+)?)(?:s)?-(\d+(?:\.\d+)?)(?:s)?$""")
+    val range = Regex("""^(\d+(?:\.\d+)?)s?-(\d+(?:\.\d+)?)s?$""")
         .matchEntire(value)
     return if (range != null) {
         "${range.groupValues[1]}s" to "${range.groupValues[2]}s"

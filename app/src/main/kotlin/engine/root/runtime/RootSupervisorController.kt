@@ -16,13 +16,14 @@ import engine.root.daemon.control.AsteriskdControlCodec
 import engine.root.daemon.control.AsteriskdControlResponse
 import engine.root.daemon.control.AsteriskdResultCode
 import engine.root.daemon.control.AsteriskdSnapshot
+import engine.root.daemon.control.AsteriskdEventType
 import engine.root.publication.RootBootConfigWriter
 import engine.root.publication.RootBootPublicationCommand
 import engine.root.publication.RootPublicationBundle
 import engine.root.publication.RootPublicationCommand
+import engine.root.publication.RootPublicationWriter
 import engine.root.publication.RootPublicationLaunchMode
 import engine.root.publication.RootServiceLogCleanupWarningPrefix
-import engine.root.publication.RootPublicationStager
 import engine.root.publication.prepareRootPublicationDirectories
 import engine.root.publication.rootRuntimeLayout
 import features.logs.AndroidAppLogger
@@ -41,6 +42,13 @@ internal class RootSupervisorController(
     private val appContext = context.applicationContext
     private val runtimeLayout = appContext.rootRuntimeLayout()
     private val client = AsteriskdClient(shell)
+
+    init {
+        // ROOT failures are observed centrally so exactly one watcher runs per process, and a
+        // failure recorded by a previous session cannot reopen the dialog on launch.
+        RootFailureWatcher.ensureStarted(appContext, shell, runtimeLayout)
+    }
+
     suspend fun status(): AsteriskdControlResponse = client.status(runtimeLayout.asteriskdPath)
 
     fun observeStatus(): Flow<AsteriskdSnapshot> = client.observeStatus(runtimeLayout.asteriskdPath)
@@ -61,6 +69,24 @@ internal class RootSupervisorController(
 
     fun requireRunning(snapshot: AsteriskdSnapshot, expectedMode: AsteriskdMode) {
         snapshot.requireRunning(AsteriskdOwner.AsteriskBox, expectedMode)
+    }
+
+    /**
+     * Fingerprint keys off (mode, failure.code, exitCode, signal). Two snapshots with identical
+     * fingerprints describe the same root failure; we publish the explanation only on a change so
+     * repeated streaming updates do not redisplay the dialog after the user dismisses it.
+     */
+    private fun fingerprintOf(snapshot: AsteriskdSnapshot): String {
+        val err = snapshot.error ?: return ""
+        return buildString {
+            append(snapshot.mode.wireValue)
+            append('|')
+            append(err.code.wireValue)
+            append('|')
+            append(err.exitCode?.toString().orEmpty())
+            append('|')
+            append(err.signal?.toString().orEmpty())
+        }
     }
 
     suspend fun start(
@@ -136,29 +162,41 @@ internal class RootSupervisorController(
         restartExpectedOwner: AsteriskdOwner?,
         launchMode: RootPublicationLaunchMode,
     ): AsteriskdSnapshot {
-        preparePublication()
-        val staged = RootPublicationStager.stage(
-            root.publicationStagingDirectory,
-            root.singBoxConfigBytes,
-            AsteriskdConfigEncoder.encode(config),
-        )
-        staged.use { staged ->
-            val publication = RootPublicationCommand.build(
-                RootPublicationBundle(
-                    runtimeLayout = runtimeLayout,
-                    coreConfigSourcePath = staged.coreConfig.absolutePath,
-                    asteriskdConfigSourcePath = staged.asteriskdConfig.absolutePath,
-                    bootEnabled = root.enableBoot,
-                    launchMode = launchMode,
-                    restartExpectedOwner = restartExpectedOwner?.wireValue,
-                ),
+        var stage = "prepare_directories"
+        runCatching { AndroidAppLogger.info(LogTag, "root_start mode=${config.mode.wireValue} launch=$launchMode stage=$stage") }
+        try {
+            preparePublication()
+            stage = "encode_config"
+            val daemonConfigBytes = AsteriskdConfigEncoder.encode(config).toByteArray(Charsets.UTF_8)
+            val publication = RootPublicationBundle(
+                runtimeLayout = runtimeLayout,
+                bootEnabled = root.enableBoot,
+                launchMode = launchMode,
+                restartExpectedOwner = restartExpectedOwner?.wireValue,
             )
             clearInMemoryServiceLogs()
-            val launchResult = shell.exec(publication, ShellExecOptions(logFailure = false))
-            reportServiceLogCleanupFailures(launchResult.stderr)
+            stage = "root_prepare"
+            val preparationResult = shell.exec(
+                RootPublicationCommand.buildPreparation(publication),
+                ShellExecOptions(logFailure = false),
+            )
+            reportServiceLogCleanupFailures(preparationResult.stderr)
+            if (preparationResult.errno != 0 || preparationResult.stdout.isNotBlank()) {
+                throw launchFailure(preparationResult)
+            }
+            stage = "config_write"
+            RootPublicationWriter.write(runtimeLayout, root.singBoxConfigBytes, daemonConfigBytes)
+            runCatching { AndroidAppLogger.info(LogTag, "root_start stage=config_write result=ok") }
+            stage = "launch"
+            val launchResult = shell.exec(
+                RootPublicationCommand.buildLaunch(publication),
+                ShellExecOptions(logFailure = false),
+            )
             if (launchResult.errno != 0 || launchResult.stdout.isNotBlank()) {
                 throw launchFailure(launchResult)
             }
+            stage = "await_ready"
+            runCatching { AndroidAppLogger.info(LogTag, "root_start stage=launch result=sent") }
             val snapshot = withTimeoutOrNull(StartTimeoutMilliseconds.milliseconds) {
                 when (launchMode) {
                     RootPublicationLaunchMode.Service -> client.awaitRunning(runtimeLayout.asteriskdPath)
@@ -168,7 +206,12 @@ internal class RootSupervisorController(
             } ?: throw IllegalStateException("asteriskd did not reach the requested phase before timeout")
             if (snapshot.owner != AsteriskdOwner.AsteriskBox) throw RootRuntimeConflictException(snapshot)
             require(snapshot.mode == config.mode) { "Unexpected ROOT mode ${snapshot.mode.wireValue}" }
+            runCatching { AndroidAppLogger.info(LogTag, "root_start stage=ready phase=${snapshot.phase}") }
             return snapshot
+        } catch (error: Exception) {
+            val outcome = if (error is kotlinx.coroutines.CancellationException) "cancelled" else "failed"
+            runCatching { AndroidAppLogger.warn(LogTag, "root_start stage=$stage result=$outcome type=${error.javaClass.simpleName}") }
+            throw error
         }
     }
 
@@ -251,6 +294,7 @@ internal class RootSupervisorController(
     }
 
     private fun launchFailure(result: ShellExecResult): IllegalStateException {
+        runCatching { AndroidAppLogger.warn(LogTag, "root_launcher exit=${result.errno} stderr=${sanitizeLauncherStderr(result.stderr).take(512)}") }
         val controlResponse = result.controlResponseOrNull()
         controlResponse?.result?.snapshot?.rejectBound(AsteriskdOwner.AsteriskBox)
         val message = controlResponse?.result?.message ?: sanitizeLauncherStderr(result.stderr)

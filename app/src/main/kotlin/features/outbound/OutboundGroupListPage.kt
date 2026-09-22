@@ -36,15 +36,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
+import ui.components.AsteriskScaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import ui.components.AsteriskTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -67,6 +66,7 @@ import app.LocalIsWideScreen
 import app.LocalNavigator
 import app.OutboundGroupState
 import app.OutboundGroupUpdateStatus
+import app.SubscriptionInfo
 import app.collectAppState
 import features.importing.ImportOperation
 import features.importing.ImportResultDetail
@@ -94,15 +94,14 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import org.asterisk.zcc.abox.R
+import app.R
 import sh.calvin.reorderable.ReorderableItem
 import ui.components.AsteriskActionButton
 import ui.components.AsteriskModalBottomSheet
 import ui.components.WarningConfirmDialog
 import ui.components.draggedCardShadow
+import ui.components.rememberReorderPreview
 import ui.components.longPressReorderDragHandle
 import ui.components.rememberAsteriskReorderableLazyListState
 import ui.components.verticalReorderScrollThresholdPadding
@@ -110,6 +109,8 @@ import ui.layout.pageContentPaddingWithCutout
 import ui.layout.pageListPadding
 import ui.theme.AsteriskMotion
 import ui.theme.AsteriskShapeTokens
+import utils.toReadableBytes
+import utils.toReadableDateOrDash
 import utils.toReadableDateTimeOrDash
 import java.net.URI
 import ui.icons.AsteriskIcons as Icons
@@ -117,6 +118,8 @@ import ui.icons.AsteriskIcons as Icons
 @Composable
 internal fun OutboundGroupListPage(
     padding: PaddingValues,
+    createOnOpen: Boolean = false,
+    onBack: (() -> Unit)? = null,
 ) {
     val stateStore = LocalAppStateStore.current
     val appState by stateStore.collectAppState()
@@ -126,16 +129,12 @@ internal fun OutboundGroupListPage(
     val isWideScreen = LocalIsWideScreen.current
     val scope = rememberCoroutineScope()
     var editorGroup by remember { mutableStateOf<OutboundGroupState?>(null) }
-    var showGroupEditor by remember { mutableStateOf(false) }
+    var showGroupEditor by remember { mutableStateOf(createOnOpen) }
     var groupEditorSession by remember { mutableIntStateOf(0) }
     var savingGroupEditorSession by remember { mutableStateOf<Int?>(null) }
     var pendingDelete by remember { mutableStateOf<OutboundGroupState?>(null) }
     var deletingGroupId by remember { mutableStateOf<Int?>(null) }
     var enabledChangingGroupIds by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var groupOrderPreviewIds by remember { mutableStateOf<List<Int>?>(null) }
-    var groupOrderPreviewGeneration by remember { mutableStateOf<Long?>(null) }
-    var nextGroupOrderGeneration by remember { mutableLongStateOf(0L) }
-    val groupReorderMutex = remember { Mutex() }
     var syncingGroupIds by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var batchSyncJob by remember { mutableStateOf<Job?>(null) }
     var batchSyncProgress by remember { mutableStateOf<OutboundGroupBatchProgress?>(null) }
@@ -159,7 +158,10 @@ internal fun OutboundGroupListPage(
             try {
                 when (val result = services.outboundRepository.saveGroup(expected, group)) {
                     is OutboundCommandResult.GroupSaved -> {
-                        if (groupEditorSession == session) showGroupEditor = false
+                        if (groupEditorSession == session) {
+                            showGroupEditor = false
+                            if (createOnOpen) navigator.pop()
+                        }
                     }
                     OutboundCommandResult.Conflict ->
                         services.tipNotifier.show(stateChangedMessage)
@@ -368,9 +370,9 @@ internal fun OutboundGroupListPage(
         syncJob.start()
     }
 
-    Scaffold(
+    AsteriskScaffold(
         topBar = {
-            TopAppBar(
+            AsteriskTopAppBar(
                 title = {
                     Column {
                         Text(stringResource(R.string.outbound_group_management))
@@ -386,11 +388,13 @@ internal fun OutboundGroupListPage(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = navigator::pop) {
-                        Icon(
-                            Icons.AutoMirrored.Rounded.ArrowBack,
-                            stringResource(R.string.common_back),
-                        )
+                    onBack?.let { navigateBack ->
+                        IconButton(onClick = navigateBack) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.ArrowBack,
+                                stringResource(R.string.common_back),
+                            )
+                        }
                     }
                 },
                 actions = {
@@ -425,77 +429,38 @@ internal fun OutboundGroupListPage(
         )
         val listContentPadding = pageListPadding(contentPadding)
         val listState = rememberLazyListState()
-        val displayedGroups = groupOrderPreviewIds?.let { previewIds ->
-            val groupsById = appState.outboundGroups.associateBy(OutboundGroupState::id)
-            previewIds.mapNotNull(groupsById::get).takeIf { groups ->
-                groups.size == appState.outboundGroups.size
+        val preview = rememberReorderPreview(
+            appState.outboundGroups,
+            OutboundGroupState::id,
+            commitScope = scope,
+        ) { ids ->
+            when (val result = services.outboundRepository.reorderGroups(ids)) {
+                OutboundCommandResult.GroupsReordered -> true
+                OutboundCommandResult.Conflict -> {
+                    services.tipNotifier.show(stateChangedMessage)
+                    false
+                }
+                is OutboundCommandResult.PersistenceFailed -> {
+                    services.tipNotifier.showError(
+                        result.error,
+                        importFailedMessage,
+                        FailureLogContext(operation = "outbound_group_reorder", stage = "persist"),
+                    )
+                    false
+                }
+                is OutboundCommandResult.Invalid -> {
+                    services.tipNotifier.show(importFailedMessage)
+                    false
+                }
+                else -> error("Unexpected outbound group reorder result: $result")
             }
-        } ?: appState.outboundGroups
+        }
+        val displayedGroups = preview.items
         val reorderableState = rememberAsteriskReorderableLazyListState(
             lazyListState = listState,
             itemCount = displayedGroups.size,
             scrollThresholdPadding = verticalReorderScrollThresholdPadding(listContentPadding),
-            onMove = { fromIndex, toIndex ->
-                val currentIds = groupOrderPreviewIds
-                    ?.takeIf { ids ->
-                        ids.size == displayedGroups.size &&
-                            ids.toSet() == displayedGroups.mapTo(mutableSetOf(), OutboundGroupState::id)
-                    }
-                    ?: displayedGroups.map(OutboundGroupState::id)
-                val reorderedIds = currentIds.toMutableList().apply {
-                    if (fromIndex in indices && toIndex in indices && fromIndex != toIndex) {
-                        add(toIndex, removeAt(fromIndex))
-                    }
-                }
-                if (reorderedIds == currentIds) return@rememberAsteriskReorderableLazyListState
-                nextGroupOrderGeneration += 1L
-                val generation = nextGroupOrderGeneration
-                groupOrderPreviewIds = reorderedIds
-                groupOrderPreviewGeneration = generation
-                scope.launch {
-                    groupReorderMutex.withLock {
-                        when (val result = services.outboundRepository.reorderGroups(reorderedIds)) {
-                            OutboundCommandResult.GroupsReordered -> {
-                                if (groupOrderPreviewGeneration == generation) {
-                                    groupOrderPreviewIds = null
-                                    groupOrderPreviewGeneration = null
-                                }
-                            }
-                            OutboundCommandResult.Conflict -> {
-                                services.tipNotifier.show(stateChangedMessage)
-                                if (groupOrderPreviewGeneration == generation) {
-                                    groupOrderPreviewIds = null
-                                    groupOrderPreviewGeneration = null
-                                }
-                            }
-                            is OutboundCommandResult.PersistenceFailed -> {
-                                services.tipNotifier.showError(
-                                    result.error,
-                                    importFailedMessage,
-                                    FailureLogContext(
-                                        operation = "outbound_group_reorder",
-                                        stage = "persist",
-                                    ),
-                                )
-                                if (groupOrderPreviewGeneration == generation) {
-                                    groupOrderPreviewIds = null
-                                    groupOrderPreviewGeneration = null
-                                }
-                            }
-                            is OutboundCommandResult.Invalid ->
-                                services.tipNotifier.show(importFailedMessage)
-                            OutboundCommandResult.Deleted,
-                            OutboundCommandResult.GroupDeleted,
-                            OutboundCommandResult.GroupEnabledChanged,
-                            OutboundCommandResult.ImportPersisted,
-                            OutboundCommandResult.Reordered,
-                            is OutboundCommandResult.Saved,
-                            is OutboundCommandResult.GroupSaved,
-                            -> error("Unexpected outbound group reorder result: $result")
-                        }
-                    }
-                }
-            },
+            onMove = preview.onMove,
         )
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -586,23 +551,27 @@ internal fun OutboundGroupListPage(
                                 scope = this,
                                 enabled = displayedGroups.size > 1,
                                 state = reorderableState,
+                                onDragStarted = preview.onDragStarted,
+                                onDragStopped = preview.onDragStopped,
                             ),
                     )
                 }
             }
         }
+        OutboundGroupEditorSheet(
+            show = showGroupEditor,
+            group = editorGroup,
+            editorSession = groupEditorSession,
+            busy = savingGroupEditorSession == groupEditorSession,
+            onDismissRequest = {
+                if (savingGroupEditorSession != groupEditorSession) {
+                    showGroupEditor = false
+                    if (createOnOpen) navigator.pop()
+                }
+            },
+            onSave = ::saveGroup,
+        )
     }
-
-    OutboundGroupEditorSheet(
-        show = showGroupEditor,
-        group = editorGroup,
-        editorSession = groupEditorSession,
-        busy = savingGroupEditorSession == groupEditorSession,
-        onDismissRequest = {
-            if (savingGroupEditorSession != groupEditorSession) showGroupEditor = false
-        },
-        onSave = ::saveGroup,
-    )
 
     batchSyncProgress?.let { progress ->
         OutboundGroupBatchProgressDialog(
@@ -867,7 +836,7 @@ private fun OutboundGroupBatchProgressDialog(
 }
 
 @Composable
-private fun OutboundGroupEmptyState(onAdd: () -> Unit) {
+internal fun OutboundGroupEmptyState(onAdd: () -> Unit) {
     AnimatedVisibility(
         visible = true,
         enter = AsteriskMotion.fadeEnter(AsteriskMotion.effects()),
@@ -1070,6 +1039,7 @@ private fun OutboundGroupCard(
                             )
                         }
                     }
+                    OutboundGroupSubscriptionInfo(info = group.subscriptionInfo)
                 }
                 Switch(
                     checked = group.enabled,
@@ -1143,7 +1113,10 @@ private fun OutboundGroupEditorSheet(
     val validUrl = url.isBlank() || url.isHttpUrl()
     val validInterval =
         parseSubscriptionSchedule(updateInterval) !is SubscriptionSchedule.Invalid
-    val canSave = name.isNotBlank() && validUrl && validInterval
+    // A blank name is only safe when the subscription URL can supply one on the
+    // first successful sync. A local group has no such source, so it still needs
+    // a title; a typed name always wins and is never auto-overwritten.
+    val canSave = validUrl && validInterval && (url.isNotBlank() || name.isNotBlank())
     val hasSubscription = url.isNotBlank()
     val userAgent = userAgentOption.resolveUserAgent(customUserAgent)
     val userAgentLabels = SubscriptionUserAgentOptions.map { option ->
@@ -1216,6 +1189,9 @@ private fun OutboundGroupEditorSheet(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text(stringResource(R.string.outbound_group_name)) },
+                    placeholder = {
+                        Text(stringResource(R.string.outbound_group_name_placeholder))
+                    },
                     singleLine = true,
                     shape = AsteriskShapeTokens.InnerContainer,
                     modifier = Modifier.fillMaxWidth(),
@@ -1351,7 +1327,7 @@ private fun OutboundGroupEditorSheet(
                                 label = { Text(stringResource(R.string.outbound_group_update_interval)) },
                                 isError = !validInterval,
                                 supportingText = if (!validInterval) {
-                                    { Text(stringResource(R.string.outbound_group_update_interval_invalid)) }
+                                    { Text(stringResource(R.string.common_error_update_interval)) }
                                 } else {
                                     null
                                 },
@@ -1448,6 +1424,7 @@ private fun OutboundGroupState.clearingSubscriptionMetadataChangedFrom(
             lastUpdateErrorSummary = "",
             subscriptionEtag = "",
             subscriptionLastModified = "",
+            subscriptionInfo = SubscriptionInfo(),
         )
     }
     if (
@@ -1465,3 +1442,61 @@ private fun OutboundGroupState.clearingSubscriptionMetadataChangedFrom(
 }
 
 private val GroupEditorSectionSpacing = 12.dp
+
+/**
+ * Subscription traffic summary for [OutboundGroupCard], rendered below the update
+ * status row.
+ *
+ * Two optional rows, each on its own line:
+ * - the quota: progress bar plus "Used X / Total Y", drawn only when the server
+ *   reported a positive total (`hasMeteredQuota`);
+ * - the expiry date, drawn only when the server reported one.
+ *
+ * Renders nothing when the server reported neither, so a group without
+ * subscription information keeps its previous card height.
+ */
+@Composable
+private fun OutboundGroupSubscriptionInfo(
+    info: SubscriptionInfo,
+    modifier: Modifier = Modifier,
+) {
+    if (!info.hasTraffic) return
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp, end = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        if (info.hasMeteredQuota) {
+            LinearProgressIndicator(
+                progress = { info.usageProgress },
+                modifier = Modifier.fillMaxWidth().height(6.dp),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.primaryContainer,
+            )
+            Text(
+                text = stringResource(
+                    R.string.outbound_group_subscription_traffic,
+                    info.usedBytes.toReadableBytes(maxUnit = utils.ReadableByteUnit.GiB),
+                    info.totalBytes.toReadableBytes(maxUnit = utils.ReadableByteUnit.GiB),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (info.expireAtSeconds > 0L) {
+            Text(
+                text = stringResource(
+                    R.string.outbound_group_subscription_expire,
+                    (info.expireAtSeconds * 1000L).toReadableDateOrDash(),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}

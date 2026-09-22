@@ -1,19 +1,22 @@
 [versions]
-agp = "9.4.0"
+agp = "9.4.1"
 androidx-activity-compose = "1.13.0"
+androidx-lifecycle = "2.11.0"
 androidx-navigation3 = "1.1.7"
 androidx-navigationevent = "1.1.0"
-androidx-room = "2.8.4"
+androidx-room = "2.8.5"
 androidx-work = "2.11.2"
 compose = "1.12.0"
 compose-material-icons = "1.7.3"
-compose-material3 = "1.12.0-alpha03"
-coil = "3.6.2"
-kotlin = "2.4.10"
+compose-material3 = "1.13.0-alpha01"
+coil = "3.6.3"
+dexlib2 = "3.0.10"
+haze = "1.7.3"
+kotlin = "2.4.20"
 kotlinx-serialization-json = "1.11.0"
-kage = "0.6.0"
-ksp = "2.3.11"
-ktor = "3.5.2"
+kage = "0.7.0"
+ksp = "2.3.12"
+ktor = "3.6.0"
 libsu = "6.0.0"
 material-kolor = "5.0.1"
 reorderable = "3.1.0"
@@ -23,6 +26,7 @@ zxing-android-embedded = "4.3.0"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity-compose" }
+androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
 androidx-navigation3-runtime = { module = "androidx.navigation3:navigation3-runtime", version.ref = "androidx-navigation3" }
 androidx-navigation3-ui = { module = "androidx.navigation3:navigation3-ui", version.ref = "androidx-navigation3" }
 androidx-navigationevent = { module = "org.jetbrains.androidx.navigationevent:navigationevent-compose", version.ref = "androidx-navigationevent" }
@@ -35,6 +39,8 @@ compose-material3 = { module = "org.jetbrains.compose.material3:material3", vers
 compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "compose" }
 coil = { module = "io.coil-kt.coil3:coil", version.ref = "coil" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+dexlib2 = { module = "com.android.tools.smali:smali-dexlib2", version.ref = "dexlib2" }
+haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization-json" }
 kage = { module = "com.github.android-password-store:kage", version.ref = "kage" }
 ktor-http = { module = "io.ktor:ktor-http", version.ref = "ktor" }

@@ -32,9 +32,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import ui.components.AsteriskScaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import ui.components.AsteriskTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -77,7 +77,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.asterisk.zcc.abox.R
+import app.R
 import ui.clipboard.getPlainText
 import ui.clipboard.setPlainText
 import ui.components.AsteriskPinnedSearchArea
@@ -224,10 +224,10 @@ internal fun EndpointListPage(padding: PaddingValues) {
         }
     }
 
-    Scaffold(
+    AsteriskScaffold(
         topBar = {
             Column {
-                TopAppBar(
+                AsteriskTopAppBar(
                     title = {
                         Column {
                             Text(stringResource(R.string.endpoint_management))

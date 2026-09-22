@@ -6,24 +6,18 @@
 package ui.components
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -35,13 +29,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import ui.icons.AsteriskIcons as Icons
 import ui.theme.AsteriskMotion
 
 internal fun <T, K> ruleEditorAnimatedListContentKey(
@@ -104,11 +96,6 @@ internal fun RuleEditorChoiceCard(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val interactionEnabled = ruleEditorChoiceInteractionEnabled(choices, enabled)
-    val rotation by animateFloatAsState(
-        targetValue = if (expanded) 180f else 0f,
-        animationSpec = AsteriskMotion.fastEffects(),
-        label = "rule-editor-choice-arrow",
-    )
     val selected = resolveRuleEditorChoice(choices, selectedValue, missingLabel)
     val labelMotion = AsteriskMotion.fastEffects<Float>()
     Box {
@@ -148,49 +135,21 @@ internal fun RuleEditorChoiceCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Icon(
-                    Icons.Rounded.ExpandMore,
-                    contentDescription = null,
-                    modifier = Modifier.rotate(rotation),
-                )
-            }
-        }
-        Box(
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 28.dp).size(1.dp),
-        ) {
-            DropdownMenu(
-                expanded = expanded && interactionEnabled,
-                onDismissRequest = { expanded = false },
-                modifier = Modifier.widthIn(min = 220.dp, max = 320.dp),
-            ) {
-                choices.forEach { choice ->
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = choice.label,
-                                color = if (choice.value == selectedValue) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                },
-                            )
-                        },
-                        leadingIcon = {
-                            if (choice.value == selectedValue) {
-                                Icon(
-                                    Icons.Rounded.Check,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                            } else {
-                                Spacer(Modifier.size(24.dp))
-                            }
-                        },
-                        onClick = {
-                            expanded = false
-                            onSelected(choice.value)
-                        },
-                    )
+                AsteriskDropdownAnchor(
+                    expanded = expanded && interactionEnabled,
+                    onDismissRequest = { expanded = false },
+                    menuModifier = Modifier.widthIn(min = 220.dp, max = 320.dp),
+                ) {
+                    choices.forEach { choice ->
+                        AsteriskDropdownMenuItem(
+                            text = choice.label,
+                            selected = choice.value == selectedValue,
+                            onClick = {
+                                expanded = false
+                                onSelected(choice.value)
+                            },
+                        )
+                    }
                 }
             }
         }

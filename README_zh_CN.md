@@ -2,7 +2,7 @@
 
 # AsteriskBOX
 
-一个 Android sing-box GUI 客户端。VPN Service 模式使用 [AndroidLibBoxLite](https://github.com/Asterisk4Magisk/AndroidLibBoxLite)，ROOT 模式运行 [reF1nd sing-box](https://github.com/reF1nd/sing-box-releases)构建的 Android 二进制文件。
+一个 Android sing-box GUI 客户端。
 
 ## Telegram 频道
 
@@ -33,7 +33,6 @@
 
 - 运行内置 sing-box 二进制文件并创建固定 TUN 设备 `asterisk0`。
 - 使用 sing-box 托管的 `auto_route` 和 `auto_redirect`，不再由应用管理透明路由。
-- 支持 System、gVisor 和 Mixed TUN 栈。
 - 所选规则集中的 IP CIDR 会写入 `route_exclude_address_set`，域名规则不生效。
 - 可加入准确的下游接口名以接管热点和网络共享流量。
 
@@ -65,6 +64,28 @@
 - ROOT 运行文件存储在应用私有的 `files/sing-box` 目录。
 - 内置的 reF1nd sing-box ROOT 核心可在资源管理中替换。
 - Direct CIDR 和自定义资源文件可在本地替换或通过配置的 URL 更新；规则集仍属于 sing-box JSON 配置。
+
+## 广播控制
+
+在设置中开启 **广播控制** 后，显式指定以下接收器发送广播。Action 前缀为 `org.asterisk.zcc.abox.action.`。
+
+| 操作 | Action 后缀 |
+| --- | --- |
+| 启动代理 | `PROXY_START` |
+| 停止代理 | `PROXY_STOP` |
+| 切换代理启停 | `PROXY_TOGGLE` |
+| 更新全部 URL 订阅 | `SUBSCRIPTION_UPDATE` |
+| 取消广播订阅更新 | `SUBSCRIPTION_UPDATE_CANCEL` |
+| 更新全部资源 | `RESOURCE_UPDATE` |
+| 取消资源更新 | `RESOURCE_UPDATE_CANCEL` |
+
+```sh
+adb shell am broadcast -n org.asterisk.zcc.abox/features.automation.BroadcastControlReceiver -a org.asterisk.zcc.abox.action.SUBSCRIPTION_UPDATE
+```
+
+订阅更新跳过本地项，取消时保留已完成结果及定时更新配置。资源更新沿用资源管理中的当前配置，取消资源更新会同时清空其共享队列。同类更新执行期间，重复命令会合并。
+
+更新在后台执行，不会启动代理。广播送达不代表更新完成，结果请查看应用日志的 `BroadcastControl` 标签。
 
 ## 开发
 
@@ -109,3 +130,4 @@ appops set org.asterisk.zcc.abox ACTIVATE_VPN allow
 - [@topjohnwu/libsu](https://github.com/topjohnwu/libsu)
 - [@android/material3](https://developer.android.com/develop/ui/compose/designsystems/material3)
 - [@mayaxcn/china-ip-list](https://github.com/mayaxcn/china-ip-list)
+- [@xchacha20-poly1305/husi](https://github.com/xchacha20-poly1305/husi)
