@@ -76,9 +76,12 @@ class AsteriskVpnService : VpnService() {
             }
 
             AsteriskVpnServiceIntents.ACTION_START -> {
+                val receiver = intent.readResultReceiver()
                 val config = intent.readVpnServiceStartConfig()
                 if (config == null) {
-                    completeStart(Result.failure(IllegalStateException(getString(R.string.error_vpn_start_config_missing))))
+                    val error = IllegalStateException(getString(R.string.error_vpn_start_config_missing))
+                    receiver?.send(1, android.os.Bundle().apply { putString("error", error.message) })
+                    completeStart(Result.failure(error))
                     stopSelf(startId)
                     return START_NOT_STICKY
                 }
@@ -87,10 +90,12 @@ class AsteriskVpnService : VpnService() {
                         runCatching {
                             startVpn(config)
                         }.onSuccess {
+                            receiver?.send(0, null)
                             completeStart(Result.success(Unit))
                         }.onFailure { error ->
                             AndroidAppLogger.error(LogTag, "Failed to start VPN Service", error)
                             stopVpn()
+                            receiver?.send(1, android.os.Bundle().apply { putString("error", error.message) })
                             completeStart(Result.failure(error))
                             stopSelfOnMain(startId)
                         }
@@ -157,6 +162,7 @@ class AsteriskVpnService : VpnService() {
             LocalProxyRuntime.clear()
         }
         running = true
+        writeVpnState(this, true)
     }
 
     private fun establishTun(config: VpnServiceStartConfig): ParcelFileDescriptor {
@@ -280,6 +286,7 @@ class AsteriskVpnService : VpnService() {
         tunFileDescriptor = null
         LocalProxyRuntime.clear()
         running = false
+        writeVpnState(this, false)
     }
 
     private fun stopNativeRuntimesBounded() {
@@ -325,11 +332,39 @@ class AsteriskVpnService : VpnService() {
         @Volatile
         private var pendingStart: CompletableDeferred<Result<Unit>>? = null
 
+        internal fun vpnStateFile(context: Context): File {
+            val baseDir = File(context.applicationContext.filesDir, "sing-box")
+            return File(baseDir, "vpn.state")
+        }
+
+        private fun writeVpnState(context: Context, isRunning: Boolean) {
+            runCatching {
+                val stateFile = vpnStateFile(context)
+                if (isRunning) {
+                    stateFile.parentFile?.mkdirs()
+                    stateFile.writeText(System.currentTimeMillis().toString())
+                } else {
+                    stateFile.delete()
+                }
+            }
+            running = isRunning
+        }
+
         internal suspend fun start(context: Context, config: VpnServiceStartConfig) {
             val result = CompletableDeferred<Result<Unit>>()
             pendingStart = result
+            val receiver = object : android.os.ResultReceiver(Handler(Looper.getMainLooper())) {
+                override fun onReceiveResult(resultCode: Int, resultData: android.os.Bundle?) {
+                    if (resultCode == 0) {
+                        result.complete(Result.success(Unit))
+                    } else {
+                        val error = resultData?.getString("error") ?: "Failed to start VPN"
+                        result.complete(Result.failure(IllegalStateException(error)))
+                    }
+                }
+            }
             try {
-                context.startService(AsteriskVpnServiceIntents.startIntent(context, config))
+                context.startService(AsteriskVpnServiceIntents.startIntent(context, config, receiver))
                 withTimeout(10_000.milliseconds) {
                     result.await()
                 }.getOrThrow()
@@ -342,10 +377,14 @@ class AsteriskVpnService : VpnService() {
 
         internal fun stop(context: Context) {
             running = false
+            writeVpnState(context, false)
             context.startService(AsteriskVpnServiceIntents.stopIntent(context))
         }
 
-        internal fun isRunning(): Boolean {
+        internal fun isRunning(context: Context? = null): Boolean {
+            if (context != null) {
+                return vpnStateFile(context).exists()
+            }
             return running
         }
 

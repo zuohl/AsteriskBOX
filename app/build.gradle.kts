@@ -43,6 +43,7 @@ android {
 
     buildFeatures {
         compose = true
+        aidl = true
     }
 
     splits {
@@ -123,8 +124,13 @@ dependencies {
     implementation(dependencies.project(":bpfmatcher"))
     implementation(dependencies.project(":bpf2socks"))
     implementation(dependencies.project(":hevtun"))
-    //noinspection UseTomlInstead
-    implementation("com.github.asterisk4magisk:libbox:${ProjectConfig.ANDROID_LIB_BOX_LITE_VERSION}@aar")
+    val localLibbox = file("libs/libbox.aar")
+    if (localLibbox.exists()) {
+        implementation(files(localLibbox))
+    } else {
+        //noinspection UseTomlInstead
+        implementation("com.github.asterisk4magisk:libbox:${ProjectConfig.ANDROID_LIB_BOX_LITE_VERSION}@aar")
+    }
     implementation(libs.ktor.http)
     implementation(libs.kage)
     implementation(libs.kotlinx.serialization.json)

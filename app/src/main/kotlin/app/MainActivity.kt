@@ -142,6 +142,16 @@ class MainActivity : ComponentActivity() {
         backupFileCreator.complete(null)
         backupFileCreator.registerLauncher(null)
         super.onDestroy()
+        if (isFinishing) {
+            kotlin.system.exitProcess(0)
+        }
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= TRIM_MEMORY_UI_HIDDEN) {
+            System.gc()
+        }
     }
 
     private fun requestStartupPermissions() {

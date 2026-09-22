@@ -40,6 +40,8 @@ internal object AndroidLibboxRuntime {
                 logMaxLines = 3_000
                 debug = debuggable
                 crashReportSource = "AsteriskBOX"
+                oomKillerEnabled = true
+                oomMemoryLimit = 35L * 1024 * 1024
             },
         )
         initialized = true

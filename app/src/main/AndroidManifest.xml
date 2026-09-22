@@ -95,6 +95,7 @@
         <service
             android:name="engine.stats.SingBoxTrafficStatsNotificationService"
             android:exported="false"
+            android:process=":bg"
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
@@ -104,6 +105,7 @@
         <service
             android:name="engine.vpn.AsteriskVpnService"
             android:exported="false"
+            android:process=":bg"
             android:permission="android.permission.BIND_VPN_SERVICE"
             tools:ignore="VpnServicePolicy">
             <intent-filter>

@@ -136,6 +136,18 @@ class AsteriskApplication : Application(), SingletonImageLoader.Factory {
 
     override fun onCreate() {
         super.onCreate()
+        val isBackgroundProcess = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            getProcessName().endsWith(":bg")
+        } else {
+            runCatching {
+                java.io.File("/proc/self/cmdline").readText().trim('\u0000', ' ', '\n', '\r')
+            }.getOrDefault("").endsWith(":bg")
+        }
+        if (isBackgroundProcess) {
+            AndroidLibboxRuntime.setup(this)
+            AndroidCoreLogRepository.initialize(applicationContext)
+            return
+        }
         AndroidLibboxRuntime.setup(this)
         AndroidLogcatRepository.initialize(applicationContext)
         AndroidCoreLogRepository.initialize(applicationContext)

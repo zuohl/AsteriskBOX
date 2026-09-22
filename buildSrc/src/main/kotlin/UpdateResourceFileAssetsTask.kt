@@ -49,6 +49,18 @@ abstract class UpdateResourceFileAssetsTask : DefaultTask() {
 
     private fun downloadAndExtractSingBox(asset: SingBoxAsset, target: File) {
         if (useExistingFile(target)) return
+        val localCandidates = listOf(
+            File(project.rootDir, "app/libs/sing-box-${asset.androidAbi}"),
+            File(project.rootDir, "app/libs/${asset.androidAbi}/libsing-box.so"),
+            File(project.rootDir, "app/libs/libsing-box-${asset.androidAbi}.so"),
+        )
+        val localFile = localCandidates.firstOrNull { it.isFile && it.length() > 0 }
+        if (localFile != null) {
+            target.parentFile.mkdirs()
+            localFile.copyTo(target, overwrite = true)
+            logger.lifecycle("Copied local sing-box from ${localFile.absolutePath} to ${target.absolutePath}")
+            return
+        }
         target.parentFile.mkdirs()
         val archive = target.resolveSibling("${target.name}.tar.gz.tmp")
         val extracted = target.resolveSibling("${target.name}.extract.tmp")
@@ -58,7 +70,9 @@ abstract class UpdateResourceFileAssetsTask : DefaultTask() {
             val version = singBoxVersion.get()
             val rawVersion = version.removePrefix("v")
             val releaseName = "sing-box-$rawVersion-android-${asset.releaseArch}.tar.gz"
-            val url = "https://github.com/reF1nd/sing-box-releases/releases/download/$version/$releaseName"
+            val baseUrl = System.getenv("SING_BOX_RELEASES_URL")?.trimEnd('/')
+                ?: "https://github.com/reF1nd/sing-box-releases/releases/download"
+            val url = "$baseUrl/$version/$releaseName"
             downloadToFile(url, archive)
             extractTarGzipEntry(
                 archive = archive,
