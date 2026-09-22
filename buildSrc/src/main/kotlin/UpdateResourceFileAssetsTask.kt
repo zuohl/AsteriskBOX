@@ -6,6 +6,7 @@ import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.EOFException
@@ -18,6 +19,9 @@ import java.util.zip.GZIPInputStream
 abstract class UpdateResourceFileAssetsTask : DefaultTask() {
     @get:Input
     abstract val singBoxVersion: Property<String>
+
+    @get:Internal
+    abstract val rootProjectDirectory: DirectoryProperty
 
     @get:OutputDirectory
     abstract val singBoxCoreJniLibsDir: DirectoryProperty
@@ -49,17 +53,20 @@ abstract class UpdateResourceFileAssetsTask : DefaultTask() {
 
     private fun downloadAndExtractSingBox(asset: SingBoxAsset, target: File) {
         if (useExistingFile(target)) return
-        val localCandidates = listOf(
-            File(project.rootDir, "app/libs/sing-box-${asset.androidAbi}"),
-            File(project.rootDir, "app/libs/${asset.androidAbi}/libsing-box.so"),
-            File(project.rootDir, "app/libs/libsing-box-${asset.androidAbi}.so"),
-        )
-        val localFile = localCandidates.firstOrNull { it.isFile && it.length() > 0 }
-        if (localFile != null) {
-            target.parentFile.mkdirs()
-            localFile.copyTo(target, overwrite = true)
-            logger.lifecycle("Copied local sing-box from ${localFile.absolutePath} to ${target.absolutePath}")
-            return
+        val rootDir = rootProjectDirectory.orNull?.asFile
+        if (rootDir != null) {
+            val localCandidates = listOf(
+                File(rootDir, "app/libs/sing-box-${asset.androidAbi}"),
+                File(rootDir, "app/libs/${asset.androidAbi}/libsing-box.so"),
+                File(rootDir, "app/libs/libsing-box-${asset.androidAbi}.so"),
+            )
+            val localFile = localCandidates.firstOrNull { it.isFile && it.length() > 0 }
+            if (localFile != null) {
+                target.parentFile.mkdirs()
+                localFile.copyTo(target, overwrite = true)
+                logger.lifecycle("Copied local sing-box from ${localFile.absolutePath} to ${target.absolutePath}")
+                return
+            }
         }
         target.parentFile.mkdirs()
         val archive = target.resolveSibling("${target.name}.tar.gz.tmp")
