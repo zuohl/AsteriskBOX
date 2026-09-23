@@ -124,7 +124,7 @@ internal suspend fun synchronizeProxyStatus(
     updateAppState: (((AppState) -> AppState) -> Unit),
 ): Boolean {
     val snapshot = currentState()
-    val shouldCheckRuntime = snapshot.runMode.isRootRunMode() || snapshot.proxyRunning
+    val shouldCheckRuntime = !snapshot.runMode.isRootRunMode() || snapshot.serviceControl.enabled || snapshot.proxyRunning
     if (!shouldCheckRuntime) return true
 
     val status = readStatus(snapshot) ?: return false
