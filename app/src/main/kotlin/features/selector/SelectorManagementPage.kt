@@ -106,6 +106,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import app.R
 import sh.calvin.reorderable.ReorderableItem
+import ui.components.AsteriskActionButton
 import ui.components.AsteriskInfoChip
 import ui.components.EditorPageScaffold
 import ui.components.WarningConfirmDialog
@@ -446,7 +447,7 @@ private fun ManagedSelectorCard(
 }
 
 @Composable
-private fun CustomSelectorCard(
+internal fun CustomSelectorCard(
     state: AppState,
     selector: SingBoxSelectorState,
     isDragging: Boolean,
@@ -508,7 +509,7 @@ private fun CustomSelectorCard(
 }
 
 @Composable
-private fun SelectorCard(
+internal fun SelectorCard(
     title: String,
     badges: List<String>,
     memberCount: Int,
@@ -613,9 +614,12 @@ private fun SelectorCard(
 }
 
 @Composable
-private fun SelectorCustomEmptyState() {
+internal fun SelectorCustomEmptyState(
+    modifier: Modifier = Modifier,
+    onAdd: (() -> Unit)? = null,
+) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp, horizontal = 24.dp),
+        modifier = modifier.fillMaxWidth().padding(vertical = 28.dp, horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -633,6 +637,14 @@ private fun SelectorCustomEmptyState() {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (onAdd != null) {
+            Spacer(Modifier.height(4.dp))
+            AsteriskActionButton(
+                text = stringResource(R.string.selector_add),
+                icon = Icons.Rounded.Add,
+                onClick = onAdd,
+            )
+        }
     }
 }
 

@@ -730,6 +730,9 @@
     </plurals>
     <string name="outbound_group_local">本地分组</string>
     <string name="outbound_group_add">添加分组</string>
+    <string name="outbound_group_tab_all">全部</string>
+    <string name="outbound_group_tab_selectors">策略组</string>
+    <string name="outbound_group_tab_groups">节点分组</string>
     <string name="outbound_group_empty">暂无出站分组</string>
     <string name="outbound_group_empty_summary">请先创建分组，再导入或添加出站。</string>
     <string name="outbound_group_edit">编辑分组</string>

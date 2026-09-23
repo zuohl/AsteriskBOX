@@ -738,6 +738,9 @@
     </plurals>
     <string name="outbound_group_local">Local group</string>
     <string name="outbound_group_add">Add group</string>
+    <string name="outbound_group_tab_all">All</string>
+    <string name="outbound_group_tab_selectors">Selectors</string>
+    <string name="outbound_group_tab_groups">Groups</string>
     <string name="outbound_group_empty">No outbound groups</string>
     <string name="outbound_group_empty_summary">Create a group before importing or adding outbounds.</string>
     <string name="outbound_group_edit">Edit group</string>
