@@ -148,6 +148,10 @@ internal class AppSettingsPreferences(
                 KeyEnableBroadcastControl,
                 defaults.enableBroadcastControl,
             ),
+            isLightweightMode = preferences.getBoolean(
+                KeyIsLightweightMode,
+                defaults.isLightweightMode,
+            ),
             enableResourceAutoUpdate = preferences.getBoolean(KeyEnableResourceAutoUpdate, defaults.enableResourceAutoUpdate),
             resourceAutoUpdateInterval = preferences.getString(KeyResourceAutoUpdateInterval, defaults.resourceAutoUpdateInterval)
                 ?: defaults.resourceAutoUpdateInterval,
@@ -478,5 +482,6 @@ private const val LegacyKeyEbpfSharedNetworkInterfaces = "ebpf_shared_network_in
 internal const val KeyIgnoredInterfaces = "ignored_interfaces"
 internal const val KeyPrivateAddressCidrs = "private_address_cidrs"
 internal const val KeyProxyAppListMode = "proxy_app_list_mode"
+internal const val KeyIsLightweightMode = "is_lightweight_mode"
 
 private val SubscriptionHwidLock = Any()

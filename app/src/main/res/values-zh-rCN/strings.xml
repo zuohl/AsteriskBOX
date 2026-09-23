@@ -380,6 +380,8 @@
     <string name="settings_private_addresses_input">CIDR 地址</string>
     <string name="settings_private_addresses_invalid">无效 CIDR</string>
     <string name="settings_private_addresses_empty">还没有添加 CIDR 地址</string>
+    <string name="settings_lightweight_mode">轻量退出模式</string>
+    <string name="settings_lightweight_mode_summary">退出主页或移入后台时彻底销毁界面进程以释放 UI 内存（再次打开需冷启动）</string>
     <string name="settings_broadcast_control">广播控制</string>
     <string name="settings_broadcast_control_summary">允许外部广播控制应用服务</string>
     <string name="settings_ipv6_summary">启用 IPv6 支持</string>

@@ -396,6 +396,7 @@ private fun SettingsContent(
                     enableBroadcastControl = appState.enableBroadcastControl,
                     enableIpv6 = appState.enableIpv6,
                     enableIpv6Prefer = appState.enableIpv6Prefer,
+                    isLightweightMode = appState.isLightweightMode,
                     runModeOptions = runModeOptions,
                     selectedRunModeIndex = selectedRunModeIndex,
                     onEnableBroadcastControlChange = { enabled ->
@@ -406,6 +407,9 @@ private fun SettingsContent(
                     },
                     onEnableIpv6PreferChange = { enabled ->
                         updateAppState { state -> state.copy(enableIpv6Prefer = enabled) }
+                    },
+                    onIsLightweightModeChange = { enabled ->
+                        updateAppState { state -> state.copy(isLightweightMode = enabled) }
                     },
                     onRunModeChange = { index ->
                         val targetRunMode = runModeItems.getOrNull(index)?.first ?: RunModeVpnService

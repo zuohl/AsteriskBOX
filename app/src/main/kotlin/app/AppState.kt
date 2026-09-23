@@ -78,6 +78,7 @@ data class AppState(
     val tunIpv6Cidr: String = VpnDefaults.IPV6_CIDR,
 
     val proxyRunning: Boolean = false,
+    val isLightweightMode: Boolean = false,
 
     val coreLogLevel: String = DefaultSingBoxLogLevel,
     val enableTrafficStatsNotification: Boolean = false,

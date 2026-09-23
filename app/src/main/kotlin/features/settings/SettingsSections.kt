@@ -187,15 +187,25 @@ internal fun SettingsAdvancedSection(
     enableBroadcastControl: Boolean,
     enableIpv6: Boolean,
     enableIpv6Prefer: Boolean,
+    isLightweightMode: Boolean,
     runModeOptions: List<String>,
     selectedRunModeIndex: Int,
     onEnableBroadcastControlChange: (Boolean) -> Unit,
     onEnableIpv6Change: (Boolean) -> Unit,
     onEnableIpv6PreferChange: (Boolean) -> Unit,
+    onIsLightweightModeChange: (Boolean) -> Unit,
     onRunModeChange: (Int) -> Unit,
 ) {
     SmallTitle(text = stringResource(R.string.settings_advanced))
     SettingsSectionCard {
+        SwitchPreference(
+            title = stringResource(R.string.settings_lightweight_mode),
+            icon = Icons.Rounded.Memory,
+            summary = stringResource(R.string.settings_lightweight_mode_summary),
+            checked = isLightweightMode,
+            onCheckedChange = onIsLightweightModeChange,
+            accent = IconAccent.MaskCyan,
+        )
         SwitchPreference(
             title = stringResource(R.string.settings_broadcast_control),
             icon = Icons.Rounded.CellTower,
