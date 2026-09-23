@@ -173,6 +173,21 @@ jobs:
             exit 1
           fi
 
+      - name: Prepare trimmed libbox.aar
+        shell: bash
+        run: |
+          mkdir -p app/libs
+          if [ ! -f "app/libs/libbox.aar" ]; then
+            echo "Fetching trimmed libbox.aar from sing-box release v1.15.0-lite..."
+            curl -sSL -f -o app/libs/libbox.aar https://github.com/zuohl/sing-box/releases/download/v1.15.0-lite/libbox.aar || {
+              echo "Warning: Failed to fetch trimmed libbox.aar from release, falling back to default ivy dependency."
+              rm -f app/libs/libbox.aar
+            }
+          fi
+          if [ -f "app/libs/libbox.aar" ]; then
+            echo "Successfully prepared trimmed libbox.aar ($(ls -lh app/libs/libbox.aar | awk '{print $5}'))"
+          fi
+
       - name: Build release APKs
         run: ./gradlew --no-daemon :app:assembleRelease
 
