@@ -142,6 +142,18 @@ class MainActivity : ComponentActivity() {
         }
         showAppContent()
         requestStartupPermissions()
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                val settings = AppSettingsPreferences(this@MainActivity).load()
+                if (settings.isLightweightMode) {
+                    finishAffinity()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
+                }
+            }
+        })
         if (savedInstanceState == null) handleExternalIntent(intent)
     }
 
