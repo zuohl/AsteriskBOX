@@ -195,6 +195,7 @@ internal fun SettingsCoreSection(
 internal fun SettingsAdvancedSection(
     enableBroadcastControl: Boolean,
     enableIpv6: Boolean,
+    enableIpv6Prefer: Boolean,
     isLightweightMode: Boolean,
     onOpenConfigOverrideScript: () -> Unit,
     runModeOptions: List<String>,

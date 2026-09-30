@@ -390,6 +390,7 @@ private fun SettingsContent(
                 SettingsAdvancedSection(
                     enableBroadcastControl = appState.enableBroadcastControl,
                     enableIpv6 = appState.enableIpv6,
+                    enableIpv6Prefer = appState.enableIpv6Prefer,
                     isLightweightMode = appState.isLightweightMode,
                     onOpenConfigOverrideScript = { navigator.push(Route.ConfigOverrideScript) },
                     runModeOptions = runModeOptions,
