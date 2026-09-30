@@ -9,6 +9,7 @@ import app.modes.RunModeTun2Socks
 import app.modes.isRootRunMode
 import app.modes.normalizeRunMode
 import engine.hevtun.deleteHevSocks5TunnelLogFile
+import engine.root.runtime.RootFailureWatcher
 import engine.proxy.AndroidProxyEngine
 import features.logs.AndroidAppLogger
 import kotlin.coroutines.cancellation.CancellationException
@@ -69,7 +70,8 @@ internal class SwitchRunModeUseCase(
             false
         }
 
-        if (currentState.enableRootBootScript) {
+        // ROOT-to-ROOT keeps boot enabled; the synchronizer refreshes it for the new mode.
+        if (currentState.enableRootBootScript && !targetRequiresRoot) {
             when (val result = rootBootScriptUseCase.uninstall(rootAccessVerified = true)) {
                 RootBootScriptResult.Success -> Unit
 
@@ -85,6 +87,11 @@ internal class SwitchRunModeUseCase(
 
         if (normalizedTargetMode != RunModeTun2Socks) {
             deleteHevSocks5TunnelLog()
+        }
+
+        // Stop diagnostics before leaving ROOT, including failed/inactive cycles.
+        if (currentState.runMode.isRootRunMode()) {
+            RootFailureWatcher.stop()
         }
 
         return SwitchRunModeResult.Success(

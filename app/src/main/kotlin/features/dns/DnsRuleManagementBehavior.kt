@@ -11,25 +11,31 @@ import app.nextAvailableDnsRuleId
 import app.visibleManagedReference
 import app.withPrunedDnsEvaluationReferences
 import engine.singbox.config.sanitized
+import engine.singbox.config.DnsConfigurationMatchFields
+import engine.singbox.config.mapDnsConfigurationTags
 
 internal val DnsRuleMatcherGroups = listOf(
     listOf(
-        "query_type",
+        "query_dnssec",
+        "network",
         "inbound",
-        "auth_user",
         "protocol",
-        "network_type",
+        "query_type",
+        "query_client_subnet",
+        "auth_user",
     ),
     listOf(
+        "rule_set",
+        "preferred_by",
         "domain",
         "domain_suffix",
         "domain_keyword",
         "domain_regex",
-        "rule_set",
         "port",
         "port_range",
     ),
     listOf(
+        "source_ip_is_private",
         "source_ip_cidr",
         "source_port",
         "source_port_range",
@@ -37,38 +43,36 @@ internal val DnsRuleMatcherGroups = listOf(
         "source_hostname",
     ),
     listOf(
+        "dns_server_address",
+        "dns_search_domain",
+    ),
+    listOf(
         "process_name",
         "process_path",
         "process_path_regex",
+        "user",
+        "user_id",
         "package_name",
         "package_name_regex",
     ),
     listOf(
-        "interface_address",
+        "network_is_expensive",
+        "network_type",
         "network_interface_address",
-        "default_interface_address",
-        "preferred_by",
         "wifi_ssid",
         "wifi_bssid",
     ),
     listOf(
         "match_response",
         "response_rcode",
+        "ip_is_private",
+        "ip_accept_any",
+        "ip_cidr",
         "response_answer",
         "response_ns",
         "response_extra",
     ),
 )
-
-internal fun List<SingBoxDnsRuleState>.moveDnsRule(
-    fromIndex: Int,
-    toIndex: Int,
-): List<SingBoxDnsRuleState> {
-    if (fromIndex !in indices || toIndex !in indices || fromIndex == toIndex) return this
-    return toMutableList().apply {
-        add(toIndex, removeAt(fromIndex))
-    }
-}
 
 internal fun AppState.withDnsRuleEnabled(
     ruleId: Int,
@@ -116,7 +120,7 @@ internal fun dnsPendingMatchersBlockSave(
 internal fun SingBoxDnsRuleState.dnsMatcherCount(): Int =
     matches.count { match -> match.values.isNotEmpty() } +
         ipVersion.countAsDnsMatcher() +
-        network.countAsDnsMatcher()
+        (if (network.isEmpty()) 0 else 1)
 
 private fun String.countAsDnsMatcher(): Int = if (isBlank()) 0 else 1
 
@@ -173,7 +177,11 @@ internal fun SingBoxDnsRuleState.withVisibleManagedReferences(
         rule.withVisibleManagedReferences(labels, unavailableLabel)
     },
     matches = matches.map { match ->
-        if (match.field in ManagedDnsReferenceFields) {
+        if (match.field in DnsConfigurationMatchFields) {
+            match.copy(values = mapDnsConfigurationTags(match.values) { tag ->
+                visibleManagedReference(tag, labels, unavailableLabel)
+            })
+        } else if (match.field in ManagedDnsReferenceFields) {
             match.copy(
                 values = match.values.map { value ->
                     visibleManagedReference(value, labels, unavailableLabel)

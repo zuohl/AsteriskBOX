@@ -9,6 +9,7 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import app.AppState
 import app.ServiceControlSchedule
+import app.ServiceControlKeyguard
 import app.ServiceControlSettings
 import app.ServiceControlWifi
 import app.ServiceControlWifiRule
@@ -138,6 +139,8 @@ internal class AppSettingsPreferences(
                 ?: defaults.tunIpv4Cidr,
             tunIpv6Cidr = preferences.getString(KeyTunIpv6Cidr, defaults.tunIpv6Cidr)
                 ?: defaults.tunIpv6Cidr,
+            enableConfigOverrideScript = preferences.getBoolean(KeyEnableConfigOverrideScript, defaults.enableConfigOverrideScript),
+            configOverrideScript = preferences.getString(KeyConfigOverrideScript, defaults.configOverrideScript) ?: defaults.configOverrideScript,
             coreLogLevel = preferences.getString(KeyCoreLogLevel, defaults.coreLogLevel)
                 ?: defaults.coreLogLevel,
             enableTrafficStatsNotification = preferences.getBoolean(
@@ -301,6 +304,15 @@ internal class AppSettingsPreferences(
         }
     }
 
+    @SuppressLint("UseKtx")
+    fun saveMigration(previous: AppState, next: AppState) {
+        val changed = changedPreferenceValues(previous, next)
+        if (changed.isEmpty()) return
+        val editor = preferences.edit()
+        changed.forEach { (key, value) -> editor.putPreferenceValue(key, value) }
+        check(editor.commit()) { "Failed to persist migrated app settings" }
+    }
+
     private fun SharedPreferences.Editor.putPreferenceValue(
         key: String,
         value: AppPreferenceValue,
@@ -317,6 +329,13 @@ internal class AppSettingsPreferences(
     ): ServiceControlSettings = normalizeServiceControlSettings(
         ServiceControlSettings(
             enabled = getBoolean(KeyServiceControlEnabled, defaults.enabled),
+            keyguard = ServiceControlKeyguard(
+                enabled = getBoolean(KeyServiceControlKeyguardEnabled, defaults.keyguard.enabled),
+                lockStart = getBoolean(KeyServiceControlKeyguardLockStart, defaults.keyguard.lockStart),
+                lockStop = getBoolean(KeyServiceControlKeyguardLockStop, defaults.keyguard.lockStop),
+                unlockStart = getBoolean(KeyServiceControlKeyguardUnlockStart, defaults.keyguard.unlockStart),
+                unlockStop = getBoolean(KeyServiceControlKeyguardUnlockStop, defaults.keyguard.unlockStop),
+            ),
             schedule = ServiceControlSchedule(
                 enabled = getBoolean(KeyServiceControlScheduleEnabled, defaults.schedule.enabled),
                 startCron = getString(KeyServiceControlScheduleStartCron, defaults.schedule.startCron)
@@ -416,6 +435,8 @@ internal const val KeyTunMtu = "tun_mtu"
 internal const val KeyTunVpnDns = "tun_vpn_dns"
 internal const val KeyTunIpv4Cidr = "tun_ipv4_cidr"
 internal const val KeyTunIpv6Cidr = "tun_ipv6_cidr"
+internal const val KeyEnableConfigOverrideScript = "enable_config_override_script"
+internal const val KeyConfigOverrideScript = "config_override_script"
 internal const val KeyCoreLogLevel = "core_log_level"
 internal const val KeyEnableTrafficStatsNotification = "enable_traffic_stats_notification"
 internal const val KeyEnableBroadcastControl = "enable_broadcast_control"
@@ -485,3 +506,13 @@ internal const val KeyProxyAppListMode = "proxy_app_list_mode"
 internal const val KeyIsLightweightMode = "is_lightweight_mode"
 
 private val SubscriptionHwidLock = Any()
+
+internal const val KeyServiceControlKeyguardEnabled = "service_control_keyguard_enabled"
+
+internal const val KeyServiceControlKeyguardLockStart = "service_control_keyguard_lock_start"
+
+internal const val KeyServiceControlKeyguardLockStop = "service_control_keyguard_lock_stop"
+
+internal const val KeyServiceControlKeyguardUnlockStart = "service_control_keyguard_unlock_start"
+
+internal const val KeyServiceControlKeyguardUnlockStop = "service_control_keyguard_unlock_stop"

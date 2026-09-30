@@ -4,22 +4,19 @@
 package ui.components
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.R
 import ui.layout.pageContentPaddingWithCutout
 import ui.layout.pageListPadding
-import ui.theme.AsteriskMotion
 import ui.icons.AsteriskIcons as Icons
 
 internal data class EditorPageScaffoldState(
@@ -41,11 +38,11 @@ internal fun EditorPageScaffold(
     onBack: () -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
+    topExtra: Dp = 8.dp,
     actions: @Composable RowScope.() -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val state = EditorPageScaffoldState(saving, saveEnabled)
-    val saveEffectsMotion = AsteriskMotion.fastEffects<Float>()
 
     BackHandler(enabled = saving) {}
 
@@ -67,28 +64,13 @@ internal fun EditorPageScaffold(
                 },
                 actions = {
                     actions()
-                    IconButton(
+                    AsteriskActionButton(
+                        text = stringResource(R.string.common_save),
+                        icon = Icons.Rounded.Save,
                         onClick = onSave,
                         enabled = state.saveEnabled,
-                    ) {
-                        AnimatedContent(
-                            targetState = saving,
-                            transitionSpec = AsteriskMotion.fadeThrough(saveEffectsMotion),
-                            label = "editor-save-progress",
-                        ) { inProgress ->
-                            if (inProgress) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp,
-                                )
-                            } else {
-                                Icon(
-                                    Icons.Rounded.Save,
-                                    stringResource(R.string.common_save),
-                                )
-                            }
-                        }
-                    }
+                        loading = saving,
+                    )
                 },
             )
         },
@@ -100,6 +82,7 @@ internal fun EditorPageScaffold(
                     outerPadding = outerPadding,
                     isWideScreen = isWideScreen,
                 ),
+                topExtra = topExtra,
             ),
         )
     }

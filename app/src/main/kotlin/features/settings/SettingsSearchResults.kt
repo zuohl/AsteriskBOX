@@ -3,6 +3,7 @@
 
 package features.settings
 
+import android.os.Build
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -134,6 +135,11 @@ internal fun settingsTopLevelSearchItems(
         ),
         SettingsSearchItem(
             SettingsSectionId.Advanced,
+            stringResource(R.string.singbox_override_script_title),
+            stringResource(R.string.singbox_override_script_summary),
+        ),
+        SettingsSearchItem(
+            SettingsSectionId.Advanced,
             stringResource(R.string.settings_run_mode),
             value = optionValue(runModeOptions, selectedRunModeIndex),
             optionText = runModeOptions,
@@ -144,11 +150,15 @@ internal fun settingsTopLevelSearchItems(
             stringResource(R.string.settings_traffic_stats_notification),
             stringResource(R.string.settings_traffic_stats_notification_summary),
         ),
-        SettingsSearchItem(
-            SettingsSectionId.Vpn,
-            stringResource(R.string.settings_vpn_append_http_proxy),
-            stringResource(R.string.settings_vpn_append_http_proxy_summary),
-        ),
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            SettingsSearchItem(
+                SettingsSectionId.Vpn,
+                stringResource(R.string.settings_vpn_append_http_proxy),
+                stringResource(R.string.settings_vpn_append_http_proxy_summary),
+            )
+        } else {
+            null
+        },
         SettingsSearchItem(
             SettingsSectionId.Vpn,
             stringResource(R.string.settings_vpn_hev_tun),
@@ -229,6 +239,11 @@ internal fun settingsTopLevelSearchItems(
             value = ebpfLocalDnsMode,
             optionText = engine.singbox.EbpfDnsModes,
         ) else null,
+        SettingsSearchItem(
+            SettingsSectionId.Apps,
+            stringResource(R.string.settings_config_preview),
+            stringResource(R.string.settings_config_preview_summary),
+        ),
         SettingsSearchItem(SettingsSectionId.Apps, stringResource(R.string.settings_core_logs)),
         SettingsSearchItem(SettingsSectionId.Apps, stringResource(R.string.settings_logcat)),
         SettingsSearchItem(

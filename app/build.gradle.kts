@@ -115,6 +115,7 @@ tasks.named("preBuild") {
 dependencies {
     implementation(libs.compose.ui)
     implementation(libs.haze)
+    implementation(libs.haze.blur)
     implementation(libs.compose.foundation)
     implementation(libs.compose.material.icons.extended)
     implementation(libs.compose.material3)
@@ -145,6 +146,7 @@ dependencies {
     implementation(libs.libsu.core)
     implementation(libs.material.kolor)
     implementation(libs.reorderable)
+    implementation(libs.quickjs.kt.android)
     implementation(libs.sora.editor)
     implementation(libs.snakeyaml.engine) {
         exclude(group = "org.junit.jupiter", module = "junit-jupiter-api")

@@ -3,8 +3,14 @@
 
 package data.backup
 
+import engine.singbox.config.DnsConfigurationMatchFields
+import engine.singbox.config.dnsConfigurationEntryTag
+
 import app.AppState
+import features.resources.withInitializedBundledRuleSets
 import app.ServiceControlSchedule
+import app.ServiceControlKeyguard
+import features.settings.servicecontrol.normalizeServiceControlSettings
 import app.ServiceControlSettings
 import app.ServiceControlWifi
 import app.ServiceControlWifiRule
@@ -45,6 +51,7 @@ internal fun AppState.toAppBackupFile(
                 dnsServers = dnsServers,
                 dnsRules = dnsRules,
                 customResourceFiles = customResourceFiles.map(CustomResourceFileState::toBackup),
+                bundledRuleSetsInitialized = bundledRuleSetsInitialized,
                 proxyAppListSelectedApps = proxyAppListSelectedApps,
             ),
     )
@@ -93,6 +100,8 @@ private fun AppState.toBackupSettings(): AppBackupSettings =
         tunVpnDns = tunVpnDns,
         tunIpv4Cidr = tunIpv4Cidr,
         tunIpv6Cidr = tunIpv6Cidr,
+        enableConfigOverrideScript = enableConfigOverrideScript,
+        configOverrideScript = configOverrideScript,
         coreLogLevel = coreLogLevel,
         enableTrafficStatsNotification = enableTrafficStatsNotification,
         enableBroadcastControl = enableBroadcastControl,
@@ -138,6 +147,13 @@ private fun AppState.toBackupSettings(): AppBackupSettings =
 private fun ServiceControlSettings.toBackup(): AppBackupServiceControl =
     AppBackupServiceControl(
         enabled = enabled,
+        keyguard = AppBackupServiceControlKeyguard(
+            enabled = keyguard.enabled,
+            lockStart = keyguard.lockStart,
+            lockStop = keyguard.lockStop,
+            unlockStart = keyguard.unlockStart,
+            unlockStop = keyguard.unlockStop,
+        ),
         schedule = AppBackupServiceControlSchedule(
             enabled = schedule.enabled,
             startCron = schedule.startCron,
@@ -158,6 +174,13 @@ private fun ServiceControlWifiRule.toBackup(): AppBackupServiceControlWifiRule =
 private fun AppBackupServiceControl.toState(): ServiceControlSettings =
     ServiceControlSettings(
         enabled = enabled,
+        keyguard = ServiceControlKeyguard(
+            enabled = keyguard.enabled,
+            lockStart = keyguard.lockStart,
+            lockStop = keyguard.lockStop,
+            unlockStart = keyguard.unlockStart,
+            unlockStop = keyguard.unlockStop,
+        ),
         schedule = ServiceControlSchedule(
             enabled = schedule.enabled,
             startCron = schedule.startCron,
@@ -181,6 +204,7 @@ private fun OutboundGroupState.toBackup(): AppBackupOutboundGroup =
         name = name,
         url = url,
         userAgent = userAgent,
+        detour = detour,
         updateInterval = updateInterval,
         hwid = hwid,
         updateViaProxy = updateViaProxy,
@@ -296,6 +320,8 @@ private fun AppBackupData.toAppState(): AppState {
         tunIpv4Cidr = settings.tunIpv4Cidr,
         tunIpv6Cidr = settings.tunIpv6Cidr,
         proxyRunning = false,
+        enableConfigOverrideScript = settings.enableConfigOverrideScript,
+        configOverrideScript = settings.configOverrideScript,
         coreLogLevel = settings.coreLogLevel,
         enableTrafficStatsNotification = settings.enableTrafficStatsNotification,
         enableBroadcastControl = settings.enableBroadcastControl,
@@ -309,6 +335,7 @@ private fun AppBackupData.toAppState(): AppState {
         customResourceFileDirectCidrIpv4Url = settings.customResourceFileDirectCidrIpv4Url,
         customResourceFileDirectCidrIpv6Url = settings.customResourceFileDirectCidrIpv6Url,
         customResourceFiles = restoredCustomResourceFiles,
+        bundledRuleSetsInitialized = bundledRuleSetsInitialized,
         nextCustomResourceFileId = nextId(
             defaults.nextCustomResourceFileId,
             restoredCustomResourceFiles.map(CustomResourceFileState::id),
@@ -346,11 +373,11 @@ private fun AppBackupData.toAppState(): AppState {
         tunSharedNetworkInterfaces = settings.tunSharedNetworkInterfaces
             ?: settings.legacyEbpfSharedNetworkInterfaces,
         ignoredInterfaces = settings.ignoredInterfaces,
-        serviceControl = settings.serviceControl.toState(),
+        serviceControl = normalizeServiceControlSettings(settings.serviceControl.toState()),
         privateAddressCidrs = settings.privateAddressCidrs,
         proxyAppListMode = settings.proxyAppListMode,
         proxyAppListSelectedApps = proxyAppListSelectedApps,
-    ).withCanonicalManagedTagReferences()
+    ).withInitializedBundledRuleSets().withCanonicalManagedTagReferences()
 }
 
 private fun AppBackupOutboundGroup.toState(): OutboundGroupState =
@@ -359,6 +386,7 @@ private fun AppBackupOutboundGroup.toState(): OutboundGroupState =
         name = name,
         url = url,
         userAgent = userAgent,
+        detour = detour,
         updateInterval = updateInterval,
         hwid = hwid,
         updateViaProxy = updateViaProxy,
@@ -424,6 +452,7 @@ private fun AppBackupCustomResourceFile.toState(): CustomResourceFileState =
 private fun AppState.restoreWarnings(): List<AppBackupWarning> {
     val availableOutbounds = selectableManagedOutbounds(this).mapTo(mutableSetOf()) { choice -> choice.tag }
     val outboundReferences = buildList {
+        outboundGroups.forEach { group -> add(group.detour) }
         selectors.forEach { selector ->
             addAll(selector.outbounds)
             add(selector.default)
@@ -444,13 +473,16 @@ private fun AppState.restoreWarnings(): List<AppBackupWarning> {
         add(routeDefaultDomainResolver)
         dnsServers.forEach { server -> add(server.domainResolver) }
         dnsRules.forEach { rule -> addAll(rule.dnsServerReferences(includeAction = true)) }
+        routeRules.forEach { rule -> addAll(rule.dnsConfigurationReferences()) }
     }
     val missingDnsServerCount = dnsReferences.countMissingManagedReferences(availableDnsServers)
 
     val availableEndpoints = endpoints.mapTo(mutableSetOf()) { endpoint -> endpoint.tag }
-    val missingEndpointCount = dnsServers
-        .map { server -> server.endpoint }
-        .countMissingManagedReferences(availableEndpoints)
+    val endpointReferences = buildList {
+        dnsServers.forEach { server -> add(server.endpoint) }
+        routeRules.forEach { rule -> addAll(rule.preferredByEndpointReferences()) }
+    }
+    val missingEndpointCount = endpointReferences.countMissingManagedReferences(availableEndpoints)
 
     return buildList {
         if (missingOutboundCount > 0) {
@@ -465,10 +497,23 @@ private fun AppState.restoreWarnings(): List<AppBackupWarning> {
     }
 }
 
+private fun SingBoxRouteRuleState.preferredByEndpointReferences(): List<String> =
+    buildList {
+        addAll(preferredBy)
+        logicalRules.forEach { rule -> addAll(rule.preferredByEndpointReferences()) }
+    }
+
 private fun SingBoxRouteRuleState.outboundReferences(): List<String> =
     buildList {
         add(outbound)
         logicalRules.forEach { rule -> addAll(rule.outboundReferences()) }
+    }
+
+private fun SingBoxRouteRuleState.dnsConfigurationReferences(): List<String> =
+    if (type == app.SingBoxRouteRuleTypeLogical) {
+        logicalRules.flatMap { it.dnsConfigurationReferences() }
+    } else {
+        (dnsServerAddress + dnsSearchDomain).map(::dnsConfigurationEntryTag)
     }
 
 private fun SingBoxDnsRuleState.dnsServerReferences(
@@ -487,6 +532,8 @@ private fun SingBoxDnsRuleState.dnsServerReferences(
         matches
             .filter { match -> match.field == "preferred_by" }
             .forEach { match -> addAll(match.values) }
+        matches.filter { it.field in DnsConfigurationMatchFields }
+            .forEach { match -> addAll(match.values.map(::dnsConfigurationEntryTag)) }
     }
 }
 

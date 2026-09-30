@@ -10,12 +10,14 @@ import java.io.File
 internal fun validateSingBoxRuntimeConfiguration(
     context: Context,
     state: AppState,
-    customRuleSetFileOverrides: Map<Int, File> = emptyMap(),
+    customResourceFileOverrides: Map<Int, File> = emptyMap(),
 ) {
-    SingBoxConfigCompiler.compile(
+    // Validate editable settings independently of the script used for runtime configs and previews.
+    val generated = SingBoxConfigCompiler.generate(
         context = context,
         appState = state,
         exposePorts = false,
-        customRuleSetFileOverrides = customRuleSetFileOverrides,
+        customResourceFileOverrides = customResourceFileOverrides,
     )
+    SingBoxConfigChecker.check(encodeSingBoxJson(generated))
 }

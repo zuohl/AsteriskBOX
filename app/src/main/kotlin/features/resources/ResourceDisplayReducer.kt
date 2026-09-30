@@ -30,9 +30,6 @@ internal enum class SingBoxRuleSetFileFormat(
 
 internal enum class ResourceVisualKind {
     Core,
-    AdRuleSet,
-    DomainRuleSet,
-    IpRuleSet,
     RuleSet,
     Cidr,
     Custom,
@@ -82,7 +79,7 @@ internal fun customResourceDisplayActions(file: CustomResourceFileState): List<R
         if (file.url.isNotBlank()) add(ResourceDisplayAction.Update)
         add(ResourceDisplayAction.Replace)
         add(ResourceDisplayAction.Edit)
-        if (file.name.isSingBoxJsonRuleSet()) add(ResourceDisplayAction.Modify)
+        if (file.name.isEditableResource()) add(ResourceDisplayAction.Modify)
         add(ResourceDisplayAction.Delete)
     }
 }
@@ -90,10 +87,6 @@ internal fun customResourceDisplayActions(file: CustomResourceFileState): List<R
 internal fun resourceVisualKind(fileName: String): ResourceVisualKind {
     return when {
         fileName == ResourceFileSingBoxCoreName -> ResourceVisualKind.Core
-        fileName == ResourceFileGeositeCategoryAdsAllName -> ResourceVisualKind.AdRuleSet
-        fileName == ResourceFileGeositeGoogleName ||
-            fileName == ResourceFileGeositeCnName -> ResourceVisualKind.DomainRuleSet
-        fileName == ResourceFileGeoipCnName -> ResourceVisualKind.IpRuleSet
         fileName == ResourceFileDirectCidrIpv4Name ||
             fileName == ResourceFileDirectCidrIpv6Name -> ResourceVisualKind.Cidr
         fileName.hasSingBoxRuleSetExtension() -> ResourceVisualKind.RuleSet
@@ -110,11 +103,14 @@ internal fun validateCustomResourceDraft(
     val cleanUrl = url.trim()
     val fileName = customResourceFileNameOrNull(cleanName)
         ?: return CustomResourceDraftValidation(cleanName, cleanUrl, CustomResourceDraftError.InvalidName)
+    if (!isSupportedCustomResourceName(fileName)) {
+        return CustomResourceDraftValidation(fileName, cleanUrl, CustomResourceDraftError.InvalidName)
+    }
     val format = fileName.singBoxRuleSetFormatOrNull()
-    if (format == null) {
+    if (format == null && !fileName.isHostsResource()) {
         return CustomResourceDraftValidation(fileName, cleanUrl, CustomResourceDraftError.UnsupportedExtension)
     }
-    if (fileName.dropLast(format.fileExtension.length).isBlank()) {
+    if (fileName.substringBeforeLast('.').isBlank()) {
         return CustomResourceDraftValidation(fileName, cleanUrl, CustomResourceDraftError.InvalidName)
     }
     if (reservedNames.any { reserved -> reserved.equals(fileName, ignoreCase = true) }) {
@@ -139,6 +135,10 @@ internal fun String.singBoxRuleSetFormatOrNull(): SingBoxRuleSetFileFormat? = wh
 
 internal fun String.isSingBoxJsonRuleSet(): Boolean =
     singBoxRuleSetFormatOrNull() == SingBoxRuleSetFileFormat.Source
+
+internal fun String.isHostsResource(): Boolean = endsWith(".hosts", ignoreCase = true)
+
+internal fun String.isEditableResource(): Boolean = isSingBoxJsonRuleSet() || isHostsResource()
 
 internal fun String.isValidHttpResourceUrl(): Boolean {
     return runCatching {

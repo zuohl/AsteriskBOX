@@ -44,6 +44,7 @@ internal data class AppBackupData(
     val dnsServers: List<SingBoxDnsServerState> = emptyList(),
     val dnsRules: List<SingBoxDnsRuleState> = emptyList(),
     val customResourceFiles: List<AppBackupCustomResourceFile> = emptyList(),
+    val bundledRuleSetsInitialized: Boolean = false,
     val proxyAppListSelectedApps: List<String> = emptyList(),
 )
 
@@ -81,6 +82,8 @@ internal data class AppBackupSettings(
     val tunVpnDns: String = BackupDefaults.tunVpnDns,
     val tunIpv4Cidr: String = BackupDefaults.tunIpv4Cidr,
     val tunIpv6Cidr: String = BackupDefaults.tunIpv6Cidr,
+    val enableConfigOverrideScript: Boolean = BackupDefaults.enableConfigOverrideScript,
+    val configOverrideScript: String = BackupDefaults.configOverrideScript,
     val coreLogLevel: String = BackupDefaults.coreLogLevel,
     val enableTrafficStatsNotification: Boolean = BackupDefaults.enableTrafficStatsNotification,
     val enableBroadcastControl: Boolean = BackupDefaults.enableBroadcastControl,
@@ -135,6 +138,7 @@ internal data class AppBackupServiceControl(
     val enabled: Boolean = BackupDefaults.serviceControl.enabled,
     val schedule: AppBackupServiceControlSchedule = AppBackupServiceControlSchedule(),
     val wifi: AppBackupServiceControlWifi = AppBackupServiceControlWifi(),
+    val keyguard: AppBackupServiceControlKeyguard = AppBackupServiceControlKeyguard(),
 )
 
 @Serializable
@@ -166,6 +170,7 @@ internal data class AppBackupOutboundGroup(
     val name: String = "",
     val url: String = "",
     val userAgent: String = "",
+    val detour: String = "",
     val updateInterval: String = "",
     val hwid: String = "",
     val updateViaProxy: Boolean = false,
@@ -266,3 +271,12 @@ internal sealed interface AppBackupWarning {
         val count: Int,
     ) : AppBackupWarning
 }
+
+@Serializable
+internal data class AppBackupServiceControlKeyguard(
+    val enabled: Boolean = false,
+    val lockStart: Boolean = false,
+    val lockStop: Boolean = false,
+    val unlockStart: Boolean = false,
+    val unlockStop: Boolean = false,
+)

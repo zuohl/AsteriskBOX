@@ -5,11 +5,12 @@
 
 package features.resources
 
-import androidx.compose.foundation.layout.Arrangement
+import features.resources.runtime.withScannedResourceFiles
+
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
+import ui.components.SectionedLazyColumn
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
@@ -45,7 +46,7 @@ import app.navigation.Route
 import app.nextAvailableCustomResourceFileId
 import app.resourceFileUpdateSource
 import app.statusOf
-import app.withRemovedManagedRuleSets
+import app.withRemovedManagedResourceFiles
 import features.resources.runtime.ResourceFileBatchDownloadFailedException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
@@ -92,10 +93,6 @@ fun ResourceManagementPage(
     val editCustomResourceFileUrlState = rememberTextFieldState()
     var showCustomSourceEditor by remember { mutableStateOf(false) }
     var showResourceAutoUpdateSheet by remember { mutableStateOf(false) }
-    val sourceGeositeCategoryAdsAllUrlState = rememberTextFieldState()
-    val sourceGeositeGoogleUrlState = rememberTextFieldState()
-    val sourceGeositeCnUrlState = rememberTextFieldState()
-    val sourceGeoipCnUrlState = rememberTextFieldState()
     val sourceDirectCidrIpv4UrlState = rememberTextFieldState()
     val sourceDirectCidrIpv6UrlState = rememberTextFieldState()
     val updatedMessage = stringResource(R.string.settings_resource_files_updated)
@@ -326,20 +323,6 @@ fun ResourceManagementPage(
 
     fun openCustomSourceEditor() {
         val source = appState.resourceFileUpdateSource()
-        sourceGeositeCategoryAdsAllUrlState.setTextAndPlaceCursorAtEnd(
-            appState.customResourceFileGeositeCategoryAdsAllUrl.ifBlank {
-                source.geositeCategoryAdsAllUrl
-            },
-        )
-        sourceGeositeGoogleUrlState.setTextAndPlaceCursorAtEnd(
-            appState.customResourceFileGeositeGoogleUrl.ifBlank { source.geositeGoogleUrl },
-        )
-        sourceGeositeCnUrlState.setTextAndPlaceCursorAtEnd(
-            appState.customResourceFileGeositeCnUrl.ifBlank { source.geositeCnUrl },
-        )
-        sourceGeoipCnUrlState.setTextAndPlaceCursorAtEnd(
-            appState.customResourceFileGeoipCnUrl.ifBlank { source.geoipCnUrl },
-        )
         sourceDirectCidrIpv4UrlState.setTextAndPlaceCursorAtEnd(
             appState.customResourceFileDirectCidrIpv4Url.ifBlank { source.directCidrIpv4Url },
         )
@@ -349,8 +332,14 @@ fun ResourceManagementPage(
         showCustomSourceEditor = true
     }
 
-    LaunchedEffect(appState.customResourceFiles, updateQueueState.completionRevision) {
-        status = resourceFileUseCase.status(appState.customResourceFiles)
+    LaunchedEffect(appState.customResourceFiles, updateQueueState.completionRevision, resourceActionRunning) {
+        if (resourceActionRunning) return@LaunchedEffect
+        val registered = appState.customResourceFiles
+        status = resourceFileUseCase.status(registered)
+        val scanned = status.customResourceFiles.map { it.file }
+        updateAppState { current ->
+            if (current.customResourceFiles == registered) current.withScannedResourceFiles(scanned) else current
+        }
     }
     val resourceCatalogUpdateOptions = appState.resourceFileUpdateOptions()
     LaunchedEffect(
@@ -466,9 +455,9 @@ fun ResourceManagementPage(
         )
         val listPadding = pageListPadding(contentPadding)
 
-        LazyColumn(
+        SectionedLazyColumn(
             contentPadding = listPadding,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            itemSpacing = 10.dp,
         ) {
             item(key = "resource_overview") {
                 ResourceOverviewCard(
@@ -498,7 +487,7 @@ fun ResourceManagementPage(
                     onSettings = { showResourceAutoUpdateSheet = true },
                 )
             }
-            item(key = "resource_core_section") {
+            sectionTitleItem(key = "resource_core_section") {
                 ResourceSectionTitle(stringResource(R.string.settings_resource_files_core_files))
             }
             item(key = ResourceFileKind.SingBoxCore.fileName) {
@@ -535,7 +524,7 @@ fun ResourceManagementPage(
                     },
                 )
             }
-            item(key = "resource_rules_section") {
+            sectionTitleItem(key = "resource_rules_section") {
                 ResourceSectionTitle(stringResource(R.string.settings_resource_files_files))
             }
             ResourceFileKind.entries.filterNot { it == ResourceFileKind.SingBoxCore }.forEach { kind ->
@@ -564,7 +553,7 @@ fun ResourceManagementPage(
                 }
             }
             if (appState.customResourceFiles.isNotEmpty()) {
-                item(key = "resource_custom_section") {
+                sectionTitleItem(key = "resource_custom_section") {
                     ResourceSectionTitle(stringResource(R.string.settings_resource_files_custom_section))
                 }
             }
@@ -591,7 +580,7 @@ fun ResourceManagementPage(
                             editingCustomResourceFile = file
                         },
                         onModify = { file ->
-                            navigator.push(Route.ResourceJsonEdit(resourceId = file.id))
+                            navigator.push(Route.ResourceTextEdit(resourceId = file.id))
                         },
                         onDelete = { file ->
                             val remaining = appState.customResourceFiles
@@ -603,7 +592,7 @@ fun ResourceManagementPage(
                                 successMessage = deletedMessage.formatTemplate("name" to file.name),
                                 onSuccess = {
                                     updateAppState { state ->
-                                        state.withRemovedManagedRuleSets(setOf(file.name))
+                                        state.withRemovedManagedResourceFiles(setOf(file.name))
                                             .copy(
                                                 customResourceFiles =
                                                     state.customResourceFiles.filterNot {
@@ -703,10 +692,6 @@ fun ResourceManagementPage(
         )
         CustomResourceSourceEditorSheet(
             show = showCustomSourceEditor,
-            geositeCategoryAdsAllUrlState = sourceGeositeCategoryAdsAllUrlState,
-            geositeGoogleUrlState = sourceGeositeGoogleUrlState,
-            geositeCnUrlState = sourceGeositeCnUrlState,
-            geoipCnUrlState = sourceGeoipCnUrlState,
             directCidrIpv4UrlState = sourceDirectCidrIpv4UrlState,
             directCidrIpv6UrlState = sourceDirectCidrIpv6UrlState,
             onDismissRequest = { showCustomSourceEditor = false },
@@ -714,11 +699,6 @@ fun ResourceManagementPage(
                 updateAppState { state ->
                     state.copy(
                         resourceFileSource = ResourceFileSourceCustom,
-                        customResourceFileGeositeCategoryAdsAllUrl =
-                            sourceGeositeCategoryAdsAllUrlState.text.toString().trim(),
-                        customResourceFileGeositeGoogleUrl = sourceGeositeGoogleUrlState.text.toString().trim(),
-                        customResourceFileGeositeCnUrl = sourceGeositeCnUrlState.text.toString().trim(),
-                        customResourceFileGeoipCnUrl = sourceGeoipCnUrlState.text.toString().trim(),
                         customResourceFileDirectCidrIpv4Url = sourceDirectCidrIpv4UrlState.text.toString().trim(),
                         customResourceFileDirectCidrIpv6Url = sourceDirectCidrIpv6UrlState.text.toString().trim(),
                     )
@@ -744,7 +724,7 @@ private fun ResourceSectionTitle(text: String) {
         style = MaterialTheme.typography.titleSmall,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.fillMaxWidth().padding(start = 4.dp, top = 10.dp, bottom = 2.dp),
+        modifier = Modifier.fillMaxWidth().padding(start = 4.dp),
     )
 }
 

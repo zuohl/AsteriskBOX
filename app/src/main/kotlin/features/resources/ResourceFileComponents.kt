@@ -206,20 +206,12 @@ internal fun ResourceOverviewCard(
 @Composable
 internal fun CustomResourceSourceEditorSheet(
     show: Boolean,
-    geositeCategoryAdsAllUrlState: TextFieldState,
-    geositeGoogleUrlState: TextFieldState,
-    geositeCnUrlState: TextFieldState,
-    geoipCnUrlState: TextFieldState,
     directCidrIpv4UrlState: TextFieldState,
     directCidrIpv6UrlState: TextFieldState,
     onDismissRequest: () -> Unit,
     onSave: () -> Unit,
 ) {
     val sourceUrlStates = listOf(
-        geositeCategoryAdsAllUrlState,
-        geositeGoogleUrlState,
-        geositeCnUrlState,
-        geoipCnUrlState,
         directCidrIpv4UrlState,
         directCidrIpv6UrlState,
     )
@@ -264,26 +256,6 @@ internal fun CustomResourceSourceEditorSheet(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                ResourceUrlField(
-                    geositeCategoryAdsAllUrlState,
-                    ResourceFileGeositeCategoryAdsAllName,
-                    invalidSourceUrlMessage,
-                )
-                ResourceUrlField(
-                    geositeGoogleUrlState,
-                    ResourceFileGeositeGoogleName,
-                    invalidSourceUrlMessage,
-                )
-                ResourceUrlField(
-                    geositeCnUrlState,
-                    ResourceFileGeositeCnName,
-                    invalidSourceUrlMessage,
-                )
-                ResourceUrlField(
-                    geoipCnUrlState,
-                    ResourceFileGeoipCnName,
-                    invalidSourceUrlMessage,
-                )
                 ResourceUrlField(
                     directCidrIpv4UrlState,
                     ResourceFileDirectCidrIpv4Name,
@@ -341,6 +313,7 @@ internal fun ResourceFileCard(
     }
     ResourceFileCardSurface(
         fileName = fileName,
+        visualKind = resourceVisualKind(fileName),
         status = status,
         modifier = modifier,
         description = description,
@@ -372,6 +345,7 @@ internal fun CustomResourceFileCard(
     )
     ResourceFileCardSurface(
         fileName = file.name,
+        visualKind = ResourceVisualKind.Custom,
         status = fileStatus.status,
         description = if (file.url.isBlank()) {
             stringResource(R.string.settings_resource_files_local_only)
@@ -395,6 +369,7 @@ private data class ResourceMenuEntry(
 @Composable
 private fun ResourceFileCardSurface(
     fileName: String,
+    visualKind: ResourceVisualKind,
     status: ResourceFileStatus,
     updateState: ResourceFileUpdateDisplayState,
     actionsEnabled: Boolean,
@@ -420,7 +395,7 @@ private fun ResourceFileCardSurface(
                 color = MaterialTheme.colorScheme.surfaceContainerHighest,
             ) {
                 Icon(
-                    imageVector = resourceVisualKind(fileName).icon(),
+                    imageVector = visualKind.icon(),
                     contentDescription = null,
                     modifier = Modifier.padding(10.dp).size(22.dp),
                     tint = MaterialTheme.colorScheme.primary,
@@ -452,13 +427,15 @@ private fun ResourceFileCardSurface(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Text(
-                        text = status.updatedAtText(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    if (!status.isBundledCore) {
+                        Text(
+                            text = status.updatedAtText(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 } else {
                     Text(
                         text = stringResource(R.string.settings_resource_files_missing),
@@ -538,12 +515,9 @@ private fun ResourceFileCardSurface(
 private fun ResourceVisualKind.icon(): ImageVector {
     return when (this) {
         ResourceVisualKind.Core -> Icons.Rounded.Memory
-        ResourceVisualKind.AdRuleSet -> Icons.Rounded.Block
-        ResourceVisualKind.DomainRuleSet -> Icons.Rounded.Language
-        ResourceVisualKind.IpRuleSet -> Icons.Rounded.Public
         ResourceVisualKind.RuleSet -> Icons.Rounded.Policy
         ResourceVisualKind.Cidr -> Icons.Rounded.Route
-        ResourceVisualKind.Custom -> Icons.Rounded.DataObject
+        ResourceVisualKind.Custom -> Icons.Rounded.Description
     }
 }
 

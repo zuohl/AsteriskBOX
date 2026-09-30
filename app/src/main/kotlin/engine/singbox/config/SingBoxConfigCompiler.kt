@@ -45,6 +45,7 @@ import engine.singbox.EbpfLocalDataPlanes
 import engine.singbox.EbpfSharedDataPlanes
 import engine.singbox.singBoxControlConfig
 import engine.vpn.toTunOptions
+import features.resources.runtime.singBoxHostsFiles
 import features.resources.SingBoxRuleSetFileFormat
 import features.resources.runtime.singBoxRuleSetFiles
 import features.resources.singBoxRuleSetFormatOrNull
@@ -78,16 +79,31 @@ internal object SingBoxConfigCompiler {
         appState: AppState,
         runMode: Int = appState.runMode,
         exposePorts: Boolean = true,
-        customRuleSetFileOverrides: Map<Int, File> = emptyMap(),
-    ): String {
+        customResourceFileOverrides: Map<Int, File> = emptyMap(),
+    ): String = finalizeConfig(
+        generate(context, appState, runMode, exposePorts, customResourceFileOverrides),
+        appState,
+    )
+
+    internal fun generate(
+        context: Context,
+        appState: AppState,
+        runMode: Int = appState.runMode,
+        exposePorts: Boolean = true,
+        customResourceFileOverrides: Map<Int, File> = emptyMap(),
+    ): JsonObject {
         val canonicalState = appState.withCanonicalManagedTagReferences()
         val filesByName = context.singBoxRuleSetFiles(canonicalState.customResourceFiles)
             .associateByTo(linkedMapOf()) { file -> file.name.lowercase() }
         canonicalState.customResourceFiles.forEach { customFile ->
-            customRuleSetFileOverrides[customFile.id]
+            customResourceFileOverrides[customFile.id]
                 ?.takeIf { file -> file.isFile && file.length() > 0L }
                 ?.let { file -> filesByName[customFile.name.lowercase()] = file }
         }
+        val hostsResourcePaths = context.singBoxHostsFiles(
+            canonicalState.customResourceFiles,
+            customResourceFileOverrides,
+        ).mapValues { (_, file) -> file.absolutePath }
         val choicesByFileName = canonicalState
             .managedRuleSetChoices(filesByName.keys)
             .associateBy { choice -> choice.fileName }
@@ -105,11 +121,12 @@ internal object SingBoxConfigCompiler {
                 localRuleSets.mapTo(mutableSetOf(), SingBoxLocalRuleSet::tag),
             )
             .withPrunedDnsServerReferences()
-        return compileGenerated(
+        return compileGeneratedRoot(
             appState = runtimeState,
             runMode = runMode,
             exposePorts = exposePorts,
             localRuleSets = localRuleSets,
+            hostsResourcePaths = hostsResourcePaths,
             rootUidPolicy = if (runMode == RunModeEbpf || runMode == RunModeTun) {
                 context.resolveRootInboundUidPolicy(runtimeState)
             } else {
@@ -118,22 +135,11 @@ internal object SingBoxConfigCompiler {
         )
     }
 
-    internal fun compileGenerated(
-        appState: AppState,
-        runMode: Int = appState.runMode,
-        exposePorts: Boolean = true,
-        localRuleSets: List<SingBoxLocalRuleSet> = emptyList(),
-        rootUidPolicy: RootInboundUidPolicy = RootInboundUidPolicy(),
-    ): String {
-        val encoded = encodeSingBoxJson(
-            compileGeneratedRoot(
-                appState = appState,
-                runMode = runMode,
-                exposePorts = exposePorts,
-                localRuleSets = localRuleSets,
-                rootUidPolicy = rootUidPolicy,
-            ),
+    private fun finalizeConfig(root: JsonObject, appState: AppState): String {
+        val overridden = applySingBoxConfigOverride(
+            root, appState.enableConfigOverrideScript, appState.configOverrideScript,
         )
+        val encoded = encodeSingBoxJson(overridden)
         SingBoxConfigChecker.check(encoded)
         return encoded
     }
@@ -144,12 +150,14 @@ internal object SingBoxConfigCompiler {
         exposePorts: Boolean = true,
         localRuleSets: List<SingBoxLocalRuleSet> = emptyList(),
         rootUidPolicy: RootInboundUidPolicy = RootInboundUidPolicy(),
+        hostsResourcePaths: Map<Int, String> = emptyMap(),
     ): JsonObject = generateRoot(
         sourceRoot = JsonObject(emptyMap()),
         appState = appState.withCanonicalManagedTagReferences(),
         runMode = runMode,
         exposePorts = exposePorts,
         localRuleSets = localRuleSets,
+        hostsResourcePaths = hostsResourcePaths,
         rootUidPolicy = rootUidPolicy,
     )
 
@@ -160,10 +168,11 @@ internal object SingBoxConfigCompiler {
         exposePorts: Boolean = true,
         localRuleSets: List<SingBoxLocalRuleSet> = emptyList(),
         rootUidPolicy: RootInboundUidPolicy = RootInboundUidPolicy(),
+        hostsResourcePaths: Map<Int, String> = emptyMap(),
     ): JsonObject {
         val managedSourceRoot = sourceRoot.withLocalRuleSets(localRuleSets)
         val availableRuleSetTags = localRuleSets.mapTo(linkedSetOf(), SingBoxLocalRuleSet::tag)
-        val dnsResult = SingBoxDnsCompiler.compile(appState)
+        val dnsResult = SingBoxDnsCompiler.compile(appState, hostsResourcePaths)
         var runtime = managedSourceRoot
             .updated("log", compileLog(managedSourceRoot["log"] as? JsonObject, appState))
             .updated(
@@ -314,6 +323,7 @@ internal fun compileEbpfInbound(
     require(sharedInterfaces.isEmpty() || appState.ebpfSharedDataPlane in EbpfSharedDataPlanes) {
         "eBPF shared data_plane must be socket_assign or packet_rewrite"
     }
+    val bypassRuleSets = appState.availableTunBypassRuleSetTags(availableRuleSetTags)
     return buildJsonObject {
         put("type", "ebpf")
         put("tag", APP_ROOT_INBOUND)
@@ -323,6 +333,11 @@ internal fun compileEbpfInbound(
             put("dns_mode", appState.ebpfLocalDnsMode.effectiveEbpfDnsMode(appState.enableLocalDns))
             put("ipv6", appState.enableIpv6)
             put("bypass_private_address", false)
+            if (bypassRuleSets.isNotEmpty()) {
+                putJsonArray("bypass_rule_set") {
+                    bypassRuleSets.forEach(::add)
+                }
+            }
             if (uidPolicy.includeUids.isNotEmpty()) {
                 putJsonArray("include_uid") {
                     uidPolicy.includeUids.distinct().sorted().forEach(::add)
@@ -332,12 +347,6 @@ internal fun compileEbpfInbound(
                 putJsonArray("exclude_uid") {
                     uidPolicy.excludeUids.distinct().sorted().forEach(::add)
                 }
-            }
-        }
-        val bypassRuleSets = appState.availableTunBypassRuleSetTags(availableRuleSetTags)
-        if (bypassRuleSets.isNotEmpty()) {
-            putJsonArray("bypass_rule_set") {
-                bypassRuleSets.forEach(::add)
             }
         }
         if (sharedInterfaces.isNotEmpty()) {
@@ -350,6 +359,11 @@ internal fun compileEbpfInbound(
                 }
                 put("bypass_private_address", false)
                 put("ipv6", appState.enableIpv6)
+                if (bypassRuleSets.isNotEmpty()) {
+                    putJsonArray("bypass_rule_set") {
+                        bypassRuleSets.forEach(::add)
+                    }
+                }
             }
         }
     }
@@ -438,6 +452,7 @@ internal fun compileOutbounds(root: JsonObject, appState: AppState): JsonArray {
     val enabledGroups = appState.outboundGroups
         .filter { group -> group.enabled }
     val enabledGroupIds = enabledGroups.mapTo(mutableSetOf()) { group -> group.id }
+    val groupDetours = enabledGroups.associate { group -> group.id to group.detour }
     val managedOutbounds = appState.outbounds
         .asSequence()
         .filter { outbound -> outbound.groupId in enabledGroupIds }
@@ -451,6 +466,8 @@ internal fun compileOutbounds(root: JsonObject, appState: AppState): JsonArray {
                             putAll(parsed)
                             put("type", JsonPrimitive(outbound.type))
                             put("tag", JsonPrimitive(outbound.tag))
+                            outbound.inheritedGroupDetour(groupDetours[outbound.groupId].orEmpty(), parsed)
+                                ?.let { detour -> put("detour", JsonPrimitive(detour)) }
                         },
                     )
                 }
@@ -766,7 +783,7 @@ internal fun compileRoute(
     val existingRules = (sourceRoute?.get("rules") as? JsonArray)
         .orEmptyObjects()
     val managedRules = appState.routeRules
-        .filter(SingBoxRouteRuleState::enabled)
+        .filter { it.enabled && !it.hasLegacyRouteModeMatcher() }
         .map(::compileManagedRouteRule)
     val injectedRules = buildList {
         addAll(SingBoxSniffCompiler.compile(appState))
@@ -793,19 +810,12 @@ internal fun compileRoute(
             },
         )
     }
-    val ruleModeFallback = listOf(
-        buildJsonObject {
-            put("clash_mode", "Rule")
-            put("action", "route")
-            put("outbound", finalOutbound)
-        },
-    )
     return JsonObject(
         buildMap {
             sourceRoute
                 ?.filterKeys { key -> key !in ManagedRouteSettingKeys }
                 ?.let(::putAll)
-            put("rules", JsonArray(injectedRules + managedRules + existingRules + ruleModeFallback))
+            put("rules", JsonArray(injectedRules + managedRules + existingRules))
             put("final", JsonPrimitive(finalOutbound))
             if (defaultDomainResolver != null) {
                 put("default_domain_resolver", JsonPrimitive(defaultDomainResolver))
@@ -866,10 +876,19 @@ private fun List<String>.sanitizedRouteNetworkTypes(): List<String> {
     return SingBoxRouteNetworkTypes.filter(selected::contains)
 }
 
-internal fun compileManagedRouteRule(rule: SingBoxRouteRuleState): JsonObject =
-    JsonObject(
+internal fun SingBoxRouteRuleState.hasLegacyRouteModeMatcher(): Boolean =
+    if (type == SingBoxRouteRuleTypeLogical) {
+        logicalRules.any { it.enabled && it.hasLegacyRouteModeMatcher() }
+    } else {
+        clashMode.isNotBlank()
+    }
+
+internal fun compileManagedRouteRule(rule: SingBoxRouteRuleState): JsonObject {
+    require(!rule.hasLegacyRouteModeMatcher()) { "Rule mode is managed by the application" }
+    return JsonObject(
         compileManagedRouteMatch(rule) + compileManagedRouteAction(rule),
     )
+}
 
 private fun compileManagedRouteAction(rule: SingBoxRouteRuleState): JsonObject =
     buildJsonObject {
@@ -905,9 +924,34 @@ private fun compileManagedRouteMatch(rule: SingBoxRouteRuleState): JsonObject =
             return@buildJsonObject
         }
         putStringArray("inbound", rule.inbound)
-        rule.clashMode.takeIf(String::isNotEmpty)?.let { mode ->
-            put("clash_mode", mode)
+        putStringArray("process_name", rule.processName)
+        putStringArray("process_path", rule.processPath)
+        putStringArray("process_path_regex", rule.processPathRegex)
+        putStringArray("user", rule.user)
+        if (rule.userId.isNotEmpty()) {
+            putJsonArray("user_id") {
+                rule.userId.map { requireNotNull(it.trim().toIntOrNull()) { "Invalid user_id" } }.distinct().forEach(::add)
+            }
         }
+
+        putStringArray("auth_user", rule.authUser)
+        putStringArray("client", rule.client)
+        putStringArray("package_name_regex", rule.packageNameRegex)
+        if (rule.networkInterfaceAddress.isNotEmpty()) {
+            require(rule.networkInterfaceAddress.all {
+                engine.singbox.singBoxRuleMatcherValueError("network_interface_address", it, "invalid") == null
+            }) { "Invalid network_interface_address" }
+            putJsonObject("network_interface_address") {
+                parseRuleAddressMap(rule.networkInterfaceAddress).forEach { (name, addresses) ->
+                    putJsonArray(name) { addresses.forEach(::add) }
+                }
+            }
+        }
+        putStringArray("source_mac_address", rule.sourceMacAddress)
+        putStringArray("source_hostname", rule.sourceHostname)
+        putStringArray("preferred_by", rule.preferredBy)
+        if (rule.networkIsExpensive) put("network_is_expensive", true)
+
         if (rule.ipVersion == 4 || rule.ipVersion == 6) {
             put("ip_version", rule.ipVersion)
         }
@@ -927,6 +971,8 @@ private fun compileManagedRouteMatch(rule: SingBoxRouteRuleState): JsonObject =
         putStringArray("network_type", rule.networkType)
         putStringArray("wifi_ssid", rule.wifiSsid)
         putStringArray("wifi_bssid", rule.wifiBssid)
+        putDnsConfigurationMatch("dns_server_address", rule.dnsServerAddress)
+        putDnsConfigurationMatch("dns_search_domain", rule.dnsSearchDomain)
         putStringArray("rule_set", rule.ruleSet)
         if (rule.sourceIpIsPrivate) put("source_ip_is_private", true)
         if (rule.ipIsPrivate) put("ip_is_private", true)

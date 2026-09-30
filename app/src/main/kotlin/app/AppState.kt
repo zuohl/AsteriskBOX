@@ -80,6 +80,8 @@ data class AppState(
     val proxyRunning: Boolean = false,
     val isLightweightMode: Boolean = false,
 
+    val enableConfigOverrideScript: Boolean = false,
+    val configOverrideScript: String = "const main = (config) => {\n  return config\n}",
     val coreLogLevel: String = DefaultSingBoxLogLevel,
     val enableTrafficStatsNotification: Boolean = false,
     val enableBroadcastControl: Boolean = false,
@@ -93,6 +95,7 @@ data class AppState(
     val customResourceFileDirectCidrIpv4Url: String = "",
     val customResourceFileDirectCidrIpv6Url: String = "",
     val customResourceFiles: List<CustomResourceFileState> = emptyList(),
+    val bundledRuleSetsInitialized: Boolean = false,
     val nextCustomResourceFileId: Int = 1,
     val enableSniffer: Boolean = true,
     val snifferProtocols: List<String> = DefaultSingBoxSnifferProtocols,

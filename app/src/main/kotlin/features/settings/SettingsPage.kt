@@ -63,7 +63,6 @@ import kotlinx.coroutines.launch
 import ui.KeyColors
 import ui.components.AsteriskContentHeader
 import ui.components.AsteriskPinnedSearchArea
-import ui.components.WarningConfirmDialog
 import ui.layout.AdaptiveTopAppBar
 import ui.layout.pageContentPaddingWithCutout
 import ui.layout.pageHorizontalPadding
@@ -134,10 +133,10 @@ private fun SettingsContent(
     val tipNotifier = services.tipNotifier
     val scope = rememberCoroutineScope()
     val lazyListState = rememberLazyListState()
+    var showConfigPreview by remember { mutableStateOf(false) }
     var runModeSwitchInProgress by rememberSaveable { mutableStateOf(false) }
     var rootBootScriptSwitchInProgress by rememberSaveable { mutableStateOf(false) }
     var rootEbpfSwitchInProgress by rememberSaveable { mutableStateOf(false) }
-    var showRootEbpfSelinuxPolicyWarning by rememberSaveable { mutableStateOf(false) }
     var backupRestoreOperation by remember {
         mutableStateOf<SettingsBackupRestoreOperation?>(null)
     }
@@ -149,7 +148,8 @@ private fun SettingsContent(
         outerPadding = outerPadding,
         isWideScreen = isWideScreen,
     )
-    val listPadding = pageListPadding(contentPadding)
+    // Section titles and search results already provide their own top spacing.
+    val listPadding = pageListPadding(contentPadding, topExtra = 0.dp)
 
     val colorModeOptions = listOf(
         stringResource(R.string.option_follow_system),
@@ -187,11 +187,6 @@ private fun SettingsContent(
     ).take(KeyColors.size + 1)
     val rootRequiredMessage = stringResource(R.string.settings_root_required)
     val rootBootScriptFailedMessage = stringResource(R.string.settings_root_boot_script_failed)
-    val rootEbpfMatcherFailedMessage = stringResource(R.string.settings_root_ebpf_matcher_failed)
-    val rootEbpfMatcherUnsupportedMessage = stringResource(R.string.settings_root_ebpf_matcher_unsupported)
-    val rootEbpfSelinuxPolicyWarningTitle = stringResource(R.string.settings_root_ebpf_selinux_policy_warning_title)
-    val rootEbpfSelinuxPolicyWarningSummary = stringResource(R.string.settings_root_ebpf_selinux_policy_warning_summary)
-    val rootEbpfSelinuxPolicyWarningConfirm = stringResource(R.string.settings_root_ebpf_selinux_policy_warning_confirm)
     val serviceStoppedMessage = stringResource(R.string.proxy_service_stopped)
     val logLevelFailedMessage = stringResource(R.string.settings_log_level)
     val backupExportedMessage = stringResource(R.string.settings_backup_exported)
@@ -395,8 +390,8 @@ private fun SettingsContent(
                 SettingsAdvancedSection(
                     enableBroadcastControl = appState.enableBroadcastControl,
                     enableIpv6 = appState.enableIpv6,
-                    enableIpv6Prefer = appState.enableIpv6Prefer,
                     isLightweightMode = appState.isLightweightMode,
+                    onOpenConfigOverrideScript = { navigator.push(Route.ConfigOverrideScript) },
                     runModeOptions = runModeOptions,
                     selectedRunModeIndex = selectedRunModeIndex,
                     onEnableBroadcastControlChange = { enabled ->
@@ -423,8 +418,7 @@ private fun SettingsContent(
                                             state.copy(
                                                 runMode = result.runMode,
                                                 proxyRunning = result.proxyRunning,
-                                                enableRootBootScript = false,
-                                                enableRootEbpfRules = state.enableRootEbpfRules && result.runMode.isRootRunMode(),
+                                                enableRootBootScript = state.enableRootBootScript && result.runMode.isRootRunMode(),
                                             ).withPrunedManagedInboundReferences()
                                         }
                                     }
@@ -537,27 +531,13 @@ private fun SettingsContent(
                             rootEbpfSwitchInProgress = true
                             val stateSnapshot = appState
                             val probeJob = services.appScope.launch {
-                                when (val result = rootEbpfProbeUseCase.probe(stateSnapshot)) {
+                                when (rootEbpfProbeUseCase.probe(stateSnapshot)) {
                                     is RootEbpfProbeResult.Success -> {
-                                        if (result.selinuxPolicyApplicator == null) {
-                                            showRootEbpfSelinuxPolicyWarning = true
-                                        } else {
-                                            updateAppState { state -> state.copy(enableRootEbpfRules = true) }
-                                        }
-                                    }
-
-                                    is RootEbpfProbeResult.Unsupported -> {
-                                        tipNotifier.show(
-                                            result.probe.message.ifBlank { rootEbpfMatcherUnsupportedMessage },
-                                        )
+                                        updateAppState { state -> state.copy(enableRootEbpfRules = true) }
                                     }
 
                                     RootEbpfProbeResult.RootUnavailable -> {
                                         tipNotifier.show(rootRequiredMessage)
-                                    }
-
-                                    is RootEbpfProbeResult.Failed -> {
-                                        tipNotifier.showError(result.error, rootEbpfMatcherFailedMessage)
                                     }
                                 }
                             }
@@ -610,6 +590,7 @@ private fun SettingsContent(
             }
             item(key = "settings_tools") {
                 SettingsToolsSection(
+                    onOpenConfigPreview = { showConfigPreview = true },
                     onOpenNetworkQualityTest = { sheetState.openNetworkQualityTest() },
                 )
             }
@@ -668,6 +649,12 @@ private fun SettingsContent(
                 )
             }
         }
+        if (showConfigPreview) {
+            ConfigPreviewDialog(
+                appState = appState,
+                onDismissRequest = { showConfigPreview = false },
+            )
+        }
         SettingsBottomSheetsHost(
             appState = appState,
             sheetState = sheetState,
@@ -714,18 +701,6 @@ private fun SettingsContent(
                         backupRestoreOperation = null
                     }
                 }
-            },
-        )
-        WarningConfirmDialog(
-            show = showRootEbpfSelinuxPolicyWarning,
-            title = rootEbpfSelinuxPolicyWarningTitle,
-            summary = rootEbpfSelinuxPolicyWarningSummary,
-            dismissText = stringResource(R.string.common_cancel),
-            confirmText = rootEbpfSelinuxPolicyWarningConfirm,
-            onDismissRequest = { showRootEbpfSelinuxPolicyWarning = false },
-            onConfirm = {
-                updateAppState { state -> state.copy(enableRootEbpfRules = true) }
-                showRootEbpfSelinuxPolicyWarning = false
             },
         )
     }

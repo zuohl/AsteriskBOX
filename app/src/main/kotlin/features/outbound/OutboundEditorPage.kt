@@ -190,6 +190,8 @@ internal fun OutboundEditorPage(
     EditorPageScaffold(
         outerPadding = padding,
         isWideScreen = isWideScreen,
+        // The first section title provides the top content spacing.
+        topExtra = 0.dp,
         title = {
             Column {
                 Text(
@@ -229,7 +231,6 @@ internal fun OutboundEditorPage(
     ) { contentPadding ->
         LazyColumn(
             contentPadding = contentPadding,
-            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item(key = "identity") {
                 EditorSectionCard(
@@ -248,7 +249,7 @@ internal fun OutboundEditorPage(
                     )
                     SettingsDropdownRow(
                         title = stringResource(R.string.outbound_group),
-                        icon = Icons.Rounded.AccountTree,
+                        icon = Icons.Rounded.Folder,
                         items = visibleGroups.map { it.displayName() },
                         selectedIndex = visibleGroups
                             .indexOfFirst { it.id == selectedGroupId }
@@ -438,7 +439,10 @@ private fun OutboundKeyValueField(
                     }
                 }
             }
-            TextButton(onClick = { entries = entries + ("" to "") }) {
+            TextButton(
+                onClick = { entries = entries + ("" to "") },
+                modifier = Modifier.align(Alignment.End),
+            ) {
                 Icon(Icons.Rounded.Add, contentDescription = null)
                 Spacer(Modifier.width(6.dp))
                 Text(stringResource(R.string.common_add))

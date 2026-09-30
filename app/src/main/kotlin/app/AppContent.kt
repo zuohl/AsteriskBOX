@@ -66,13 +66,14 @@ import features.outbound.OutboundEditorPage
 import features.outbound.OutboundGroupListPage
 import features.outbound.OutboundListPage
 import features.proxy.app.ProxyAppListPage
-import features.resources.ResourceJsonEditorPage
+import features.resources.ResourceTextEditorPage
 import features.resources.ResourceManagementPage
 import features.routing.RouteRuleEditorPage
 import features.routing.RoutingManagementPage
 import features.selector.SelectorEditorPage
 import features.selector.SelectorManagementPage
 import features.settings.SettingsPage
+import features.singbox.SingBoxOverrideScriptPage
 import features.singbox.SingBoxDashboardPage
 import features.singbox.SingBoxProxyDestination
 import ui.components.AsteriskFloatingNavigationBar
@@ -160,12 +161,15 @@ fun AppContent(
                 entry<Route.LogcatLogs> {
                     LogcatLogsPage(padding = padding)
                 }
+                entry<Route.ConfigOverrideScript> {
+                    SingBoxOverrideScriptPage(padding = padding)
+                }
                 entry<Route.ResourceManagement> {
                     ResourceManagementPage(padding = padding)
                 }
-                entry<Route.ResourceJsonEdit> { route ->
+                entry<Route.ResourceTextEdit> { route ->
                     key(route.resourceId) {
-                        ResourceJsonEditorPage(
+                        ResourceTextEditorPage(
                             padding = padding,
                             resourceId = route.resourceId,
                         )

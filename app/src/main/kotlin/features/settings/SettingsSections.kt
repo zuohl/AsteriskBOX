@@ -3,6 +3,7 @@
 
 package features.settings
 
+import android.os.Build
 import app.modes.RunModeBpf2Socks
 import app.modes.RunModeEbpf
 import app.modes.RunModeTun
@@ -70,12 +71,20 @@ internal fun SettingsAppSection(
 
 @Composable
 internal fun SettingsToolsSection(
+    onOpenConfigPreview: () -> Unit,
     onOpenNetworkQualityTest: () -> Unit,
 ) {
     SmallTitle(text = stringResource(R.string.settings_tools))
     SettingsSectionCard {
         SettingsToolsItems.forEach { item ->
             when (item) {
+                SettingsToolsItem.ConfigPreview -> ArrowPreference(
+                    title = stringResource(R.string.settings_config_preview),
+                    icon = Icons.Rounded.DataObject,
+                    summary = stringResource(R.string.settings_config_preview_summary),
+                    onClick = onOpenConfigPreview,
+                    accent = IconAccent.MaskBlue,
+                )
                 SettingsToolsItem.NetworkQualityTest -> ArrowPreference(
                     title = stringResource(R.string.settings_network_quality_test),
                     icon = Icons.Rounded.Speed,
@@ -186,8 +195,8 @@ internal fun SettingsCoreSection(
 internal fun SettingsAdvancedSection(
     enableBroadcastControl: Boolean,
     enableIpv6: Boolean,
-    enableIpv6Prefer: Boolean,
     isLightweightMode: Boolean,
+    onOpenConfigOverrideScript: () -> Unit,
     runModeOptions: List<String>,
     selectedRunModeIndex: Int,
     onEnableBroadcastControlChange: (Boolean) -> Unit,
@@ -236,9 +245,16 @@ internal fun SettingsAdvancedSection(
                 accent = IconAccent.MaskGreen,
             )
         }
+        ArrowPreference(
+            title = stringResource(R.string.singbox_override_script_title),
+            icon = Icons.Rounded.Code,
+            summary = stringResource(R.string.singbox_override_script_summary),
+            onClick = onOpenConfigOverrideScript,
+            accent = IconAccent.MaskPurple,
+        )
         OverlayDropdownPreference(
             title = stringResource(R.string.settings_run_mode),
-            icon = Icons.Rounded.AccountTree,
+            icon = Icons.Rounded.SettingsEthernet,
             items = runModeOptions,
             selectedIndex = selectedRunModeIndex.coerceIn(runModeOptions.indices),
             onSelectedIndexChange = onRunModeChange,
@@ -309,14 +325,16 @@ internal fun SettingsProxyModeSections(
                     onCheckedChange = onEnableTrafficStatsNotificationChange,
                     accent = IconAccent.MaskPink,
                 )
-                SwitchPreference(
-                    title = stringResource(R.string.settings_vpn_append_http_proxy),
-                    icon = Icons.Rounded.Http,
-                    summary = stringResource(R.string.settings_vpn_append_http_proxy_summary),
-                    checked = enableVpnAppendHttpProxy,
-                    onCheckedChange = onEnableVpnAppendHttpProxyChange,
-                    accent = IconAccent.MaskOrange,
-                )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    SwitchPreference(
+                        title = stringResource(R.string.settings_vpn_append_http_proxy),
+                        icon = Icons.Rounded.Http,
+                        summary = stringResource(R.string.settings_vpn_append_http_proxy_summary),
+                        checked = enableVpnAppendHttpProxy,
+                        onCheckedChange = onEnableVpnAppendHttpProxyChange,
+                        accent = IconAccent.MaskOrange,
+                    )
+                }
                 SwitchPreference(
                     title = stringResource(R.string.settings_vpn_hev_tun),
                     icon = Icons.Rounded.Memory,

@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Card
@@ -40,10 +39,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import app.R
 import app.modes.RunModeBpf2Socks
 import app.modes.RunModeTproxy
 import app.modes.RunModeTun2Socks
-import app.R
 import ui.components.AsteriskDropdownAnchor
 import ui.components.AsteriskDropdownMenuItem
 import ui.components.IconAccent
@@ -120,7 +119,7 @@ internal fun SettingsSearchProvider(query: String, content: @Composable () -> Un
 internal fun SettingsSectionTitle(text: String) {
     Text(
         text = text,
-        modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 12.dp, bottom = 8.dp),
+        modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
         color = MaterialTheme.colorScheme.primary,
         style = MaterialTheme.typography.labelLarge,
         fontWeight = FontWeight.SemiBold,
@@ -190,6 +189,7 @@ internal fun SettingsSwitchRow(
     summary: String = "",
     enabled: Boolean = true,
     accent: IconAccent = IconAccent.Surface,
+    horizontalPadding: Dp = 16.dp,
 ) {
     if (!settingsRowMatchesQuery(title, summary, checked.toString())) return
     SettingsRow(
@@ -207,6 +207,7 @@ internal fun SettingsSwitchRow(
             )
         },
         accent = accent,
+        horizontalPadding = horizontalPadding,
     )
 }
 
@@ -221,6 +222,7 @@ internal fun SettingsDropdownRow(
     summary: String = "",
     enabled: Boolean = true,
     accent: IconAccent = IconAccent.Surface,
+    horizontalPadding: Dp = 16.dp,
 ) {
     if (items.isEmpty()) return
     val safeIndex = selectedIndex.coerceIn(items.indices)
@@ -255,6 +257,7 @@ internal fun SettingsDropdownRow(
                 }
             },
             accent = accent,
+            horizontalPadding = horizontalPadding,
         )
     }
 }
@@ -268,12 +271,13 @@ private fun SettingsRow(
     value: String = "",
     trailing: (@Composable () -> Unit)? = null,
     accent: IconAccent = IconAccent.Surface,
+    horizontalPadding: Dp = 16.dp,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 64.dp)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = horizontalPadding, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         MaskedPreferenceIcon(icon = icon, accent = accent)
@@ -316,7 +320,7 @@ private fun SettingsRow(
 }
 
 @Composable
-private fun settingsRowMatchesQuery(
+internal fun settingsRowMatchesQuery(
     title: String,
     summary: String,
     value: String,

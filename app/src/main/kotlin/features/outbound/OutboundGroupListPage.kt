@@ -68,6 +68,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import app.DefaultOutboundSubscriptionUserAgent
+import app.AppState
+import app.selectableGroupDetourOutbounds
 import app.LocalAppServices
 import app.LocalAppStateStore
 import app.LocalIsWideScreen
@@ -117,6 +119,7 @@ import sh.calvin.reorderable.ReorderableItem
 import ui.components.AsteriskActionButton
 import ui.components.AsteriskModalBottomSheet
 import ui.components.WarningConfirmDialog
+import ui.components.localizedLabel
 import ui.components.draggedCardShadow
 import ui.components.rememberReorderPreview
 import ui.components.longPressReorderDragHandle
@@ -837,6 +840,7 @@ internal fun OutboundGroupListPage(
         }
         OutboundGroupEditorSheet(
             show = showGroupEditor,
+            appState = appState,
             group = editorGroup,
             editorSession = groupEditorSession,
             busy = savingGroupEditorSession == groupEditorSession,
@@ -1378,6 +1382,7 @@ private fun OutboundGroupCard(
 @Composable
 private fun OutboundGroupEditorSheet(
     show: Boolean,
+    appState: AppState,
     group: OutboundGroupState?,
     editorSession: Int,
     busy: Boolean,
@@ -1387,6 +1392,19 @@ private fun OutboundGroupEditorSheet(
     var name by remember(editorSession) { mutableStateOf(group?.name.orEmpty()) }
     var url by remember(editorSession) { mutableStateOf(group?.url.orEmpty()) }
     var hwid by remember(editorSession) { mutableStateOf(group?.hwid.orEmpty()) }
+    var detour by remember(editorSession) { mutableStateOf(group?.detour.orEmpty()) }
+    val detourChoices = remember(
+        appState.outboundGroups, appState.outbounds, appState.endpoints, appState.selectors, group?.id,
+    ) {
+        selectableGroupDetourOutbounds(appState, group?.id ?: 0)
+    }
+    val detourValues = listOf("") + detourChoices.map { it.tag } +
+        listOfNotNull(detour.takeIf { value ->
+            value.isNotBlank() && detourChoices.none { it.tag == value }
+        })
+    val detourLabels = detourChoices.associate { it.tag to it.localizedLabel() }
+    val notSpecified = stringResource(R.string.common_not_specified)
+    val unavailable = stringResource(R.string.common_unavailable)
     val initialUserAgent = group?.userAgent ?: DefaultOutboundSubscriptionUserAgent
     var userAgentOption by remember(editorSession) {
         mutableStateOf(subscriptionUserAgentOptionFor(initialUserAgent))
@@ -1449,6 +1467,7 @@ private fun OutboundGroupEditorSheet(
                         name = name.trim(),
                         url = trimmedUrl,
                         userAgent = userAgent,
+                        detour = detour,
                         updateInterval = updateInterval.trim(),
                         hwid = trimmedHwid,
                         updateViaProxy = updateViaProxy,
@@ -1459,6 +1478,7 @@ private fun OutboundGroupEditorSheet(
                         name = name.trim(),
                         url = trimmedUrl,
                         userAgent = userAgent,
+                        detour = detour,
                         updateInterval = updateInterval.trim(),
                         hwid = trimmedHwid,
                         updateViaProxy = updateViaProxy,
@@ -1563,6 +1583,40 @@ private fun OutboundGroupEditorSheet(
                     }
                 }
             }
+            item(key = "age-secret-key") {
+                AnimatedVisibility(
+                    visible = hasSubscription,
+                    enter = AsteriskMotion.contentEnter(),
+                    exit = AsteriskMotion.contentExit(),
+                ) {
+                    Column {
+                        Spacer(Modifier.height(GroupEditorSectionSpacing))
+                        OutlinedTextField(
+                            value = ageSecretKey,
+                            onValueChange = { ageSecretKey = it },
+                            label = { Text(stringResource(R.string.outbound_group_age_secret_key)) },
+                            singleLine = true,
+                            shape = AsteriskShapeTokens.InnerContainer,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
+            item(key = "detour") {
+                Column {
+                    Spacer(Modifier.height(GroupEditorSectionSpacing))
+                    SettingsDropdownRow(
+                        title = stringResource(R.string.outbound_group_detour),
+                        horizontalPadding = 0.dp,
+                        icon = Icons.AutoMirrored.Rounded.AltRoute,
+                        items = detourValues.map { value ->
+                            if (value.isBlank()) notSpecified else detourLabels[value] ?: unavailable
+                        },
+                        selectedIndex = detourValues.indexOf(detour).coerceAtLeast(0),
+                        onSelectedIndexChange = { index -> detour = detourValues[index] },
+                    )
+                }
+            }
             item(key = "subscription-options") {
                 AnimatedVisibility(
                     visible = hasSubscription,
@@ -1572,16 +1626,9 @@ private fun OutboundGroupEditorSheet(
                     Column {
                         Spacer(Modifier.height(GroupEditorSectionSpacing))
                         Column(verticalArrangement = Arrangement.spacedBy(GroupEditorSectionSpacing)) {
-                            OutlinedTextField(
-                                value = ageSecretKey,
-                                onValueChange = { ageSecretKey = it },
-                                label = { Text(stringResource(R.string.outbound_group_age_secret_key)) },
-                                singleLine = true,
-                                shape = AsteriskShapeTokens.InnerContainer,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
                             SettingsDropdownRow(
                                 title = stringResource(R.string.outbound_group_user_agent),
+                                horizontalPadding = 0.dp,
                                 summary = userAgent
                                     .takeUnless { it == selectedUserAgentLabel }
                                     .orEmpty(),
@@ -1600,12 +1647,14 @@ private fun OutboundGroupEditorSheet(
                             )
                             SettingsSwitchRow(
                                 title = stringResource(R.string.outbound_group_update_via_proxy),
+                                horizontalPadding = 0.dp,
                                 icon = Icons.Rounded.CloudSync,
                                 checked = updateViaProxy,
                                 onCheckedChange = { updateViaProxy = it },
                             )
                             SettingsSwitchRow(
                                 title = stringResource(R.string.outbound_group_strict_import),
+                                horizontalPadding = 0.dp,
                                 summary = stringResource(
                                     R.string.outbound_group_strict_import_summary,
                                 ),
@@ -1684,14 +1733,18 @@ private fun CustomSubscriptionUserAgentDialog(
             )
         },
         dismissButton = {
-            TextButton(onClick = onDismissRequest) {
-                Text(stringResource(R.string.common_cancel))
-            }
+            AsteriskActionButton(
+                text = stringResource(R.string.common_cancel),
+                icon = Icons.Rounded.Close,
+                onClick = onDismissRequest,
+            )
         },
         confirmButton = {
-            TextButton(onClick = onSave) {
-                Text(stringResource(R.string.common_save))
-            }
+            AsteriskActionButton(
+                text = stringResource(R.string.common_save),
+                icon = Icons.Rounded.Save,
+                onClick = onSave,
+            )
         },
     )
 }

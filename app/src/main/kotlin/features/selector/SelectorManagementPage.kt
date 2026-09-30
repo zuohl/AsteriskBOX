@@ -293,7 +293,12 @@ internal fun SelectorManagementPage(padding: PaddingValues) {
             outerPadding = padding,
             isWideScreen = isWideScreen,
         )
-        val listContentPadding = pageListPadding(contentPadding, bottomExtra = 24.dp)
+        val listContentPadding = pageListPadding(
+            contentPadding,
+            bottomExtra = 24.dp,
+            // Non-empty lists start with a section title that supplies its own spacing.
+            topExtra = if (managedGroups.isNotEmpty() || customSelectors.isNotEmpty()) 0.dp else 8.dp,
+        )
         val gridState = rememberLazyGridState()
         val reorderEnabled = isSelectorReorderEnabled(query, appState.selectors.size)
         val preview = rememberReorderPreview(customSelectors, SingBoxSelectorState::id, enabled = reorderEnabled) { ids ->
@@ -552,15 +557,20 @@ internal fun SelectorCard(
         )
     val cardColors = CardDefaults.cardColors(containerColor = containerColor)
     val content: @Composable () -> Unit = {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-                .animateContentSize(AsteriskMotion.contentSize()),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
+        Box(Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = 16.dp,
+                        top = 16.dp,
+                        end = if (menu != null) 56.dp else 16.dp,
+                        bottom = 16.dp,
+                    )
+                    .animateContentSize(AsteriskMotion.contentSize()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Column {
                     Text(
                         title,
                         style = MaterialTheme.typography.titleMedium,
@@ -578,22 +588,27 @@ internal fun SelectorCard(
                         )
                     }
                 }
-                menu?.invoke()
-            }
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                badges.forEach { badge ->
-                    AsteriskInfoChip(text = badge, emphasized = enabled)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    badges.forEach { badge ->
+                        AsteriskInfoChip(text = badge, emphasized = enabled)
+                    }
+                    AsteriskInfoChip(
+                        text = pluralStringResource(
+                            R.plurals.selector_member_count,
+                            memberCount,
+                            memberCount,
+                        ),
+                    )
                 }
-                AsteriskInfoChip(
-                    text = pluralStringResource(
-                        R.plurals.selector_member_count,
-                        memberCount,
-                        memberCount,
-                    ),
-                )
+            }
+            // Preserve the touch target without letting the menu push the title down.
+            if (menu != null) {
+                Box(Modifier.align(Alignment.CenterEnd).padding(4.dp)) {
+                    menu()
+                }
             }
         }
     }
@@ -972,6 +987,7 @@ internal fun SelectorEditorScaffold(
             item(key = "type") {
                 SettingsDropdownRow(
                     title = stringResource(R.string.selector_editor_type),
+                    horizontalPadding = 0.dp,
                     summary = stringResource(R.string.selector_editor_type_summary),
                     icon = Icons.Rounded.Tune,
                     items = typeLabels,
@@ -988,6 +1004,7 @@ internal fun SelectorEditorScaffold(
                 Column {
                     SettingsSwitchRow(
                         title = stringResource(R.string.selector_editor_interrupt),
+                        horizontalPadding = 0.dp,
                         summary = stringResource(R.string.selector_editor_interrupt_summary),
                         icon = Icons.Rounded.Sync,
                         checked = interrupt,
@@ -1136,6 +1153,7 @@ internal fun SelectorEditorScaffold(
                     ) {
                         SettingsDropdownRow(
                             title = stringResource(R.string.selector_editor_default),
+                            horizontalPadding = 0.dp,
                             icon = Icons.AutoMirrored.Rounded.AltRoute,
                             items = defaultOptionTags.map { member ->
                                 member?.let { tag ->

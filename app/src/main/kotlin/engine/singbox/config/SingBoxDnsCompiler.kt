@@ -3,6 +3,8 @@
 
 package engine.singbox.config
 
+import app.withPrunedDnsEvaluationReferences
+
 import app.AppState
 import app.SingBoxDnsRuleMatchState
 import app.SingBoxDnsRuleLogicalModeAnd
@@ -17,6 +19,7 @@ import app.effectiveLocalDnsEnabled
 import engine.singbox.DefaultSingBoxDnsFakeIpRange
 import engine.singbox.DefaultSingBoxDnsServers
 import engine.singbox.SingBoxUnsigned32Max
+import engine.singbox.singBoxRuleMatcherValueError
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -32,8 +35,19 @@ internal data class SingBoxDnsCompileResult(
     val defaultDomainResolver: String,
 )
 
+internal val DnsRuleBooleanMatchers = setOf(
+    "query_dnssec",
+    "source_ip_is_private",
+    "network_is_expensive",
+    "ip_is_private",
+    "ip_accept_any",
+)
+
 internal object SingBoxDnsCompiler {
-    fun compile(appState: AppState): SingBoxDnsCompileResult? {
+    fun compile(
+        appState: AppState,
+        hostsResourcePaths: Map<Int, String> = emptyMap(),
+    ): SingBoxDnsCompileResult? {
         if (!appState.effectiveLocalDnsEnabled) return null
 
         val sourceServers = appState.dnsServers.ifEmpty { DefaultSingBoxDnsServers }
@@ -45,7 +59,17 @@ internal object SingBoxDnsCompiler {
             require(normalized.type in SingBoxDnsServerTypes) {
                 "Unsupported DNS server type: ${normalized.type}"
             }
-            normalized.toJson()
+            normalized.toJson(
+                hostsPaths = if (normalized.type == "hosts") {
+                    resolveHostsResourcePaths(
+                        normalized.hostsResourceIds,
+                        appState.customResourceFiles,
+                        hostsResourcePaths,
+                    )
+                } else {
+                    emptyList()
+                },
+            )
         }
         val serverTags = servers.map { server -> (server["tag"] as JsonPrimitive).content }
         val defaultServer = appState.dnsFinal.trim().takeIf { tag -> tag in serverTags }
@@ -58,19 +82,7 @@ internal object SingBoxDnsCompiler {
         return SingBoxDnsCompileResult(
             dns = buildJsonObject {
                 put("servers", JsonArray(servers))
-                val rules = appState.dnsRules
-                    .filter(SingBoxDnsRuleState::enabled)
-                    .map(SingBoxDnsRuleState::sanitized)
-                    .onEach { rule ->
-                        require(
-                            rule.hasValidDnsRuleStructure(
-                                validateDisabledChildren = false,
-                            ),
-                        ) {
-                            "DNS rule ${rule.id} contains an empty logical or headless rule"
-                        }
-                    }
-                    .map(SingBoxDnsRuleState::toJson)
+                val rules = compileManagedDnsRules(appState.dnsRules)
                 if (rules.isNotEmpty()) put("rules", JsonArray(rules))
                 put("final", defaultServer)
                 put(
@@ -120,13 +132,46 @@ internal fun SingBoxDnsRuleState.hasValidDnsRuleStructure(
                     )
                 }
         }
-        SingBoxDnsRuleTypeDefault -> !nested || hasDefaultDnsMatchers()
+        SingBoxDnsRuleTypeDefault ->
+            (!nested || hasDefaultDnsMatchers()) && hasValidDnsResponseIpMatchers()
         else -> false
     }
 }
 
+internal fun compileManagedDnsRules(rules: List<SingBoxDnsRuleState>): List<JsonObject> =
+    rules.map(SingBoxDnsRuleState::sanitized)
+        .withPrunedDnsEvaluationReferences()
+        .filter(SingBoxDnsRuleState::enabled)
+        .onEach { rule ->
+            require(rule.hasValidDnsRuleStructure(validateDisabledChildren = false)) {
+                "DNS rule ${rule.id} contains an invalid logical, headless, or response match rule"
+            }
+        }
+        .map(SingBoxDnsRuleState::toJson)
+
+private fun SingBoxDnsRuleState.hasValidDnsResponseIpMatchers(): Boolean {
+    val hasResponseIpMatcher = matches.any { match ->
+        when (match.field) {
+            "ip_cidr" -> match.values.isNotEmpty()
+            "ip_is_private", "ip_accept_any" -> match.values.any { it == "true" }
+            else -> false
+        }
+    }
+    if (!hasResponseIpMatcher) return true
+    // Address filters without match_response use the deprecated legacy DNS path.
+    return matches.any { match ->
+        match.field == "match_response" && match.values.singleOrNull()?.let { value ->
+            value.isNotBlank() && (match.encodeAsString || value != "false")
+        } == true
+    }
+}
+
 private fun SingBoxDnsRuleState.hasDefaultDnsMatchers(): Boolean =
-    compileDnsRuleMatch(this).keys.any { field -> field != "invert" }
+    runCatching {
+        compileDnsRuleMatch(this).keys.any { field ->
+            field != "invert"
+        }
+    }.getOrDefault(false)
 
 internal fun SingBoxDnsServerState.sanitized(): SingBoxDnsServerState =
     copy(
@@ -135,7 +180,7 @@ internal fun SingBoxDnsServerState.sanitized(): SingBoxDnsServerState =
         server = server.trim(),
         serverPort = serverPort.trim(),
         path = path.trim(),
-        hostsPaths = hostsPaths.toTrimmedNonEmptyDistinctList(),
+        hostsResourceIds = hostsResourceIds.distinct(),
         predefinedHosts = predefinedHosts.toTrimmedNonEmptyDistinctList(),
         interfaceName = interfaceName.trim(),
         interfaceNames = interfaceNames.toTrimmedNonEmptyDistinctList(),
@@ -150,8 +195,16 @@ internal fun SingBoxDnsServerState.sanitized(): SingBoxDnsServerState =
         servers = servers.toTrimmedNonEmptyDistinctList(),
     )
 
-internal fun SingBoxDnsRuleState.sanitized(): SingBoxDnsRuleState =
-    copy(
+internal fun SingBoxDnsRuleState.sanitized(): SingBoxDnsRuleState {
+    val children = logicalRules.map(SingBoxDnsRuleState::sanitized)
+    val lostMatcher = type != SingBoxDnsRuleTypeLogical && matches.any { match ->
+        match.field.trim() !in SingBoxDnsRuleMatchers && match.values.any(String::isNotBlank)
+    }
+    val lostEnabledChild = type == SingBoxDnsRuleTypeLogical &&
+        logicalRules.zip(children).any { (previous, updated) -> previous.enabled && !updated.enabled }
+    // Removing an unsupported condition must never turn a saved rule into a broader match.
+    return copy(
+        enabled = enabled && !lostMatcher && !lostEnabledChild,
         remarks = remarks.trim(),
         type = type.takeIf { value ->
             value == SingBoxDnsRuleTypeDefault || value == SingBoxDnsRuleTypeLogical
@@ -159,7 +212,7 @@ internal fun SingBoxDnsRuleState.sanitized(): SingBoxDnsRuleState =
         logicalMode = logicalMode.takeIf { value ->
             value == SingBoxDnsRuleLogicalModeAnd || value == SingBoxDnsRuleLogicalModeOr
         } ?: SingBoxDnsRuleLogicalModeAnd,
-        logicalRules = logicalRules.map(SingBoxDnsRuleState::sanitized),
+        logicalRules = children,
         matches = matches
             .map(SingBoxDnsRuleMatchState::sanitized)
             .filter { match -> match.field in SingBoxDnsRuleMatchers && match.values.isNotEmpty() }
@@ -173,7 +226,7 @@ internal fun SingBoxDnsRuleState.sanitized(): SingBoxDnsRuleState =
                 )
             },
         ipVersion = ipVersion.trim(),
-        network = network.trim(),
+        network = network.toTrimmedNonEmptyDistinctList(),
         action = action.trim(),
         server = server.trim(),
         rewriteTtl = rewriteTtl.trim(),
@@ -185,6 +238,7 @@ internal fun SingBoxDnsRuleState.sanitized(): SingBoxDnsRuleState =
         ns = ns.toTrimmedNonEmptyDistinctList(),
         extra = extra.toTrimmedNonEmptyDistinctList(),
     )
+}
 
 internal fun SingBoxDnsRuleMatchState.sanitized(): SingBoxDnsRuleMatchState =
     copy(
@@ -192,7 +246,7 @@ internal fun SingBoxDnsRuleMatchState.sanitized(): SingBoxDnsRuleMatchState =
         values = values.toTrimmedNonEmptyDistinctList(),
     )
 
-private fun SingBoxDnsServerState.toJson(): JsonObject = buildJsonObject {
+private fun SingBoxDnsServerState.toJson(hostsPaths: List<String>): JsonObject = buildJsonObject {
     put("type", type)
     put("tag", tag)
 
@@ -289,8 +343,13 @@ private fun compileDnsRuleMatch(rule: SingBoxDnsRuleState): JsonObject = buildJs
 
     rule.matches.filter { match -> match.field in SingBoxDnsRuleMatchers }.forEach { match ->
         when (match.field) {
-            "source_port", "port" -> {
-                val numbers = match.values.mapNotNull(String::toIntOrNull)
+            "source_port", "port", "user_id" -> {
+                val numbers = match.values.map { value ->
+                    require(singBoxRuleMatcherValueError(match.field, value, "invalid") == null) {
+                        "Invalid numeric DNS matcher"
+                    }
+                    requireNotNull(value.toIntOrNull()) { "Invalid numeric DNS matcher" }
+                }
                 if (numbers.isNotEmpty()) {
                     putJsonArray(match.field) { numbers.forEach(::add) }
                 }
@@ -317,8 +376,22 @@ private fun compileDnsRuleMatch(rule: SingBoxDnsRuleState): JsonObject = buildJs
                         ?: put(match.field, value)
                 }
             }
-            "interface_address", "network_interface_address" -> {
-                val addressMap = parseDnsAddressMap(match.values)
+            "dns_server_address", "dns_search_domain" -> {
+                putDnsConfigurationMatch(match.field, match.values)
+            }
+            in DnsRuleBooleanMatchers -> {
+                val enabled = requireNotNull(match.values.singleOrNull()?.toBooleanStrictOrNull()) {
+                    "Invalid DNS boolean matcher"
+                }
+                if (enabled) {
+                    put(match.field, true)
+                }
+            }
+            "network_interface_address" -> {
+                require(match.values.all { value ->
+                    singBoxRuleMatcherValueError(match.field, value, "invalid") == null
+                }) { "Invalid DNS interface address matcher" }
+                val addressMap = parseRuleAddressMap(match.values)
                 if (addressMap.isNotEmpty()) {
                     putJsonObject(match.field) {
                         addressMap.forEach { (name, addresses) ->
@@ -333,7 +406,8 @@ private fun compileDnsRuleMatch(rule: SingBoxDnsRuleState): JsonObject = buildJs
     rule.ipVersion.toIntOrNull()?.takeIf { version -> version == 4 || version == 6 }?.let { version ->
         put("ip_version", version)
     }
-    putIfNotBlank("network", rule.network)
+    require(rule.network.all { it == "tcp" || it == "udp" }) { "Invalid DNS transport network" }
+    putStringArrayIfNotEmpty("network", rule.network)
     if (rule.invert) put("invert", true)
 }
 
@@ -405,8 +479,13 @@ private fun parsePredefinedHosts(values: List<String>): Map<String, List<String>
         }
     }
 
-private fun parseDnsAddressMap(values: List<String>): Map<String, List<String>> =
+internal fun parseRuleAddressMap(values: List<String>): Map<String, List<String>> =
     values
+        .onEach { entry ->
+            require(singBoxRuleMatcherValueError("network_interface_address", entry, "invalid") == null) {
+                "Invalid rule interface address matcher"
+            }
+        }
         .mapNotNull { entry ->
             val separator = entry.indexOf('=')
             if (separator <= 0 || separator >= entry.lastIndex) return@mapNotNull null

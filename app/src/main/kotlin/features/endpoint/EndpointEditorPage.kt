@@ -214,6 +214,8 @@ internal fun EndpointEditorPage(
     EditorPageScaffold(
         outerPadding = padding,
         isWideScreen = isWideScreen,
+        // The properties title supplies spacing only while the properties are visible.
+        topExtra = if (showProperties) 0.dp else 8.dp,
         title = {
             Column {
                 Text(
@@ -273,7 +275,7 @@ internal fun EndpointEditorPage(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(contentPadding)
-                    .padding(vertical = 12.dp),
+                    .padding(bottom = 12.dp),
             ) {
                 AnimatedVisibility(
                     visible = showProperties,

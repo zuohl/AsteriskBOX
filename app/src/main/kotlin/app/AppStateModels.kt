@@ -8,18 +8,20 @@ import features.resources.ResourceFileDirectCidrIpv4Name
 import features.resources.ResourceFileDirectCidrIpv4Url
 import features.resources.ResourceFileDirectCidrIpv6Name
 import features.resources.ResourceFileDirectCidrIpv6Url
-import features.resources.ResourceFileGeoipCnName
 import features.resources.ResourceFileGeoipCnUrl
-import features.resources.ResourceFileGeositeCategoryAdsAllName
 import features.resources.ResourceFileGeositeCategoryAdsAllUrl
-import features.resources.ResourceFileGeositeCnName
 import features.resources.ResourceFileGeositeCnUrl
-import features.resources.ResourceFileGeositeGoogleName
 import features.resources.ResourceFileGeositeGoogleUrl
 import features.resources.ResourceFileSingBoxCoreName
 import features.resources.ResourceFileSourceCustom
 import features.resources.ResourceFileSourceDefault
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonTransformingSerializer
 
 @Stable
 data class SubscriptionInfo(
@@ -35,15 +37,6 @@ data class SubscriptionInfo(
             val download = downloadBytes.coerceAtLeast(0L)
             val sum = upload + download
             return if (sum < 0L) Long.MAX_VALUE else sum
-        }
-
-    /** Remaining bytes derived from total - used. Falls back to 0 when unknown. */
-    val remainingBytes: Long
-        get() {
-            val total = totalBytes.coerceAtLeast(0L)
-            if (total <= 0L) return 0L
-            val used = usedBytes
-            return (total - used).coerceAtLeast(0L)
         }
 
     /**
@@ -87,6 +80,7 @@ data class OutboundGroupState(
     val name: String,
     val url: String = "",
     val userAgent: String = DefaultOutboundSubscriptionUserAgent,
+    val detour: String = "",
     val updateInterval: String = "",
     val hwid: String = "",
     val updateViaProxy: Boolean = false,
@@ -123,6 +117,7 @@ val SupportedSingBoxEndpointTypes = listOf(
     "tailscale",
     "openconnect",
     "openvpn-client",
+    "masque-client",
 )
 
 @Stable
@@ -171,7 +166,6 @@ const val SingBoxRouteRuleTypeDefault = "default"
 const val SingBoxRouteRuleTypeLogical = "logical"
 const val SingBoxRouteRuleLogicalModeAnd = "and"
 const val SingBoxRouteRuleLogicalModeOr = "or"
-val SingBoxRouteRuleClashModes = listOf("Rule", "Global", "Direct")
 val SingBoxRouteNetworkStrategies = listOf("default", "hybrid", "fallback")
 val SingBoxRouteNetworkTypes = listOf("wifi", "cellular", "ethernet", "other")
 
@@ -185,6 +179,7 @@ data class SingBoxRouteRuleState(
     val logicalMode: String = SingBoxRouteRuleLogicalModeAnd,
     val logicalRules: List<SingBoxRouteRuleState> = emptyList(),
     val inbound: List<String> = emptyList(),
+    // Read legacy user conditions so they can be disabled instead of becoming unconditional.
     val clashMode: String = "",
     val ipVersion: Int = 0,
     val network: List<String> = emptyList(),
@@ -203,6 +198,8 @@ data class SingBoxRouteRuleState(
     val networkType: List<String> = emptyList(),
     val wifiSsid: List<String> = emptyList(),
     val wifiBssid: List<String> = emptyList(),
+    val dnsServerAddress: List<String> = emptyList(),
+    val dnsSearchDomain: List<String> = emptyList(),
     val ruleSet: List<String> = emptyList(),
     val sourceIpIsPrivate: Boolean = false,
     val ipIsPrivate: Boolean = false,
@@ -211,6 +208,19 @@ data class SingBoxRouteRuleState(
     val outbound: String = "",
     val rejectMethod: String = "default",
     val rejectNoDrop: Boolean = false,
+    val authUser: List<String> = emptyList(),
+    val client: List<String> = emptyList(),
+    val packageNameRegex: List<String> = emptyList(),
+    val networkInterfaceAddress: List<String> = emptyList(),
+    val sourceMacAddress: List<String> = emptyList(),
+    val sourceHostname: List<String> = emptyList(),
+    val preferredBy: List<String> = emptyList(),
+    val networkIsExpensive: Boolean = false,
+    val processName: List<String> = emptyList(),
+    val processPath: List<String> = emptyList(),
+    val processPathRegex: List<String> = emptyList(),
+    val user: List<String> = emptyList(),
+    val userId: List<String> = emptyList(),
 )
 
 const val DefaultOutboundSubscriptionUserAgent = "sing-box"
@@ -219,10 +229,6 @@ enum class ResourceFileKind(
     val fileName: String,
 ) {
     SingBoxCore(ResourceFileSingBoxCoreName),
-    GeositeCategoryAdsAll(ResourceFileGeositeCategoryAdsAllName),
-    GeositeGoogle(ResourceFileGeositeGoogleName),
-    GeositeCn(ResourceFileGeositeCnName),
-    GeoipCn(ResourceFileGeoipCnName),
     DirectCidrIpv4(ResourceFileDirectCidrIpv4Name),
     DirectCidrIpv6(ResourceFileDirectCidrIpv6Name),
     ;
@@ -239,6 +245,7 @@ data class ResourceFileStatus(
     val exists: Boolean = false,
     val sizeBytes: Long = 0,
     val updatedAtMillis: Long = 0,
+    val isBundledCore: Boolean = false,
 )
 
 @Stable
@@ -263,7 +270,7 @@ data class SingBoxDnsServerState(
     val server: String = "",
     val serverPort: String = "",
     val path: String = "",
-    val hostsPaths: List<String> = emptyList(),
+    val hostsResourceIds: List<Int> = emptyList(),
     val predefinedHosts: List<String> = emptyList(),
     val interfaceName: String = "",
     val interfaceNames: List<String> = emptyList(),
@@ -309,7 +316,8 @@ data class SingBoxDnsRuleState(
     val logicalRules: List<SingBoxDnsRuleState> = emptyList(),
     val matches: List<SingBoxDnsRuleMatchState> = emptyList(),
     val ipVersion: String = "",
-    val network: String = "",
+    @Serializable(with = DnsRuleNetworkSerializer::class)
+    val network: List<String> = emptyList(),
     val invert: Boolean = false,
     val action: String = "route",
     val server: String = "",
@@ -326,6 +334,18 @@ data class SingBoxDnsRuleState(
 ) {
     val evaluationTag: String
         get() = managedDnsEvaluationTag(id, remarks)
+}
+
+// Persisted DNS rules used a string before transport matching became multi-select.
+internal object DnsRuleNetworkSerializer : JsonTransformingSerializer<List<String>>(
+    ListSerializer(String.serializer()),
+) {
+    override fun transformDeserialize(element: JsonElement): JsonElement =
+        if (element is JsonPrimitive && element.isString) {
+            JsonArray(element.content.trim().takeIf(String::isNotEmpty)?.let { listOf(JsonPrimitive(it)) }.orEmpty())
+        } else {
+            element
+        }
 }
 
 val SingBoxDnsServerTypes = listOf(
@@ -362,19 +382,15 @@ val SingBoxDnsRuleMatchers = listOf(
     "source_port_range",
     "port",
     "port_range",
-    "process_name",
-    "process_path",
-    "process_path_regex",
     "package_name",
     "package_name_regex",
-    "clash_mode",
     "network_type",
-    "interface_address",
     "network_interface_address",
-    "default_interface_address",
     "source_mac_address",
     "source_hostname",
     "preferred_by",
+    "dns_server_address",
+    "dns_search_domain",
     "wifi_ssid",
     "wifi_bssid",
     "match_response",
@@ -382,6 +398,18 @@ val SingBoxDnsRuleMatchers = listOf(
     "response_answer",
     "response_ns",
     "response_extra",
+    "query_client_subnet",
+    "query_dnssec",
+    "source_ip_is_private",
+    "network_is_expensive",
+    "ip_cidr",
+    "ip_is_private",
+    "ip_accept_any",
+    "process_name",
+    "process_path",
+    "process_path_regex",
+    "user",
+    "user_id",
 )
 
 val SingBoxDnsRuleActions = listOf(
@@ -521,6 +549,9 @@ fun AppState.withRemovedManagedOutboundTags(
         }
         .mapTo(mutableSetOf(), SingBoxDnsServerState::tag)
     return copy(
+        outboundGroups = outboundGroups.map { group ->
+            group.copy(detour = group.detour.takeUnless(transitivelyUnavailableTags::contains).orEmpty())
+        },
         outbounds = transitivelyUnavailableTags.fold(updatedOutbounds) { currentOutbounds, tag ->
             currentOutbounds.replaceManagedReference(
                 field = "detour",
@@ -543,11 +574,9 @@ fun AppState.withRemovedManagedOutboundTags(
             .takeUnless(transitivelyUnavailableTags::contains)
             .orEmpty(),
         routeRules = routeRules.map { rule ->
-            if (rule.outbound in transitivelyUnavailableTags) {
-                rule.copy(outbound = "")
-            } else {
-                rule
-            }
+            rule.updateManagedPreferredByReferences { tag ->
+                tag.takeUnless(transitivelyUnavailableTags::contains)
+            }.copy(outbound = rule.outbound.takeUnless(transitivelyUnavailableTags::contains).orEmpty())
         },
         dnsServers = dnsServers.map { server ->
             server.copy(
@@ -560,15 +589,18 @@ fun AppState.withRemovedManagedOutboundTags(
 }
 
 fun AppState.withRemovedManagedOutbound(outboundId: Int): AppState {
-    val removed = outbounds.firstOrNull { outbound -> outbound.id == outboundId } ?: return this
-    val remaining = outbounds.filterNot { outbound -> outbound.id == outboundId }
-    val removedTags = mutableSetOf(removed.tag)
-    if (remaining.none { outbound -> outbound.groupId == removed.groupId }) {
-        outboundGroups
-            .firstOrNull { group -> group.id == removed.groupId }
-            ?.let { group ->
-                removedTags += managedOutboundGroupSelectorTag(group.id, group.name)
-            }
+    return withRemovedManagedOutbounds(setOf(outboundId))
+}
+
+internal fun AppState.withRemovedManagedOutbounds(outboundIds: Set<Int>): AppState {
+    val removed = outbounds.filter { outbound -> outbound.id in outboundIds }
+    if (removed.isEmpty()) return this
+    val remaining = outbounds.filterNot { outbound -> outbound.id in outboundIds }
+    val remainingGroupIds = remaining.mapTo(mutableSetOf(), OutboundState::groupId)
+    val emptiedGroupIds = removed.mapTo(mutableSetOf(), OutboundState::groupId) - remainingGroupIds
+    val removedTags = removed.mapTo(mutableSetOf(), OutboundState::tag)
+    outboundGroups.filter { group -> group.id in emptiedGroupIds }.forEach { group ->
+        removedTags += managedOutboundGroupSelectorTag(group.id, group.name)
     }
     return copy(outbounds = remaining).withRemovedManagedOutboundTags(removedTags)
 }
@@ -604,10 +636,6 @@ fun AppState.resourceFileUpdateSource(): ResourceFileUpdateSource {
 fun ResourceFileUpdateSource.urlFor(kind: ResourceFileKind): String? =
     when (kind) {
         ResourceFileKind.SingBoxCore -> null
-        ResourceFileKind.GeositeCategoryAdsAll -> geositeCategoryAdsAllUrl
-        ResourceFileKind.GeositeGoogle -> geositeGoogleUrl
-        ResourceFileKind.GeositeCn -> geositeCnUrl
-        ResourceFileKind.GeoipCn -> geoipCnUrl
         ResourceFileKind.DirectCidrIpv4 -> directCidrIpv4Url
         ResourceFileKind.DirectCidrIpv6 -> directCidrIpv6Url
     }
