@@ -3,7 +3,7 @@
          Keep section and resource order aligned across translations and sibling apps. -->
 
     <!-- Common -->
-    <string name="app_name">AsteriskBOX</string>
+    <string name="app_name">AsteriskBOX Lite</string>
     <string name="code_editor_format_content_changed">内容已修改，请重新格式化</string>
     <string name="code_editor_format_failed">格式化失败，请检查语法</string>
     <string name="code_editor_format_javascript">格式化 JavaScript</string>

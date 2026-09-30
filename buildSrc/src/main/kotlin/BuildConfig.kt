@@ -12,7 +12,7 @@ object ProjectConfig {
     const val JVM_VERSION = 26
     const val PROJECT_NAME = "AsteriskBOX"
     const val VERSION_NAME = "1.1.12"
-    const val PACKAGE_NAME = "org.asterisk.zcc.abox"
+    const val PACKAGE_NAME = "org.asterisk.zcc.abox.lite"
     const val ASTERISKD_VERSION = "v2.0.36"
     const val BPF2SOCKS_VERSION = "v1.0.15"
     const val BPF_MATCHER_VERSION = "v1.0.1"
