@@ -49,6 +49,7 @@ private fun canonicalV2RayTransport(transport: String): String? =
         "quic" -> "quic"
         "grpc" -> "grpc"
         "httpupgrade", "http-upgrade", "http_upgrade" -> "httpupgrade"
+        "xhttp", "splithttp", "split-http" -> "xhttp"
         else -> null
     }
 
@@ -634,7 +635,10 @@ private object MihomoYamlOutboundParser {
             putIfTrue("disable_sni", disableSni)
             val alpn = proxy.stringList("alpn")
             if (alpn.isNotEmpty()) put("alpn", JsonArray(alpn.map(::JsonPrimitive)))
-            if (fingerprint.isNotBlank()) {
+            val network = proxy.string("network")
+            val isXhttp = network in setOf("xhttp", "splithttp", "split-http") || proxy.map("xhttp-opts").isNotEmpty() || proxy.map("splithttp-opts").isNotEmpty()
+            val skipUtlsForH3 = isXhttp && alpn.firstOrNull() == "h3"
+            if (fingerprint.isNotBlank() && !skipUtlsForH3) {
                 put("utls", buildJsonObject {
                     put("enabled", true)
                     put("fingerprint", fingerprint)
@@ -701,6 +705,7 @@ private object MihomoYamlOutboundParser {
                 "grpc" -> proxy.map("grpc-opts")
                 "http" -> proxy.map("h2-opts").ifEmpty { proxy.map("http-opts") }
                 "httpupgrade" -> proxy.map("httpupgrade-opts")
+                "xhttp" -> proxy.map("xhttp-opts").ifEmpty { proxy.map("splithttp-opts") }
                 else -> emptyMap()
             }
         }
@@ -709,7 +714,7 @@ private object MihomoYamlOutboundParser {
         } else {
             sourceType
         }
-        if (normalizedType !in setOf("http", "ws", "quic", "grpc", "httpupgrade")) return null
+        if (normalizedType !in setOf("http", "ws", "quic", "grpc", "httpupgrade", "xhttp")) return null
         return buildJsonObject {
             put("type", normalizedType)
             when (normalizedType) {
@@ -751,6 +756,33 @@ private object MihomoYamlOutboundParser {
                     )
                     putNotBlank("path", options.string("path"))
                     options.headers(excludedNames = setOf("host"))?.let { put("headers", it) }
+                }
+                "xhttp" -> {
+                    putNotBlank(
+                        "host",
+                        options.stringList("host").firstOrNull()
+                            ?: options.headerValues("Host").firstOrNull().orEmpty(),
+                    )
+                    putNotBlank("path", options.string("path"))
+                    putNotBlank("mode", options.string("mode"))
+                    options.headers(excludedNames = setOf("host"))?.let { put("headers", it) }
+                    val padding = options.string("x-padding-bytes")
+                        .ifBlank { options.string("x_padding_bytes") }
+                        .ifBlank { options.string("xPaddingBytes") }
+                    putNotBlank("x_padding_bytes", padding)
+                    val noGrpc = options.bool("no-grpc-header") || options.bool("no_grpc_header") || options.bool("noGRPCHeader")
+                    if (noGrpc) {
+                        put("no_grpc_header", true)
+                    }
+                    val extraObj = options["extra"]
+                    val extra = when (extraObj) {
+                        is Map<*, *> -> org.json.JSONObject(extraObj).toString()
+                        is String -> extraObj
+                        else -> extraObj?.toString().orEmpty()
+                    }
+                    if (extra.isNotBlank()) {
+                        OutboundXhttpExtraConverter.mergeExtraIntoBuilder(this, extra)
+                    }
                 }
                 "quic" -> Unit
             }
@@ -1218,6 +1250,8 @@ private object ProxyUrlOutboundParser {
             "insecure" to listOf(source.string("insecure")),
             "pbk" to listOf(source.string("pbk")),
             "sid" to listOf(source.string("sid")),
+            "mode" to listOf(source.string("mode")),
+            "extra" to listOf(source.string("extra")),
         )
         return buildJsonObject {
             put("type", "vmess")
@@ -1299,12 +1333,16 @@ private object ProxyUrlOutboundParser {
             put("enabled", true)
             putNotBlank("server_name", serverName)
             putIfTrue("insecure", insecure)
-            query.values("alpn")
+            val alpnList = query.values("alpn")
                 .flatMap { value -> value.split(',') }
                 .filter(String::isNotBlank)
-                .takeIf(List<String>::isNotEmpty)
-                ?.let { values -> put("alpn", JsonArray(values.map(::JsonPrimitive))) }
-            if (fingerprint.isNotBlank()) {
+            if (alpnList.isNotEmpty()) {
+                put("alpn", JsonArray(alpnList.map(::JsonPrimitive)))
+            }
+            val netType = query.first("net", "type")
+            val isXhttp = netType in setOf("xhttp", "splithttp", "split-http")
+            val skipUtlsForH3 = isXhttp && alpnList.firstOrNull() == "h3"
+            if (fingerprint.isNotBlank() && !skipUtlsForH3) {
                 put("utls", buildJsonObject {
                     put("enabled", true)
                     put("fingerprint", fingerprint)
@@ -1434,6 +1472,21 @@ private object ProxyUrlOutboundParser {
                     putNotBlank("host", query.first("host"))
                     putNotBlank("path", query.first("path"))
                 }
+                "xhttp" -> {
+                    putNotBlank("host", query.first("host"))
+                    putNotBlank("path", query.first("path"))
+                    putNotBlank("mode", query.first("mode"))
+                    val padding = query.first("x_padding_bytes", "x-padding-bytes", "xPaddingBytes")
+                    putNotBlank("x_padding_bytes", padding)
+                    val noGrpc = query.first("no_grpc_header", "no-grpc-header", "noGRPCHeader")
+                    if (noGrpc.equals("true", ignoreCase = true) || noGrpc == "1") {
+                        put("no_grpc_header", true)
+                    }
+                    val extra = query.first("extra")
+                    if (extra.isNotBlank()) {
+                        OutboundXhttpExtraConverter.mergeExtraIntoBuilder(this, extra)
+                    }
+                }
                 "quic" -> Unit
             }
         }
@@ -1541,9 +1594,20 @@ private fun parseQuery(rawQuery: String?): Map<String, List<String>> {
     return rawQuery.split('&')
         .mapNotNull { part ->
             val key = decodeComponent(part.substringBefore('='))
-            if (key.isBlank()) null else key to decodeComponent(part.substringAfter('=', ""))
+            if (key.isBlank()) null else key to decodeQueryValue(part.substringAfter('=', ""))
         }
         .groupBy({ it.first }, { it.second })
+}
+
+private fun decodeQueryValue(value: String?): String {
+    if (value.isNullOrBlank()) return ""
+    return runCatching {
+        if (value.contains('%')) {
+            URLDecoder.decode(value, StandardCharsets.UTF_8.name())
+        } else {
+            URLDecoder.decode(value.replace("+", "%2B"), StandardCharsets.UTF_8.name())
+        }
+    }.getOrDefault(value)
 }
 
 private data class PortHoppingLink(
