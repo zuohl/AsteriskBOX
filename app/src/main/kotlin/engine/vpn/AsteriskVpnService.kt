@@ -4,15 +4,19 @@
 package engine.vpn
 
 import android.annotation.SuppressLint
+import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.ProxyInfo
 import android.net.VpnService
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
+import android.os.Process
 import app.R
 import app.modes.ProxyAppListModeBlacklist
 import app.modes.ProxyAppListModeGlobal
@@ -151,6 +155,7 @@ class AsteriskVpnService : VpnService() {
             val tunDescriptor = establishTun(config)
             tunFileDescriptor = tunDescriptor
             val tunFd = tunFileDescriptor?.fd ?: error(getString(R.string.error_vpn_tun_fd_unavailable))
+            updateUnderlyingNetworksDirect()
             libboxRuntime.start(config)
             val runtime = hevTunRuntime ?: HevTunRuntime().also { hevTunRuntime = it }
             runtime.start(hevConfig, tunFd)
@@ -279,6 +284,9 @@ class AsteriskVpnService : VpnService() {
     private fun stopVpn() {
         stopNativeRuntimesBounded()
         runCatching {
+            setUnderlyingNetworks(null)
+        }
+        runCatching {
             tunFileDescriptor?.close()
         }.onFailure { error ->
             AndroidAppLogger.warn(LogTag, "Failed to close VPN TUN file descriptor", error)
@@ -287,6 +295,34 @@ class AsteriskVpnService : VpnService() {
         LocalProxyRuntime.clear()
         running = false
         writeVpnState(this, false)
+    }
+
+    private fun updateUnderlyingNetworksDirect() {
+        val connectivityManager = getSystemService(ConnectivityManager::class.java) ?: return
+        val physicalNetworks = connectivityManager.allNetworks.filter { network ->
+            val caps = connectivityManager.getNetworkCapabilities(network) ?: return@filter false
+            !caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN) &&
+                (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
+        }
+        val targetNetworks = if (physicalNetworks.isNotEmpty()) {
+            physicalNetworks.toTypedArray()
+        } else {
+            val active = connectivityManager.activeNetwork
+            val activeCaps = active?.let(connectivityManager::getNetworkCapabilities)
+            if (active != null && activeCaps?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == false) {
+                arrayOf(active)
+            } else {
+                null
+            }
+        }
+        runCatching {
+            setUnderlyingNetworks(targetNetworks)
+        }.onFailure { error ->
+            AndroidAppLogger.warn(LogTag, "Failed to set underlying networks directly", error)
+        }
     }
 
     private fun stopNativeRuntimesBounded() {
@@ -351,6 +387,11 @@ class AsteriskVpnService : VpnService() {
         }
 
         internal suspend fun start(context: Context, config: VpnServiceStartConfig) {
+            val stateFile = vpnStateFile(context)
+            if (stateFile.exists() && !isBgProcessAlive(context)) {
+                runCatching { stateFile.delete() }
+                running = false
+            }
             val result = CompletableDeferred<Result<Unit>>()
             pendingStart = result
             val receiver = object : android.os.ResultReceiver(Handler(Looper.getMainLooper())) {
@@ -365,7 +406,7 @@ class AsteriskVpnService : VpnService() {
             }
             try {
                 context.startService(AsteriskVpnServiceIntents.startIntent(context, config, receiver))
-                withTimeout(10_000.milliseconds) {
+                withTimeout(20_000.milliseconds) {
                     result.await()
                 }.getOrThrow()
             } finally {
@@ -383,9 +424,25 @@ class AsteriskVpnService : VpnService() {
 
         internal fun isRunning(context: Context? = null): Boolean {
             if (context != null) {
-                return vpnStateFile(context).exists()
+                val stateFile = vpnStateFile(context)
+                if (!stateFile.exists()) return false
+                val alive = isBgProcessAlive(context)
+                if (!alive) {
+                    runCatching { stateFile.delete() }
+                    running = false
+                    return false
+                }
+                return true
             }
             return running
+        }
+
+        private fun isBgProcessAlive(context: Context): Boolean {
+            val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return true
+            val myUid = Process.myUid()
+            val bgProcessName = "${context.packageName}:bg"
+            val runningProcesses = runCatching { activityManager.runningAppProcesses }.getOrNull() ?: return true
+            return runningProcesses.any { it.uid == myUid && it.processName == bgProcessName }
         }
 
         private fun completeStart(result: Result<Unit>) {

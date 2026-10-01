@@ -11,6 +11,7 @@ import android.net.IpPrefix
 import android.net.LinkProperties
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.ProxyInfo
 import android.net.VpnService
 import android.net.wifi.WifiManager
@@ -72,6 +73,9 @@ internal class AndroidLibboxPlatformInterface(
     }
 
     fun closeTun() {
+        runCatching {
+            service.setUnderlyingNetworks(null)
+        }
         runCatching { tunFileDescriptor?.close() }
             .onFailure { error -> AndroidAppLogger.warn(LogTag, "Failed to close VPN TUN", error) }
         tunFileDescriptor = null
@@ -168,6 +172,7 @@ internal class AndroidLibboxPlatformInterface(
         val descriptor = builder.establish()
             ?: error("android: the application is not prepared or VPN permission was revoked")
         tunFileDescriptor = descriptor
+        updateUnderlyingNetworks(null)
         return descriptor.fd
     }
 
@@ -227,21 +232,85 @@ internal class AndroidLibboxPlatformInterface(
         }
     }
 
+    private fun isPhysicalNetwork(network: Network): Boolean {
+        val caps = connectivityManager.getNetworkCapabilities(network) ?: return false
+        if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) ||
+            !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)) {
+            return false
+        }
+        return caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+    }
+
+    private fun resolveBestPhysicalNetwork(preferredNetwork: Network? = null): Network? {
+        if (preferredNetwork != null && isPhysicalNetwork(preferredNetwork)) {
+            return preferredNetwork
+        }
+        val active = connectivityManager.activeNetwork
+        if (active != null && isPhysicalNetwork(active)) {
+            return active
+        }
+        return connectivityManager.allNetworks.firstOrNull { isPhysicalNetwork(it) }
+    }
+
+    private fun updateUnderlyingNetworks(network: Network?) {
+        val physicalNetworks = connectivityManager.allNetworks.filter(::isPhysicalNetwork)
+        val targetNetworks = if (physicalNetworks.isNotEmpty()) {
+            val preferred = network?.takeIf(::isPhysicalNetwork) ?: resolveBestPhysicalNetwork()
+            if (preferred != null) {
+                (listOf(preferred) + physicalNetworks.filterNot { it == preferred }).toTypedArray()
+            } else {
+                physicalNetworks.toTypedArray()
+            }
+        } else {
+            val best = resolveBestPhysicalNetwork(network)
+            if (best != null) arrayOf(best) else null
+        }
+        runCatching {
+            service.setUnderlyingNetworks(targetNetworks)
+        }.onFailure { error ->
+            AndroidAppLogger.warn(LogTag, "Failed to set underlying networks", error)
+        }
+    }
+
     override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener) {
         closeDefaultInterfaceMonitor(listener)
         val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) = updateDefaultInterface(listener, network)
-            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) =
-                updateDefaultInterface(listener, network)
+            override fun onAvailable(network: Network) {
+                if (isPhysicalNetwork(network)) {
+                    updateDefaultInterface(listener, network)
+                }
+            }
 
-            override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) =
-                updateDefaultInterface(listener, network)
+            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                if (isPhysicalNetwork(network)) {
+                    updateDefaultInterface(listener, network)
+                }
+            }
 
-            override fun onLost(network: Network) = updateDefaultInterface(listener, connectivityManager.activeNetwork)
+            override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) {
+                if (isPhysicalNetwork(network)) {
+                    updateDefaultInterface(listener, network)
+                }
+            }
+
+            override fun onLost(network: Network) {
+                updateDefaultInterface(listener, null)
+            }
         }
         defaultNetworkCallback = callback
-        connectivityManager.registerDefaultNetworkCallback(callback)
-        updateDefaultInterface(listener, connectivityManager.activeNetwork)
+        try {
+            val request = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+                .build()
+            connectivityManager.registerNetworkCallback(request, callback)
+        } catch (e: Exception) {
+            AndroidAppLogger.warn(LogTag, "Failed to register filtered network callback, falling back to default", e)
+            connectivityManager.registerDefaultNetworkCallback(callback)
+        }
+        updateDefaultInterface(listener, null)
     }
 
     override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener) {
@@ -252,12 +321,27 @@ internal class AndroidLibboxPlatformInterface(
     }
 
     private fun updateDefaultInterface(listener: InterfaceUpdateListener, network: Network?) {
-        val interfaceName = network
-            ?.let(connectivityManager::getLinkProperties)
-            ?.interfaceName
-            .orEmpty()
+        val physicalNetwork = network?.takeIf(::isPhysicalNetwork) ?: resolveBestPhysicalNetwork()
+        updateUnderlyingNetworks(physicalNetwork)
+
+        if (physicalNetwork == null) {
+            listener.updateDefaultInterface("", -1, false, false)
+            return
+        }
+
+        val linkProperties = connectivityManager.getLinkProperties(physicalNetwork)
+        val interfaceName = linkProperties?.interfaceName.orEmpty()
+        if (interfaceName.startsWith("tun")) {
+            listener.updateDefaultInterface("", -1, false, false)
+            return
+        }
+
+        val capabilities = connectivityManager.getNetworkCapabilities(physicalNetwork)
+        val isExpensive = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == false
+        val isConstrained = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_CONGESTED) == false
+
         val index = runCatching { NetworkInterface.getByName(interfaceName)?.index ?: -1 }.getOrDefault(-1)
-        listener.updateDefaultInterface(interfaceName, index, false, false)
+        listener.updateDefaultInterface(interfaceName, index, isExpensive, isConstrained)
     }
 
     @Suppress("DEPRECATION")
