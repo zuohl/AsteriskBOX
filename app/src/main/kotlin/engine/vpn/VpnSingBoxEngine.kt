@@ -31,6 +31,7 @@ internal class VpnSingBoxEngine(
         request: ProxyEngineStartRequest,
         explicitRestart: Boolean,
     ): ProxyEngineStatus {
+        if (!shouldLaunchVpnService(runtimeRunning(), explicitRestart)) return status()
         launch(request)
         return status()
     }
