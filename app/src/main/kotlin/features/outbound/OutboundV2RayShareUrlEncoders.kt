@@ -259,6 +259,9 @@ private fun JsonObject.readV2RayShareTransport(): V2RayShareTransport {
         "idle_timeout",
         "ping_timeout",
         "permit_without_stream",
+        "mode",
+        "x_padding_bytes",
+        "no_grpc_header",
     )
     val type = transport.stringValue("type").lowercase()
     if (type.isBlank() || type in setOf("tcp", "raw")) {
@@ -335,6 +338,23 @@ private fun JsonObject.readV2RayShareTransport(): V2RayShareTransport {
                     add("type" to "httpupgrade")
                     host.takeIf(String::isNotBlank)?.let { add("host" to it) }
                     path.takeIf(String::isNotBlank)?.let { add("path" to it) }
+                },
+                legacyHost = host,
+                legacyPath = path,
+            )
+        }
+        "xhttp" -> {
+            requireTransportFieldsEmpty(transport, "method", "service_name", "max_early_data", "early_data_header_name", "idle_timeout", "ping_timeout", "permit_without_stream")
+            val host = transport.stringValue("host")
+            val path = transport.stringValue("path")
+            val mode = transport.stringValue("mode")
+            V2RayShareTransport(
+                type = "xhttp",
+                parameters = buildList {
+                    add("type" to "xhttp")
+                    host.takeIf(String::isNotBlank)?.let { add("host" to it) }
+                    path.takeIf(String::isNotBlank)?.let { add("path" to it) }
+                    mode.takeIf(String::isNotBlank)?.let { add("mode" to it) }
                 },
                 legacyHost = host,
                 legacyPath = path,

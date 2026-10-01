@@ -501,6 +501,7 @@
     <string name="outbound_field_network">网络协议</string>
     <string name="outbound_field_network_strategy">网络策略</string>
     <string name="outbound_field_network_types">网络类型</string>
+    <string name="outbound_field_no_grpc_header">禁用 gRPC 头</string>
     <string name="outbound_field_obfuscation">混淆类型</string>
     <string name="outbound_field_obfuscation_host">混淆主机</string>
     <string name="outbound_field_obfuscation_mode">混淆模式</string>
@@ -560,6 +561,9 @@
     <string name="outbound_field_utls">uTLS</string>
     <string name="outbound_field_utls_fingerprint">uTLS 指纹</string>
     <string name="outbound_field_uuid">UUID</string>
+    <string name="outbound_field_xhttp_extra">XHTTP 扩展配置 (JSON)</string>
+    <string name="outbound_field_xhttp_mode">XHTTP 模式</string>
+    <string name="outbound_field_xhttp_padding_bytes">XHTTP 填充字节</string>
     <string name="outbound_field_zero_rtt_handshake">0-RTT 握手</string>
     <string name="outbound_group">分组</string>
 

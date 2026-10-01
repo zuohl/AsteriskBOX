@@ -56,7 +56,7 @@ android {
             isEnable = !isBuildingAppBundle
             reset()
             include(*ProjectConfig.SUPPORTED_ANDROID_ABIS.toTypedArray())
-            isUniversalApk = !isBuildingAppBundle
+            isUniversalApk = false
         }
     }
 

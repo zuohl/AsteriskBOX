@@ -507,6 +507,7 @@
     <string name="outbound_field_network">Network</string>
     <string name="outbound_field_network_strategy">Network strategy</string>
     <string name="outbound_field_network_types">Network types</string>
+    <string name="outbound_field_no_grpc_header">No gRPC header</string>
     <string name="outbound_field_obfuscation">Obfuscation</string>
     <string name="outbound_field_obfuscation_host">Obfuscation host</string>
     <string name="outbound_field_obfuscation_mode">Obfuscation mode</string>
@@ -566,6 +567,9 @@
     <string name="outbound_field_utls">uTLS</string>
     <string name="outbound_field_utls_fingerprint">uTLS fingerprint</string>
     <string name="outbound_field_uuid">UUID</string>
+    <string name="outbound_field_xhttp_extra">XHTTP extra</string>
+    <string name="outbound_field_xhttp_mode">XHTTP mode</string>
+    <string name="outbound_field_xhttp_padding_bytes">XHTTP padding bytes</string>
     <string name="outbound_field_zero_rtt_handshake">0-RTT handshake</string>
     <string name="outbound_group">Group</string>
 

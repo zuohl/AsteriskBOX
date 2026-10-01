@@ -87,7 +87,7 @@ internal fun OutboundEditorPage(
         mutableStateOf(
             editing?.json
                 ?.let { json -> runCatching { SingBoxJson.parseToJsonElement(json) as JsonObject }.getOrNull() }
-                ?.let(::OutboundEditorDocument)
+                ?.let(OutboundEditorDocument::fromStored)
                 ?: OutboundEditorDocument.create(
                     type,
                     "outbound_draft",

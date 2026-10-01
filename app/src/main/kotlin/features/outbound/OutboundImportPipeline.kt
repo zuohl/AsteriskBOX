@@ -49,6 +49,7 @@ private fun canonicalV2RayTransport(transport: String): String? =
         "quic" -> "quic"
         "grpc" -> "grpc"
         "httpupgrade", "http-upgrade", "http_upgrade" -> "httpupgrade"
+        "xhttp", "splithttp", "split-http" -> "xhttp"
         else -> null
     }
 
@@ -701,6 +702,7 @@ private object MihomoYamlOutboundParser {
                 "grpc" -> proxy.map("grpc-opts")
                 "http" -> proxy.map("h2-opts").ifEmpty { proxy.map("http-opts") }
                 "httpupgrade" -> proxy.map("httpupgrade-opts")
+                "xhttp" -> proxy.map("xhttp-opts").ifEmpty { proxy.map("splithttp-opts") }
                 else -> emptyMap()
             }
         }
@@ -709,7 +711,7 @@ private object MihomoYamlOutboundParser {
         } else {
             sourceType
         }
-        if (normalizedType !in setOf("http", "ws", "quic", "grpc", "httpupgrade")) return null
+        if (normalizedType !in setOf("http", "ws", "quic", "grpc", "httpupgrade", "xhttp")) return null
         return buildJsonObject {
             put("type", normalizedType)
             when (normalizedType) {
@@ -751,6 +753,22 @@ private object MihomoYamlOutboundParser {
                     )
                     putNotBlank("path", options.string("path"))
                     options.headers(excludedNames = setOf("host"))?.let { put("headers", it) }
+                }
+                "xhttp" -> {
+                    putNotBlank(
+                        "host",
+                        options.stringList("host").firstOrNull()
+                            ?: options.headerValues("Host").firstOrNull().orEmpty(),
+                    )
+                    putNotBlank("path", options.string("path"))
+                    putNotBlank("mode", options.string("mode"))
+                    options.headers(excludedNames = setOf("host"))?.let { put("headers", it) }
+                    val padding = options.string("x-padding-bytes").ifBlank { options.string("x_padding_bytes") }
+                    putNotBlank("x_padding_bytes", padding)
+                    val extra = options.string("extra")
+                    if (extra.isNotBlank()) {
+                        OutboundXhttpExtraConverter.mergeExtraIntoBuilder(this, extra)
+                    }
                 }
                 "quic" -> Unit
             }
@@ -1433,6 +1451,15 @@ private object ProxyUrlOutboundParser {
                 "httpupgrade" -> {
                     putNotBlank("host", query.first("host"))
                     putNotBlank("path", query.first("path"))
+                }
+                "xhttp" -> {
+                    putNotBlank("host", query.first("host"))
+                    putNotBlank("path", query.first("path"))
+                    putNotBlank("mode", query.first("mode"))
+                    val extra = query.first("extra")
+                    if (extra.isNotBlank()) {
+                        OutboundXhttpExtraConverter.mergeExtraIntoBuilder(this, extra)
+                    }
                 }
                 "quic" -> Unit
             }
