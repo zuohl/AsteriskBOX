@@ -635,7 +635,10 @@ private object MihomoYamlOutboundParser {
             putIfTrue("disable_sni", disableSni)
             val alpn = proxy.stringList("alpn")
             if (alpn.isNotEmpty()) put("alpn", JsonArray(alpn.map(::JsonPrimitive)))
-            if (fingerprint.isNotBlank()) {
+            val network = proxy.string("network")
+            val isXhttp = network in setOf("xhttp", "splithttp", "split-http") || proxy.map("xhttp-opts").isNotEmpty() || proxy.map("splithttp-opts").isNotEmpty()
+            val skipUtlsForH3 = isXhttp && alpn.firstOrNull() == "h3"
+            if (fingerprint.isNotBlank() && !skipUtlsForH3) {
                 put("utls", buildJsonObject {
                     put("enabled", true)
                     put("fingerprint", fingerprint)
@@ -1325,12 +1328,16 @@ private object ProxyUrlOutboundParser {
             put("enabled", true)
             putNotBlank("server_name", serverName)
             putIfTrue("insecure", insecure)
-            query.values("alpn")
+            val alpnList = query.values("alpn")
                 .flatMap { value -> value.split(',') }
                 .filter(String::isNotBlank)
-                .takeIf(List<String>::isNotEmpty)
-                ?.let { values -> put("alpn", JsonArray(values.map(::JsonPrimitive))) }
-            if (fingerprint.isNotBlank()) {
+            if (alpnList.isNotEmpty()) {
+                put("alpn", JsonArray(alpnList.map(::JsonPrimitive)))
+            }
+            val netType = query.first("net", "type")
+            val isXhttp = netType in setOf("xhttp", "splithttp", "split-http")
+            val skipUtlsForH3 = isXhttp && alpnList.firstOrNull() == "h3"
+            if (fingerprint.isNotBlank() && !skipUtlsForH3) {
                 put("utls", buildJsonObject {
                     put("enabled", true)
                     put("fingerprint", fingerprint)

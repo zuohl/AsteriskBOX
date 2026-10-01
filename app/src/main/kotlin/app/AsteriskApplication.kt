@@ -204,6 +204,10 @@ class AsteriskApplication : Application(), SingletonImageLoader.Factory {
             AndroidCoreLogRepository.initialize(applicationContext)
             return
         }
+        engine.vpn.AsteriskVpnService.reconcileState(this)
+        if (!engine.vpn.AsteriskVpnService.isRunning(this)) {
+            stateStore.update { it.copy(proxyRunning = false) }
+        }
         appScope.launch {
             val scheduler = ResourceAutoUpdateScheduler(applicationContext)
             stateStore.state

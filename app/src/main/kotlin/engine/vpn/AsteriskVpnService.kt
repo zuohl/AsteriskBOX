@@ -4,6 +4,7 @@
 package engine.vpn
 
 import android.annotation.SuppressLint
+import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -13,6 +14,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
+import android.os.Process
 import app.R
 import app.modes.ProxyAppListModeBlacklist
 import app.modes.ProxyAppListModeGlobal
@@ -342,7 +344,7 @@ class AsteriskVpnService : VpnService() {
                 val stateFile = vpnStateFile(context)
                 if (isRunning) {
                     stateFile.parentFile?.mkdirs()
-                    stateFile.writeText(System.currentTimeMillis().toString())
+                    stateFile.writeText(Process.myPid().toString())
                 } else {
                     stateFile.delete()
                 }
@@ -350,7 +352,16 @@ class AsteriskVpnService : VpnService() {
             running = isRunning
         }
 
+        internal fun reconcileState(context: Context) {
+            val stateFile = vpnStateFile(context)
+            if (stateFile.exists() && !isBgProcessAlive(context)) {
+                runCatching { stateFile.delete() }
+                running = false
+            }
+        }
+
         internal suspend fun start(context: Context, config: VpnServiceStartConfig) {
+            reconcileState(context)
             val result = CompletableDeferred<Result<Unit>>()
             pendingStart = result
             val receiver = object : android.os.ResultReceiver(Handler(Looper.getMainLooper())) {
@@ -383,9 +394,25 @@ class AsteriskVpnService : VpnService() {
 
         internal fun isRunning(context: Context? = null): Boolean {
             if (context != null) {
-                return vpnStateFile(context).exists()
+                val stateFile = vpnStateFile(context)
+                if (!stateFile.exists()) return false
+                val alive = isBgProcessAlive(context)
+                if (!alive) {
+                    runCatching { stateFile.delete() }
+                    running = false
+                    return false
+                }
+                return true
             }
             return running
+        }
+
+        private fun isBgProcessAlive(context: Context): Boolean {
+            val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return false
+            val myUid = Process.myUid()
+            val bgProcessName = "${context.packageName}:bg"
+            val runningProcesses = runCatching { activityManager.runningAppProcesses }.getOrNull() ?: return false
+            return runningProcesses.any { it.uid == myUid && it.processName == bgProcessName }
         }
 
         private fun completeStart(result: Result<Unit>) {
