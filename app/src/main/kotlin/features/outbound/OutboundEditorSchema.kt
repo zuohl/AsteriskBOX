@@ -346,16 +346,22 @@ internal object OutboundEditorRegistry {
     )
 
     private fun transportFields() = listOf(
-        select("transport.type", "Transport", listOf("", "http", "ws", "quic", "grpc", "httpupgrade")),
+        select("transport.type", "Transport", listOf("", "http", "ws", "quic", "grpc", "httpupgrade", "xhttp")),
         field(
             "transport.host",
             "Host",
-            conditions = listOf(OutboundFieldCondition("transport.type", setOf("http", "httpupgrade"))),
+            conditions = listOf(OutboundFieldCondition("transport.type", setOf("http", "httpupgrade", "xhttp"))),
         ),
         field(
             "transport.path",
             "Path",
-            conditions = listOf(OutboundFieldCondition("transport.type", setOf("http", "ws", "httpupgrade"))),
+            conditions = listOf(OutboundFieldCondition("transport.type", setOf("http", "ws", "httpupgrade", "xhttp"))),
+        ),
+        select(
+            "transport.mode",
+            "XHTTP mode",
+            listOf("", "auto", "packet-up", "stream-up", "stream-one"),
+            conditions = listOf(OutboundFieldCondition("transport.type", setOf("xhttp"))),
         ),
         field(
             "transport.method",
@@ -366,7 +372,24 @@ internal object OutboundEditorRegistry {
             "transport.headers",
             "Headers",
             OutboundFieldKind.KEY_VALUE,
-            conditions = listOf(OutboundFieldCondition("transport.type", setOf("http", "ws", "httpupgrade"))),
+            conditions = listOf(OutboundFieldCondition("transport.type", setOf("http", "ws", "httpupgrade", "xhttp"))),
+        ),
+        field(
+            "transport.x_padding_bytes",
+            "XHTTP padding bytes",
+            conditions = listOf(OutboundFieldCondition("transport.type", setOf("xhttp"))),
+        ),
+        field(
+            "transport.no_grpc_header",
+            "No gRPC header",
+            OutboundFieldKind.BOOLEAN,
+            conditions = listOf(OutboundFieldCondition("transport.type", setOf("xhttp"))),
+        ),
+        field(
+            "transport.extra",
+            "XHTTP extra",
+            OutboundFieldKind.MULTILINE,
+            conditions = listOf(OutboundFieldCondition("transport.type", setOf("xhttp"))),
         ),
         field(
             "transport.max_early_data",
@@ -682,6 +705,7 @@ internal fun outboundFieldLabelResource(label: String): Int = when (label) {
     "Network" -> R.string.outbound_field_network
     "Network strategy" -> R.string.outbound_field_network_strategy
     "Network types" -> R.string.outbound_field_network_types
+    "No gRPC header" -> R.string.outbound_field_no_grpc_header
     "Obfuscation" -> R.string.outbound_field_obfuscation
     "Obfuscation host" -> R.string.outbound_field_obfuscation_host
     "Obfuscation mode" -> R.string.outbound_field_obfuscation_mode
@@ -741,6 +765,9 @@ internal fun outboundFieldLabelResource(label: String): Int = when (label) {
     "uTLS" -> R.string.outbound_field_utls
     "uTLS fingerprint" -> R.string.outbound_field_utls_fingerprint
     "UUID" -> R.string.outbound_field_uuid
+    "XHTTP extra" -> R.string.outbound_field_xhttp_extra
+    "XHTTP mode" -> R.string.outbound_field_xhttp_mode
+    "XHTTP padding bytes" -> R.string.outbound_field_xhttp_padding_bytes
     else -> error("Missing outbound field string resource: $label")
 }
 
@@ -883,12 +910,36 @@ internal data class OutboundEditorDocument(
         require(errors.isEmpty()) { "Invalid outbound field: ${errors.first().path}" }
         val tag = text("tag").trim()
         require(tag.isNotBlank()) { "Tag is required" }
+        val normalizedValue = normalizeForExport(value)
         return ImportedSingBoxOutbound(
             sourceTag = tag,
             remarks = remarks.trim(),
             type = type,
-            json = SingBoxJson.encodeToString(JsonElement.serializer(), value),
+            json = SingBoxJson.encodeToString(JsonElement.serializer(), normalizedValue),
         )
+    }
+
+    private fun normalizeForExport(root: JsonObject): JsonObject {
+        val transport = root["transport"] as? JsonObject ?: return root
+        if ((transport["type"] as? JsonPrimitive)?.contentOrNull != "xhttp") return root
+        val extraText = (transport["extra"] as? JsonPrimitive)?.contentOrNull
+        val mode = (transport["mode"] as? JsonPrimitive)?.contentOrNull?.trim()
+        val updatedTransport = buildJsonObject {
+            transport.filterKeys { it != "extra" }.forEach { (k, v) ->
+                put(k, v)
+            }
+            if (mode.isNullOrBlank()) {
+                put("mode", "auto")
+            }
+            if (!extraText.isNullOrBlank()) {
+                OutboundXhttpExtraConverter.mergeExtraIntoBuilder(this, extraText)
+            }
+        }
+        return buildJsonObject {
+            root.forEach { (k, v) ->
+                if (k == "transport") put("transport", updatedTransport) else put(k, v)
+            }
+        }
     }
 
     private fun element(path: String): JsonElement? {
@@ -900,6 +951,26 @@ internal data class OutboundEditorDocument(
     }
 
     companion object {
+        fun fromStored(root: JsonObject): OutboundEditorDocument {
+            val transport = root["transport"] as? JsonObject
+            if (transport != null && (transport["type"] as? JsonPrimitive)?.contentOrNull == "xhttp") {
+                val extraString = OutboundXhttpExtraConverter.extractExtraFromTransport(transport)
+                if (!extraString.isNullOrBlank()) {
+                    val updatedTransport = buildJsonObject {
+                        transport.forEach { (k, v) -> put(k, v) }
+                        put("extra", extraString)
+                    }
+                    val updatedRoot = buildJsonObject {
+                        root.forEach { (k, v) ->
+                            if (k == "transport") put("transport", updatedTransport) else put(k, v)
+                        }
+                    }
+                    return OutboundEditorDocument(updatedRoot)
+                }
+            }
+            return OutboundEditorDocument(root)
+        }
+
         fun create(type: String, tag: String): OutboundEditorDocument {
             OutboundEditorRegistry.schema(type)
             var document = OutboundEditorDocument(

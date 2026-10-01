@@ -3,7 +3,7 @@
          Keep section and resource order aligned across translations and sibling apps. -->
 
     <!-- Common -->
-    <string name="app_name">AsteriskBOX</string>
+    <string name="app_name">AsteriskBOX Lite</string>
     <string name="code_editor_format_content_changed">内容已修改，请重新格式化</string>
     <string name="code_editor_format_failed">格式化失败，请检查语法</string>
     <string name="code_editor_format_javascript">格式化 JavaScript</string>
@@ -264,6 +264,10 @@
     <!-- Outbound groups -->
     <string name="outbound_group_add">添加分组</string>
     <string name="outbound_group_age_secret_key">Mihomo Age 私钥</string>
+    <string name="outbound_group_tab_all">全部</string>
+    <string name="outbound_group_tab_selectors">策略组</string>
+    <string name="outbound_group_tab_groups">节点分组</string>
+
     <plurals name="outbound_group_count">
         <item quantity="other">%1$d 个分组</item>
     </plurals>
@@ -497,6 +501,7 @@
     <string name="outbound_field_network">网络协议</string>
     <string name="outbound_field_network_strategy">网络策略</string>
     <string name="outbound_field_network_types">网络类型</string>
+    <string name="outbound_field_no_grpc_header">禁用 gRPC 头</string>
     <string name="outbound_field_obfuscation">混淆类型</string>
     <string name="outbound_field_obfuscation_host">混淆主机</string>
     <string name="outbound_field_obfuscation_mode">混淆模式</string>
@@ -556,6 +561,9 @@
     <string name="outbound_field_utls">uTLS</string>
     <string name="outbound_field_utls_fingerprint">uTLS 指纹</string>
     <string name="outbound_field_uuid">UUID</string>
+    <string name="outbound_field_xhttp_extra">XHTTP 扩展配置 (JSON)</string>
+    <string name="outbound_field_xhttp_mode">XHTTP 模式</string>
+    <string name="outbound_field_xhttp_padding_bytes">XHTTP 填充字节</string>
     <string name="outbound_field_zero_rtt_handshake">0-RTT 握手</string>
     <string name="outbound_group">分组</string>
 
@@ -1151,6 +1159,9 @@
     <!-- IPv6 -->
     <string name="settings_ipv6_prefer">IPv6 优先</string>
     <string name="settings_ipv6_prefer_summary">连接时优先使用 IPv6 地址</string>
+    <string name="settings_lightweight_mode">轻量退出模式</string>
+    <string name="settings_lightweight_mode_summary">退出主页或移入后台时彻底销毁界面进程以释放 UI 内存（再次打开需冷启动）</string>
+
     <string name="settings_ipv6_summary">启用 IPv6 支持</string>
 
     <!-- Sniffing -->

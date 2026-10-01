@@ -3,7 +3,7 @@
          Keep section and resource order aligned across translations and sibling apps. -->
 
     <!-- Common -->
-    <string name="app_name">AsteriskBOX</string>
+    <string name="app_name">AsteriskBOX Lite</string>
     <string name="code_editor_format_content_changed">Content changed. Format again.</string>
     <string name="code_editor_format_failed">Formatting failed. Check the syntax.</string>
     <string name="code_editor_format_javascript">Format JavaScript</string>
@@ -266,6 +266,10 @@
     <!-- Outbound groups -->
     <string name="outbound_group_add">Add group</string>
     <string name="outbound_group_age_secret_key">Mihomo Age secret key</string>
+    <string name="outbound_group_tab_all">All</string>
+    <string name="outbound_group_tab_selectors">Selectors</string>
+    <string name="outbound_group_tab_groups">Groups</string>
+
     <plurals name="outbound_group_count">
         <item quantity="one">%1$d group</item>
         <item quantity="other">%1$d groups</item>
@@ -503,6 +507,7 @@
     <string name="outbound_field_network">Network</string>
     <string name="outbound_field_network_strategy">Network strategy</string>
     <string name="outbound_field_network_types">Network types</string>
+    <string name="outbound_field_no_grpc_header">No gRPC header</string>
     <string name="outbound_field_obfuscation">Obfuscation</string>
     <string name="outbound_field_obfuscation_host">Obfuscation host</string>
     <string name="outbound_field_obfuscation_mode">Obfuscation mode</string>
@@ -562,6 +567,9 @@
     <string name="outbound_field_utls">uTLS</string>
     <string name="outbound_field_utls_fingerprint">uTLS fingerprint</string>
     <string name="outbound_field_uuid">UUID</string>
+    <string name="outbound_field_xhttp_extra">XHTTP extra</string>
+    <string name="outbound_field_xhttp_mode">XHTTP mode</string>
+    <string name="outbound_field_xhttp_padding_bytes">XHTTP padding bytes</string>
     <string name="outbound_field_zero_rtt_handshake">0-RTT handshake</string>
     <string name="outbound_group">Group</string>
 
@@ -1165,6 +1173,9 @@
     <!-- IPv6 -->
     <string name="settings_ipv6_prefer">IPv6 preferred</string>
     <string name="settings_ipv6_prefer_summary">Prefer IPv6 addresses when connecting</string>
+    <string name="settings_lightweight_mode">Lightweight Exit Mode</string>
+    <string name="settings_lightweight_mode_summary">Kill UI process when exiting from home page or background to save memory (cold start on next launch)</string>
+
     <string name="settings_ipv6_summary">Enable IPv6 support</string>
 
     <!-- Sniffing -->
