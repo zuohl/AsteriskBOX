@@ -763,8 +763,14 @@ private object MihomoYamlOutboundParser {
                     putNotBlank("path", options.string("path"))
                     putNotBlank("mode", options.string("mode"))
                     options.headers(excludedNames = setOf("host"))?.let { put("headers", it) }
-                    val padding = options.string("x-padding-bytes").ifBlank { options.string("x_padding_bytes") }
+                    val padding = options.string("x-padding-bytes")
+                        .ifBlank { options.string("x_padding_bytes") }
+                        .ifBlank { options.string("xPaddingBytes") }
                     putNotBlank("x_padding_bytes", padding)
+                    val noGrpc = options.bool("no-grpc-header") || options.bool("no_grpc_header") || options.bool("noGRPCHeader")
+                    if (noGrpc) {
+                        put("no_grpc_header", true)
+                    }
                     val extra = options.string("extra")
                     if (extra.isNotBlank()) {
                         OutboundXhttpExtraConverter.mergeExtraIntoBuilder(this, extra)
@@ -1236,6 +1242,8 @@ private object ProxyUrlOutboundParser {
             "insecure" to listOf(source.string("insecure")),
             "pbk" to listOf(source.string("pbk")),
             "sid" to listOf(source.string("sid")),
+            "mode" to listOf(source.string("mode")),
+            "extra" to listOf(source.string("extra")),
         )
         return buildJsonObject {
             put("type", "vmess")
@@ -1456,6 +1464,12 @@ private object ProxyUrlOutboundParser {
                     putNotBlank("host", query.first("host"))
                     putNotBlank("path", query.first("path"))
                     putNotBlank("mode", query.first("mode"))
+                    val padding = query.first("x_padding_bytes", "x-padding-bytes", "xPaddingBytes")
+                    putNotBlank("x_padding_bytes", padding)
+                    val noGrpc = query.first("no_grpc_header", "no-grpc-header", "noGRPCHeader")
+                    if (noGrpc.equals("true", ignoreCase = true) || noGrpc == "1") {
+                        put("no_grpc_header", true)
+                    }
                     val extra = query.first("extra")
                     if (extra.isNotBlank()) {
                         OutboundXhttpExtraConverter.mergeExtraIntoBuilder(this, extra)
