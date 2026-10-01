@@ -123,12 +123,7 @@ class AndroidAppStateStore private constructor(
         val nextState = canonicalAppStateUpdate(transform)(previousState)
         if (nextState === previousState || nextState.isCheapNoopUpdate(previousState)) return null
         mutableState.value = nextState
-        if (
-            nextState.languageMode != previousState.languageMode ||
-            nextState.colorMode != previousState.colorMode
-        ) {
-            settingsPreferences.saveChanged(previousState, nextState)
-        }
+        settingsPreferences.saveChanged(previousState, nextState)
         return pendingSaveFor(nextState)
     }
 

@@ -15,7 +15,7 @@ import engine.proxy.ProxyEngineStatus
 internal class VpnSingBoxEngine(
     private val context: Context,
     private val requestVpnPermission: suspend (Intent) -> Boolean,
-    private val runtimeRunning: () -> Boolean = AsteriskVpnService::isRunning,
+    private val runtimeRunning: () -> Boolean = { AsteriskVpnService.isRunning(context) },
 ) : AndroidModeProxyEngine {
     override val runMode: Int = RunModeVpnService
 

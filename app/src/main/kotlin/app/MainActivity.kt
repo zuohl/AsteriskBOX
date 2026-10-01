@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.annotation.StringRes
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -141,6 +142,18 @@ class MainActivity : ComponentActivity() {
         }
         showAppContent()
         requestStartupPermissions()
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                val settings = AppSettingsPreferences(this@MainActivity).load()
+                if (settings.isLightweightMode) {
+                    finishAffinity()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
+                }
+            }
+        })
         if (savedInstanceState == null) handleExternalIntent(intent)
     }
 
@@ -224,6 +237,29 @@ class MainActivity : ComponentActivity() {
         backupFileCreator.complete(null)
         backupFileCreator.registerLauncher(null)
         super.onDestroy()
+        if (isFinishing) {
+            val settings = AppSettingsPreferences(this).load()
+            if (settings.isLightweightMode) {
+                android.os.Process.killProcess(android.os.Process.myPid())
+            }
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        runCatching {
+            coil3.SingletonImageLoader.get(this).memoryCache?.clear()
+        }
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        runCatching {
+            coil3.SingletonImageLoader.get(this).memoryCache?.clear()
+        }
+        if (level >= TRIM_MEMORY_UI_HIDDEN) {
+            System.gc()
+        }
     }
 
     private fun requestStartupPermissions() {

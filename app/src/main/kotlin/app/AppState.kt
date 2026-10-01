@@ -78,6 +78,7 @@ data class AppState(
     val tunIpv6Cidr: String = VpnDefaults.IPV6_CIDR,
 
     val proxyRunning: Boolean = false,
+    val isLightweightMode: Boolean = false,
 
     val enableConfigOverrideScript: Boolean = false,
     val configOverrideScript: String = "const main = (config) => {\n  return config\n}",

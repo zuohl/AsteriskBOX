@@ -14,14 +14,18 @@ import engine.proxy.LocalProxyLoopbackAddress
 import engine.proxy.LocalProxyOptions
 import engine.singbox.SingBoxCoreLogPaths
 
+import android.os.ResultReceiver
+
 internal object AsteriskVpnServiceIntents {
     const val ACTION_START = "app.action.START_VPN"
     const val ACTION_STOP = "app.action.STOP_VPN"
+    const val EXTRA_RESULT_RECEIVER = "result_receiver"
 
-    fun startIntent(context: Context, config: VpnServiceStartConfig): Intent {
+    fun startIntent(context: Context, config: VpnServiceStartConfig, resultReceiver: ResultReceiver? = null): Intent {
         return Intent(context, AsteriskVpnService::class.java).apply {
             action = ACTION_START
             writeStartConfig(config)
+            resultReceiver?.let { putExtra(EXTRA_RESULT_RECEIVER, it) }
         }
     }
 
@@ -30,6 +34,13 @@ internal object AsteriskVpnServiceIntents {
             action = ACTION_STOP
         }
     }
+}
+
+internal fun Intent.readResultReceiver(): ResultReceiver? = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+    getParcelableExtra(AsteriskVpnServiceIntents.EXTRA_RESULT_RECEIVER, ResultReceiver::class.java)
+} else {
+    @Suppress("DEPRECATION")
+    getParcelableExtra(AsteriskVpnServiceIntents.EXTRA_RESULT_RECEIVER)
 }
 
 internal fun Intent.readVpnServiceStartConfig(): VpnServiceStartConfig? {

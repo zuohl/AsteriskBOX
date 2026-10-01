@@ -192,6 +192,22 @@ class AsteriskApplication : Application(), SingletonImageLoader.Factory {
 
     override fun onCreate() {
         super.onCreate()
+        val isBackgroundProcess = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            getProcessName().endsWith(":bg")
+        } else {
+            runCatching {
+                java.io.File("/proc/self/cmdline").readText().trim('\u0000', ' ', '\n', '\r')
+            }.getOrDefault("").endsWith(":bg")
+        }
+        if (isBackgroundProcess) {
+            AndroidLibboxRuntime.setup(this)
+            AndroidCoreLogRepository.initialize(applicationContext)
+            return
+        }
+        engine.vpn.AsteriskVpnService.reconcileState(this)
+        if (!engine.vpn.AsteriskVpnService.isRunning(this)) {
+            stateStore.update { it.copy(proxyRunning = false) }
+        }
         appScope.launch {
             val scheduler = ResourceAutoUpdateScheduler(applicationContext)
             stateStore.state
