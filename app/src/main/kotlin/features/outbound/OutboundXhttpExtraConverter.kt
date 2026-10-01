@@ -217,19 +217,30 @@ internal object OutboundXhttpExtraConverter {
         if (extraMap.isEmpty()) return null
         return runCatching {
             val jsonElement = JsonObject(extraMap)
-            SingBoxJson.encodeToString(JsonElement.serializer(), jsonElement)
+            val singBoxStr = SingBoxJson.encodeToString(JsonElement.serializer(), jsonElement)
+            val xrayStr = singBoxToXray(singBoxStr)
+            xrayStr.ifBlank { singBoxStr }
         }.getOrNull()
     }
 
     fun mergeExtraIntoBuilder(builder: JsonObjectBuilder, extraJsonString: String) {
         if (extraJsonString.isBlank()) return
-        val normalized = xrayToSingBox(extraJsonString)
+        val sanitized = sanitizeMalformedExtraJson(extraJsonString)
+        val normalized = xrayToSingBox(sanitized)
         runCatching {
             val parsed = SingBoxJson.parseToJsonElement(normalized) as? JsonObject ?: return
             parsed.forEach { (key, value) ->
                 builder.put(key, value)
             }
         }
+    }
+
+    private fun sanitizeMalformedExtraJson(text: String): String {
+        val trimmed = text.trim()
+        if (trimmed.startsWith("{+") || trimmed.contains(":+") || trimmed.contains(",+")) {
+            return trimmed.replace("+", " ")
+        }
+        return trimmed
     }
 
     private fun isSingBoxFormat(json: JSONObject): Boolean {

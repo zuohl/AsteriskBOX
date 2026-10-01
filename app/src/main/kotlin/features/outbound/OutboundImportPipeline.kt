@@ -774,7 +774,12 @@ private object MihomoYamlOutboundParser {
                     if (noGrpc) {
                         put("no_grpc_header", true)
                     }
-                    val extra = options.string("extra")
+                    val extraObj = options["extra"]
+                    val extra = when (extraObj) {
+                        is Map<*, *> -> org.json.JSONObject(extraObj).toString()
+                        is String -> extraObj
+                        else -> extraObj?.toString().orEmpty()
+                    }
                     if (extra.isNotBlank()) {
                         OutboundXhttpExtraConverter.mergeExtraIntoBuilder(this, extra)
                     }
@@ -1589,9 +1594,20 @@ private fun parseQuery(rawQuery: String?): Map<String, List<String>> {
     return rawQuery.split('&')
         .mapNotNull { part ->
             val key = decodeComponent(part.substringBefore('='))
-            if (key.isBlank()) null else key to decodeComponent(part.substringAfter('=', ""))
+            if (key.isBlank()) null else key to decodeQueryValue(part.substringAfter('=', ""))
         }
         .groupBy({ it.first }, { it.second })
+}
+
+private fun decodeQueryValue(value: String?): String {
+    if (value.isNullOrBlank()) return ""
+    return runCatching {
+        if (value.contains('%')) {
+            URLDecoder.decode(value, StandardCharsets.UTF_8.name())
+        } else {
+            URLDecoder.decode(value.replace("+", "%2B"), StandardCharsets.UTF_8.name())
+        }
+    }.getOrDefault(value)
 }
 
 private data class PortHoppingLink(
