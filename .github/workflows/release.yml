@@ -56,18 +56,40 @@ jobs:
         run: |
           set -euo pipefail
 
-          version_name="$(sed -n 's/^[[:space:]]*const val VERSION_NAME = "\([^"]*\)".*/\1/p' buildSrc/src/main/kotlin/BuildConfig.kt | head -n 1)"
-          if [ -z "$version_name" ]; then
+          base_version="$(sed -n 's/^[[:space:]]*const val VERSION_NAME = "\([^"]*\)".*/\1/p' buildSrc/src/main/kotlin/BuildConfig.kt | head -n 1)"
+          if [ -z "$base_version" ]; then
             echo "::error::Unable to read ProjectConfig.VERSION_NAME from buildSrc/src/main/kotlin/BuildConfig.kt."
             exit 1
           fi
 
-          is_release=false
-          if [[ "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            is_release=true
-            echo "Detected formal release version: $version_name"
+          clean_base="${base_version%%-*}"
+          current_tag="$(git tag --points-at HEAD "v${clean_base}-lite.*" | head -n 1 | sed 's/^v//' || true)"
+
+          if [ -n "${REQUESTED_VERSION_NAME:-}" ]; then
+            version_name="$REQUESTED_VERSION_NAME"
+            echo "Using manually requested version: $version_name"
+          elif [ -n "$current_tag" ]; then
+            version_name="$current_tag"
+            echo "Using existing tag on current commit: $version_name"
           else
-            echo "::notice::ProjectConfig.VERSION_NAME is '$version_name', not strict x.y.z. GitHub Release creation will be skipped."
+            latest_rev="$(git ls-remote --tags origin "refs/tags/v${clean_base}-lite.*" | awk -F'/' '{print $3}' | grep -v '\^{}' | sed "s/^v${clean_base}-lite\.//" | grep -E '^[0-9]+$' | sort -n | tail -n 1 || true)"
+            if [ -n "$latest_rev" ]; then
+              next_rev=$((latest_rev + 1))
+            else
+              next_rev=1
+            fi
+            version_name="${clean_base}-lite.${next_rev}"
+            echo "Auto-computed version: $version_name (previous rev: ${latest_rev:-none})"
+          fi
+
+          sed -i "s/const val VERSION_NAME = .*/const val VERSION_NAME = \"$version_name\"/" buildSrc/src/main/kotlin/BuildConfig.kt
+
+          is_release=false
+          if [[ "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-lite\.[0-9]+)?$ ]]; then
+            is_release=true
+            echo "Detected release version: $version_name"
+          else
+            echo "::notice::ProjectConfig.VERSION_NAME is '$version_name', not a recognized release format. GitHub Release creation will be skipped."
           fi
 
           create_github_release=false
@@ -173,6 +195,21 @@ jobs:
             exit 1
           fi
 
+      - name: Prepare trimmed libbox.aar
+        shell: bash
+        run: |
+          mkdir -p app/libs
+          if [ ! -f "app/libs/libbox.aar" ]; then
+            echo "Fetching trimmed libbox.aar from sing-box release v1.15.0-lite..."
+            curl -sSL -f -o app/libs/libbox.aar https://github.com/zuohl/sing-box/releases/download/v1.15.0-lite/libbox.aar || {
+              echo "Warning: Failed to fetch trimmed libbox.aar from release, falling back to default ivy dependency."
+              rm -f app/libs/libbox.aar
+            }
+          fi
+          if [ -f "app/libs/libbox.aar" ]; then
+            echo "Successfully prepared trimmed libbox.aar ($(ls -lh app/libs/libbox.aar | awk '{print $5}'))"
+          fi
+
       - name: Build release APKs
         run: ./gradlew --no-daemon :app:assembleRelease
 
@@ -276,33 +313,7 @@ jobs:
           if-no-files-found: error
           archive: false
 
-      - name: Upload armeabi-v7a APK artifact
-        uses: actions/upload-artifact@v7
-        with:
-          path: release-artifacts/*-armeabi-v7a.apk
-          if-no-files-found: error
-          archive: false
 
-      - name: Upload x86 APK artifact
-        uses: actions/upload-artifact@v7
-        with:
-          path: release-artifacts/*-x86.apk
-          if-no-files-found: error
-          archive: false
-
-      - name: Upload x86_64 APK artifact
-        uses: actions/upload-artifact@v7
-        with:
-          path: release-artifacts/*-x86_64.apk
-          if-no-files-found: error
-          archive: false
-
-      - name: Upload universal APK artifact
-        uses: actions/upload-artifact@v7
-        with:
-          path: release-artifacts/*-universal.apk
-          if-no-files-found: error
-          archive: false
 
       - name: Create tag and release notes
         if: steps.version.outputs.create_github_release == 'true'
@@ -334,7 +345,7 @@ jobs:
 
           mapfile -t release_tags < <(
             git for-each-ref --format='%(refname:short)' refs/tags |
-              grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true
+              grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$' || true
           )
 
           previous_candidates="$(mktemp)"
@@ -410,11 +421,13 @@ jobs:
             gh release edit "$TAG_NAME" \
               --title "AsteriskBOX $TAG_NAME" \
               --notes-file release-notes.md \
+              --draft=false \
               --latest
           else
             gh release create "$TAG_NAME" release-artifacts/*.apk \
               --title "AsteriskBOX $TAG_NAME" \
               --notes-file release-notes.md \
+              --draft=false \
               --latest
           fi
 
