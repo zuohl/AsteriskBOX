@@ -96,16 +96,32 @@ internal class PublicNetworkProbeClient(
     private val endpoints: List<PublicProbeEndpoint> = DefaultPublicProbeEndpoints,
     private val proxyProvider: (() -> PublicProbeProxy?)? = null,
 ) {
-    suspend fun probe(): Pair<PublicProbeAttempt, PublicProbeAttempt> = coroutineScope {
-        val ipv4Endpoint = endpoints.first { endpoint -> endpoint.family == AddressFamily.Ipv4 }
-        val ipv6Endpoint = endpoints.first { endpoint -> endpoint.family == AddressFamily.Ipv6 }
+    suspend fun probe(): PublicProbeBatch = coroutineScope {
+        val ipv4Endpoint = endpoints.first { it.family == AddressFamily.Ipv4 && it.target == ProbeTarget.General }
+        val ipv6Endpoint = endpoints.first { it.family == AddressFamily.Ipv6 && it.target == ProbeTarget.General }
+        val cfIpv4Endpoint = endpoints.first { it.family == AddressFamily.Ipv4 && it.target == ProbeTarget.Cloudflare }
+        val cfIpv6Endpoint = endpoints.first { it.family == AddressFamily.Ipv6 && it.target == ProbeTarget.Cloudflare }
         val ipv4 = async { probeOne(ipv4Endpoint) }
         val ipv6 = async { probeOne(ipv6Endpoint) }
-        ipv4.await() to ipv6.await()
+        val cfIpv4 = async { probeOne(cfIpv4Endpoint) }
+        val cfIpv6 = async { probeOne(cfIpv6Endpoint) }
+        PublicProbeBatch(
+            ipv4 = ipv4.await(),
+            ipv6 = ipv6.await(),
+            cloudflareIpv4 = cfIpv4.await(),
+            cloudflareIpv6 = cfIpv6.await(),
+        )
     }
 
-    suspend fun probe(family: AddressFamily): PublicProbeAttempt {
-        return probeOne(endpoints.first { endpoint -> endpoint.family == family })
+    suspend fun probe(family: AddressFamily): FamilyProbeBatch = coroutineScope {
+        val generalEndpoint = endpoints.first { it.family == family && it.target == ProbeTarget.General }
+        val cfEndpoint = endpoints.first { it.family == family && it.target == ProbeTarget.Cloudflare }
+        val general = async { probeOne(generalEndpoint) }
+        val cf = async { probeOne(cfEndpoint) }
+        FamilyProbeBatch(
+            general = general.await(),
+            cloudflare = cf.await(),
+        )
     }
 
     private suspend fun probeOne(endpoint: PublicProbeEndpoint): PublicProbeAttempt {
@@ -166,16 +182,24 @@ internal class PublicNetworkProbeClient(
                             val body = connection.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
                                 reader.readLimited(PublicProbeMaxResponseChars)
                             }
-                            val address = parsePublicAddressResponse(body, endpoint.family)
+                            val parsed = parsePublicProbeResponse(body, endpoint.family, endpoint.target)
                                 ?: return@runCatching PublicProbeAttempt.Failure(
                                     PublicProbeError.InvalidResponse,
                                     "Invalid ${endpoint.family.name.uppercase()} address",
                                     endpoint.host,
                                 )
                             PublicProbeAttempt.Success(
-                                address = address,
+                                address = parsed.address,
                                 durationMillis = SystemClock.elapsedRealtime() - startedAt,
                                 endpointHost = endpoint.host,
+                                target = endpoint.target,
+                                country = parsed.country,
+                                countryCode = parsed.countryCode,
+                                region = parsed.region,
+                                city = parsed.city,
+                                isp = parsed.isp,
+                                colo = parsed.colo,
+                                warp = parsed.warp,
                             )
                         } finally {
                             connectionReference.compareAndSet(connection, null)

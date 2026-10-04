@@ -527,15 +527,14 @@ internal class MonitoringRepository(
                             publicProbe = if (family == null) {
                                 applyPublicProbeAttempts(
                                     previous = current.network.publicProbe,
-                                    ipv4 = checkNotNull(batch).first,
-                                    ipv6 = batch.second,
+                                    batch = checkNotNull(batch),
                                     completedAtMillis = completedAt,
                                 )
                             } else {
                                 applyPublicProbeAttempt(
                                     previous = current.network.publicProbe,
                                     family = family,
-                                    attempt = checkNotNull(single),
+                                    batch = checkNotNull(single),
                                     completedAtMillis = completedAt,
                                 )
                             },

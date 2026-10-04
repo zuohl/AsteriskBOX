@@ -37,8 +37,14 @@ internal data class LocalNetworkSnapshot(
     val updatedAtMillis: Long = 0L,
 )
 
+internal enum class ProbeTarget {
+    General,
+    Cloudflare,
+}
+
 internal data class PublicProbeEndpoint(
     val family: AddressFamily,
+    val target: ProbeTarget = ProbeTarget.General,
     val url: String,
     val host: String,
 )
@@ -56,6 +62,14 @@ internal sealed interface PublicProbeAttempt {
         val address: String,
         val durationMillis: Long,
         override val endpointHost: String,
+        val target: ProbeTarget = ProbeTarget.General,
+        val country: String = "",
+        val countryCode: String = "",
+        val region: String = "",
+        val city: String = "",
+        val isp: String = "",
+        val colo: String = "",
+        val warp: String = "",
     ) : PublicProbeAttempt
 
     data class Failure(
@@ -73,11 +87,42 @@ internal data class PublicAddressProbeResult(
     val error: PublicProbeError? = null,
     val errorMessage: String = "",
     val stale: Boolean = false,
-)
+    val target: ProbeTarget = ProbeTarget.General,
+    val country: String = "",
+    val countryCode: String = "",
+    val region: String = "",
+    val city: String = "",
+    val isp: String = "",
+    val colo: String = "",
+    val warp: String = "",
+) {
+    val locationSummary: String
+        get() {
+            val emoji = countryCodeToEmoji(countryCode)
+            val parts = mutableListOf<String>()
+            if (country.isNotBlank()) parts += country
+            val regionAndCity = listOf(region, city)
+                .filter { it.isNotBlank() && !it.equals(country, ignoreCase = true) }
+                .distinct()
+                .joinToString(" ")
+            if (regionAndCity.isNotBlank()) parts += regionAndCity
+            if (colo.isNotBlank()) {
+                parts += formatCloudflareColo(colo)
+            }
+            if (isp.isNotBlank()) parts += isp
+            if (warp.equals("on", ignoreCase = true)) {
+                parts += "WARP"
+            }
+            val text = parts.joinToString(" · ")
+            return if (emoji.isNotBlank()) "$emoji $text" else text
+        }
+}
 
 internal data class PublicNetworkProbeState(
-    val ipv4: PublicAddressProbeResult = PublicAddressProbeResult(),
-    val ipv6: PublicAddressProbeResult = PublicAddressProbeResult(),
+    val ipv4: PublicAddressProbeResult = PublicAddressProbeResult(target = ProbeTarget.General),
+    val ipv6: PublicAddressProbeResult = PublicAddressProbeResult(target = ProbeTarget.General),
+    val cloudflareIpv4: PublicAddressProbeResult = PublicAddressProbeResult(target = ProbeTarget.Cloudflare),
+    val cloudflareIpv6: PublicAddressProbeResult = PublicAddressProbeResult(target = ProbeTarget.Cloudflare),
     val refreshing: Boolean = false,
     val lastCompletedAtMillis: Long = 0L,
 )
@@ -102,36 +147,158 @@ internal object PublicNetworkProbeMemoryCache {
     }
 }
 
-internal fun parsePublicAddressResponse(body: String, family: AddressFamily): String? {
+internal data class ParsedPublicProbeAddress(
+    val address: String,
+    val country: String = "",
+    val countryCode: String = "",
+    val region: String = "",
+    val city: String = "",
+    val isp: String = "",
+    val colo: String = "",
+    val warp: String = "",
+)
+
+internal fun countryCodeToEmoji(countryCode: String?): String {
+    if (countryCode == null || countryCode.length != 2) return ""
+    val code = countryCode.uppercase()
+    if (!code.all { it in 'A'..'Z' }) return ""
+    val firstChar = Character.codePointAt(code, 0) - 0x41 + 0x1F1E6
+    val secondChar = Character.codePointAt(code, 1) - 0x41 + 0x1F1E6
+    return String(Character.toChars(firstChar)) + String(Character.toChars(secondChar))
+}
+
+internal fun formatCloudflareColo(colo: String): String {
+    val upper = colo.trim().uppercase()
+    val city = when (upper) {
+        "HKG" -> "香港"
+        "NRT" -> "东京"
+        "KIX" -> "大阪"
+        "SIN" -> "新加坡"
+        "TPE" -> "台北"
+        "KHH" -> "高雄"
+        "ICN" -> "首尔"
+        "SJC" -> "圣何塞"
+        "LAX" -> "洛杉矶"
+        "SFO" -> "旧金山"
+        "SEA" -> "西雅图"
+        "ORD" -> "芝加哥"
+        "DFW" -> "达拉斯"
+        "EWR" -> "纽瓦克"
+        "IAD" -> "阿什本"
+        "LHR" -> "伦敦"
+        "FRA" -> "法兰克福"
+        "AMS" -> "阿姆斯特丹"
+        "CDG" -> "巴黎"
+        "SYD" -> "悉尼"
+        "MEL" -> "墨尔本"
+        else -> upper
+    }
+    return if (city != upper) "$city ($upper)" else "$upper 机房"
+}
+
+internal fun parsePublicProbeResponse(
+    body: String,
+    family: AddressFamily,
+    target: ProbeTarget = ProbeTarget.General,
+): ParsedPublicProbeAddress? {
     val trimmed = body.trim()
     if (trimmed.isEmpty()) return null
-    val address = if (trimmed.startsWith('{')) {
-        runCatching {
-            val json = NetworkProbeJson.parseToJsonElement(trimmed).jsonObject
-            PublicAddressJsonKeys.firstNotNullOfOrNull { key ->
-                json[key]?.jsonPrimitive?.contentOrNull?.trim()?.takeIf(String::isNotEmpty)
+
+    // 1. Cloudflare cdn-cgi/trace 格式解析 (key=value)
+    if (trimmed.contains("fl=") || trimmed.contains("colo=") || target == ProbeTarget.Cloudflare) {
+        val lines = trimmed.lineSequence().map(String::trim).filter { it.contains('=') }
+        val map = lines.associate { line ->
+            val key = line.substringBefore('=').trim()
+            val value = line.substringAfter('=').trim()
+            key to value
+        }
+        val ip = map["ip"]?.takeIf { value ->
+            when (family) {
+                AddressFamily.Ipv4 -> isIpv4Address(value)
+                AddressFamily.Ipv6 -> isIpv6Address(value)
             }
+        }
+        if (ip != null) {
+            val loc = map["loc"].orEmpty()
+            val colo = map["colo"].orEmpty()
+            val warp = map["warp"].orEmpty()
+            return ParsedPublicProbeAddress(
+                address = ip,
+                countryCode = loc,
+                colo = colo,
+                warp = warp,
+            )
+        }
+    }
+
+    // 2. 标准 JSON 格式解析 (geojs.io / ipinfo / ipify 等)
+    if (trimmed.startsWith('{')) {
+        return runCatching {
+            val json = NetworkProbeJson.parseToJsonElement(trimmed).jsonObject
+            val address = PublicAddressJsonKeys.firstNotNullOfOrNull { key ->
+                json[key]?.jsonPrimitive?.contentOrNull?.trim()?.takeIf(String::isNotEmpty)
+            }?.takeIf { value ->
+                when (family) {
+                    AddressFamily.Ipv4 -> isIpv4Address(value)
+                    AddressFamily.Ipv6 -> isIpv6Address(value)
+                }
+            } ?: return@runCatching null
+
+            val country = json["country"]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
+            val countryCode = (json["country_code"] ?: json["countryCode"])?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
+            val region = (json["region"] ?: json["region_name"])?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
+            val city = json["city"]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
+            val isp = (json["organization_name"] ?: json["organization"] ?: json["isp"] ?: json["org"])
+                ?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
+
+            ParsedPublicProbeAddress(
+                address = address,
+                country = country,
+                countryCode = countryCode,
+                region = region,
+                city = city,
+                isp = isp,
+            )
         }.getOrNull()
     } else {
-        trimmed.lineSequence().map(String::trim).firstOrNull(String::isNotEmpty)
-    } ?: return null
-    return address.takeIf { value ->
-        when (family) {
-            AddressFamily.Ipv4 -> isIpv4Address(value)
-            AddressFamily.Ipv6 -> isIpv6Address(value)
-        }
+        // 3. 纯文本单行 IP
+        val address = trimmed.lineSequence().map(String::trim).firstOrNull(String::isNotEmpty)
+            ?.takeIf { value ->
+                when (family) {
+                    AddressFamily.Ipv4 -> isIpv4Address(value)
+                    AddressFamily.Ipv6 -> isIpv6Address(value)
+                }
+            } ?: return null
+        return ParsedPublicProbeAddress(address = address)
     }
 }
 
+internal fun parsePublicAddressResponse(body: String, family: AddressFamily): String? {
+    return parsePublicProbeResponse(body, family)?.address
+}
+
+internal data class PublicProbeBatch(
+    val ipv4: PublicProbeAttempt,
+    val ipv6: PublicProbeAttempt,
+    val cloudflareIpv4: PublicProbeAttempt,
+    val cloudflareIpv6: PublicProbeAttempt,
+)
+
+internal data class FamilyProbeBatch(
+    val general: PublicProbeAttempt,
+    val cloudflare: PublicProbeAttempt,
+)
+
 internal fun applyPublicProbeAttempts(
     previous: PublicNetworkProbeState,
-    ipv4: PublicProbeAttempt,
-    ipv6: PublicProbeAttempt,
+    batch: PublicProbeBatch,
     completedAtMillis: Long,
 ): PublicNetworkProbeState {
     return PublicNetworkProbeState(
-        ipv4 = previous.ipv4.applyAttempt(ipv4, completedAtMillis),
-        ipv6 = previous.ipv6.applyAttempt(ipv6, completedAtMillis),
+        ipv4 = previous.ipv4.applyAttempt(batch.ipv4, completedAtMillis),
+        ipv6 = previous.ipv6.applyAttempt(batch.ipv6, completedAtMillis),
+        cloudflareIpv4 = previous.cloudflareIpv4.applyAttempt(batch.cloudflareIpv4, completedAtMillis),
+        cloudflareIpv6 = previous.cloudflareIpv6.applyAttempt(batch.cloudflareIpv6, completedAtMillis),
         refreshing = false,
         lastCompletedAtMillis = completedAtMillis,
     )
@@ -140,17 +307,19 @@ internal fun applyPublicProbeAttempts(
 internal fun applyPublicProbeAttempt(
     previous: PublicNetworkProbeState,
     family: AddressFamily,
-    attempt: PublicProbeAttempt,
+    batch: FamilyProbeBatch,
     completedAtMillis: Long,
 ): PublicNetworkProbeState {
     return when (family) {
         AddressFamily.Ipv4 -> previous.copy(
-            ipv4 = previous.ipv4.applyAttempt(attempt, completedAtMillis),
+            ipv4 = previous.ipv4.applyAttempt(batch.general, completedAtMillis),
+            cloudflareIpv4 = previous.cloudflareIpv4.applyAttempt(batch.cloudflare, completedAtMillis),
             refreshing = false,
             lastCompletedAtMillis = completedAtMillis,
         )
         AddressFamily.Ipv6 -> previous.copy(
-            ipv6 = previous.ipv6.applyAttempt(attempt, completedAtMillis),
+            ipv6 = previous.ipv6.applyAttempt(batch.general, completedAtMillis),
+            cloudflareIpv6 = previous.cloudflareIpv6.applyAttempt(batch.cloudflare, completedAtMillis),
             refreshing = false,
             lastCompletedAtMillis = completedAtMillis,
         )
@@ -167,6 +336,14 @@ private fun PublicAddressProbeResult.applyAttempt(
             durationMillis = attempt.durationMillis,
             endpointHost = attempt.endpointHost,
             updatedAtMillis = completedAtMillis,
+            target = attempt.target,
+            country = attempt.country,
+            countryCode = attempt.countryCode,
+            region = attempt.region,
+            city = attempt.city,
+            isp = attempt.isp,
+            colo = attempt.colo,
+            warp = attempt.warp,
         )
 
         is PublicProbeAttempt.Failure -> copy(
@@ -181,13 +358,27 @@ private fun PublicAddressProbeResult.applyAttempt(
 internal val DefaultPublicProbeEndpoints = listOf(
     PublicProbeEndpoint(
         family = AddressFamily.Ipv4,
-        url = "https://api4.ipify.org?format=json",
-        host = "api4.ipify.org",
+        target = ProbeTarget.General,
+        url = "https://ipv4.geojs.io/v1/ip/geo.json",
+        host = "ipv4.geojs.io",
     ),
     PublicProbeEndpoint(
         family = AddressFamily.Ipv6,
-        url = "https://api6.ipify.org?format=json",
-        host = "api6.ipify.org",
+        target = ProbeTarget.General,
+        url = "https://ipv6.geojs.io/v1/ip/geo.json",
+        host = "ipv6.geojs.io",
+    ),
+    PublicProbeEndpoint(
+        family = AddressFamily.Ipv4,
+        target = ProbeTarget.Cloudflare,
+        url = "https://ipv4.icanhazip.com/cdn-cgi/trace",
+        host = "ipv4.icanhazip.com",
+    ),
+    PublicProbeEndpoint(
+        family = AddressFamily.Ipv6,
+        target = ProbeTarget.Cloudflare,
+        url = "https://ipv6.icanhazip.com/cdn-cgi/trace",
+        host = "ipv6.icanhazip.com",
     ),
 )
 
