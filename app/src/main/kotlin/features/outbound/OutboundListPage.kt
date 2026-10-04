@@ -1,10 +1,10 @@
 // Copyright 2026, AsteriskBOX contributors
 // SPDX-License-Identifier: GPL-3.0
 
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-
 package features.outbound
 
+import ui.components.AsteriskSearchTopAppBar
+import ui.components.AsteriskTopBarControls
 import ui.components.AsteriskDropdownMenuItem
 import android.content.Context
 import android.net.Uri
@@ -35,16 +35,15 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import ui.components.AsteriskScaffold
-import androidx.compose.material3.Text
-import ui.components.AsteriskTopAppBar
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.rememberUpdatedState
@@ -54,6 +53,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -126,7 +126,6 @@ import ui.isInDarkTheme
 import ui.components.AsteriskExpressiveCard
 import ui.components.AsteriskFilterChip
 import ui.components.AsteriskInfoChip
-import ui.components.AsteriskPinnedSearchArea
 import ui.components.WarningConfirmDialog
 import ui.components.draggedCardShadow
 import ui.components.rememberReorderPreview
@@ -171,7 +170,7 @@ private val OutboundBatchDeleteAction.emptyResource: Int
     get() = when (this) {
         OutboundBatchDeleteAction.DUPLICATES -> R.string.outbound_no_duplicates
         OutboundBatchDeleteAction.INVALID -> R.string.outbound_no_invalid
-        OutboundBatchDeleteAction.ALL -> R.string.outbound_no_nodes_to_delete
+        OutboundBatchDeleteAction.ALL -> R.string.outbound_no_proxy_servers_to_delete
     }
 
 private enum class OutboundCardMenuLevel {
@@ -201,8 +200,8 @@ internal fun OutboundListPage(
     val resources = LocalResources.current
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
-    var activeOperations by remember { mutableStateOf(0) }
-    var activeChildInteractions by remember { mutableStateOf(0) }
+    var activeOperations by remember { mutableIntStateOf(0) }
+    var activeChildInteractions by remember { mutableIntStateOf(0) }
     val interactionCallback by rememberUpdatedState(onInteractionActiveChange)
     val onChildInteractionChange: (Int) -> Unit = remember {
         { delta ->
@@ -474,7 +473,10 @@ internal fun OutboundListPage(
     AsteriskScaffold(
         topBar = {
             Column {
-                AsteriskTopAppBar(
+                AsteriskSearchTopAppBar(
+                    query = query,
+                    onQueryChange = { query = it },
+                    placeholder = stringResource(R.string.outbound_search),
                     title = {
                         Column {
                             Text(stringResource(R.string.outbound_management))
@@ -681,10 +683,9 @@ internal fun OutboundListPage(
                                 }
                             },
                             onDeleteOutbounds = { action ->
-                                val group = selectedGroup
-                                if (group != null) {
+                                if (selectedGroup != null) {
                                     val snapshot = stateStore.state.value
-                                    val targets = snapshot.outbounds.filter { it.groupId == group.id }
+                                    val targets = snapshot.outbounds.filter { it.groupId == selectedGroup.id }
                                     val selectedTags = snapshot.selectorSelections.values.toSet() +
                                         services.singBoxRuntime.state.value.proxies.groups.map { it.now }
                                     launchOperation {
@@ -700,7 +701,7 @@ internal fun OutboundListPage(
                                         if (deletions.isEmpty()) {
                                             services.tipNotifier.show(resources.getString(action.emptyResource))
                                         } else {
-                                            pendingBatchDelete = OutboundBatchDeletion(action, group.name, deletions, targets)
+                                            pendingBatchDelete = OutboundBatchDeletion(action, selectedGroup.name, deletions, targets)
                                         }
                                     }
                                 }
@@ -708,12 +709,7 @@ internal fun OutboundListPage(
                         )
                     },
                 )
-                AsteriskPinnedSearchArea(
-                    query = query,
-                    onQueryChange = { query = it },
-                    placeholder = stringResource(R.string.outbound_search),
-                    clearContentDescription = stringResource(R.string.common_clear),
-                ) {
+                AsteriskTopBarControls {
                     if (groups.isNotEmpty()) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(groups, key = OutboundGroupState::id) { group ->
@@ -905,8 +901,9 @@ internal fun OutboundListPage(
         WarningConfirmDialog(
             show = true,
             title = stringResource(deletion.action.titleResource),
-            summary = stringResource(
-                R.string.outbound_batch_delete_message,
+            summary = pluralStringResource(
+                R.plurals.outbound_batch_delete_message,
+                deletion.outbounds.size,
                 deletion.groupName,
                 deletion.outbounds.size,
             ),
@@ -924,7 +921,11 @@ internal fun OutboundListPage(
                                 operation = "outbound_batch_delete",
                                 onSuccess = {
                                     services.tipNotifier.show(
-                                        resources.getString(R.string.outbound_nodes_deleted, deletion.outbounds.size),
+                                        resources.getQuantityString(
+                                            R.plurals.outbound_proxy_servers_deleted,
+                                            deletion.outbounds.size,
+                                            deletion.outbounds.size,
+                                        ),
                                     )
                                 },
                             )
@@ -1493,7 +1494,7 @@ private fun OutboundOptionsMenu(
                                 },
                             )
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.outbound_delete_nodes)) },
+                                text = { Text(stringResource(R.string.outbound_delete_proxy_servers)) },
                                 leadingIcon = { Icon(Icons.Rounded.Delete, contentDescription = null) },
                                 trailingIcon = { Icon(Icons.Rounded.ChevronRight, contentDescription = null) },
                                 enabled = toolsEnabled,
@@ -1503,7 +1504,7 @@ private fun OutboundOptionsMenu(
 
                         OutboundOptionsMenuLevel.DELETE -> {
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.outbound_delete_nodes)) },
+                                text = { Text(stringResource(R.string.outbound_delete_proxy_servers)) },
                                 leadingIcon = { Icon(Icons.Rounded.ChevronLeft, contentDescription = null) },
                                 onClick = { level = OutboundOptionsMenuLevel.MAIN },
                             )

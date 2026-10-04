@@ -3,7 +3,6 @@
 
 @file:OptIn(
     androidx.compose.foundation.layout.ExperimentalLayoutApi::class,
-    androidx.compose.material3.ExperimentalMaterial3Api::class,
 )
 
 package features.selector
@@ -27,12 +26,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -45,9 +43,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import ui.components.AsteriskScaffold
 import androidx.compose.material3.Text
-import ui.components.AsteriskTopAppBar
 import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -84,6 +80,7 @@ import app.LocalUpdateAppState
 import app.ManagedOutboundChoice
 import app.ManagedOutboundChoiceKind
 import app.OutboundGroupState
+import app.R
 import app.SingBoxSelectorState
 import app.SingBoxSelectorTypeSelector
 import app.SingBoxSelectorTypeUrlTest
@@ -93,9 +90,9 @@ import app.selectableManagedOutbounds
 import app.selectorGroupLockedOutboundTags
 import app.withRemovedManagedOutboundTags
 import engine.singbox.SingBoxUnsigned16Max
-import engine.singbox.isSingBoxDurationNotGreaterThan
 import engine.singbox.config.APP_DIRECT_OUTBOUND
 import engine.singbox.config.validateSingBoxRuntimeConfiguration
+import engine.singbox.isSingBoxDurationNotGreaterThan
 import features.logs.FailureLogContext
 import features.logs.reportFailure
 import features.settings.SettingsDropdownRow
@@ -104,24 +101,26 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import app.R
 import sh.calvin.reorderable.ReorderableItem
 import ui.components.AsteriskActionButton
 import ui.components.AsteriskInfoChip
+import ui.components.AsteriskScaffold
+import ui.components.AsteriskSearchTopAppBar
 import ui.components.EditorPageScaffold
 import ui.components.WarningConfirmDialog
 import ui.components.draggedCardShadow
-import ui.components.rememberReorderPreview
-import ui.components.reorderByIds
 import ui.components.longPressReorderDragHandle
 import ui.components.rememberAsteriskReorderableLazyGridState
+import ui.components.rememberReorderPreview
+import ui.components.reorderByIds
 import ui.components.singBoxOptionLabel
 import ui.components.verticalReorderScrollThresholdPadding
-import ui.icons.AsteriskIcons as Icons
 import ui.layout.pageContentPaddingWithCutout
 import ui.layout.pageListPadding
 import ui.theme.AsteriskMotion
 import ui.theme.AsteriskShapeTokens
+import androidx.compose.foundation.lazy.grid.items as gridItems
+import ui.icons.AsteriskIcons as Icons
 
 @Composable
 internal fun SelectorManagementPage(padding: PaddingValues) {
@@ -241,7 +240,10 @@ internal fun SelectorManagementPage(padding: PaddingValues) {
     AsteriskScaffold(
         topBar = {
             Column {
-                AsteriskTopAppBar(
+                AsteriskSearchTopAppBar(
+                    query = query,
+                    onQueryChange = { query = it },
+                    placeholder = stringResource(R.string.selector_search),
                     title = {
                         Column {
                             Text(stringResource(R.string.selector_management))
@@ -278,12 +280,6 @@ internal fun SelectorManagementPage(padding: PaddingValues) {
                             Icon(Icons.Rounded.Add, stringResource(R.string.selector_add))
                         }
                     },
-                )
-                ui.components.AsteriskPinnedSearchArea(
-                    query = query,
-                    onQueryChange = { query = it },
-                    placeholder = stringResource(R.string.selector_search),
-                    clearContentDescription = stringResource(R.string.common_clear),
                 )
             }
         },
