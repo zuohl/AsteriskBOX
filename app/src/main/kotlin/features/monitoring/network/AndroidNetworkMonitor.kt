@@ -182,25 +182,40 @@ internal class PublicNetworkProbeClient(
                             val body = connection.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
                                 reader.readLimited(PublicProbeMaxResponseChars)
                             }
-                            val parsed = parsePublicProbeResponse(body, endpoint.family, endpoint.target)
-                                ?: return@runCatching PublicProbeAttempt.Failure(
-                                    PublicProbeError.InvalidResponse,
-                                    "Invalid ${endpoint.family.name.uppercase()} address",
-                                    endpoint.host,
-                                )
-                            PublicProbeAttempt.Success(
-                                address = parsed.address,
-                                durationMillis = SystemClock.elapsedRealtime() - startedAt,
-                                endpointHost = endpoint.host,
-                                target = endpoint.target,
-                                country = parsed.country,
-                                countryCode = parsed.countryCode,
-                                region = parsed.region,
-                                city = parsed.city,
-                                isp = parsed.isp,
-                                colo = parsed.colo,
-                                warp = parsed.warp,
-                            )
+                            when (val outcome = parsePublicProbeOutcome(body, endpoint.family, endpoint.target)) {
+                                is PublicProbeParseOutcome.Success -> {
+                                    val parsed = outcome.parsed
+                                    PublicProbeAttempt.Success(
+                                        address = parsed.address,
+                                        durationMillis = SystemClock.elapsedRealtime() - startedAt,
+                                        endpointHost = endpoint.host,
+                                        target = endpoint.target,
+                                        country = parsed.country,
+                                        countryCode = parsed.countryCode,
+                                        region = parsed.region,
+                                        city = parsed.city,
+                                        isp = parsed.isp,
+                                        colo = parsed.colo,
+                                        warp = parsed.warp,
+                                    )
+                                }
+
+                                PublicProbeParseOutcome.FamilyUnavailable -> {
+                                    PublicProbeAttempt.Failure(
+                                        PublicProbeError.Unavailable,
+                                        "",
+                                        endpoint.host,
+                                    )
+                                }
+
+                                PublicProbeParseOutcome.Invalid -> {
+                                    PublicProbeAttempt.Failure(
+                                        PublicProbeError.InvalidResponse,
+                                        "Invalid ${endpoint.family.name.uppercase()} address",
+                                        endpoint.host,
+                                    )
+                                }
+                            }
                         } finally {
                             connectionReference.compareAndSet(connection, null)
                             connection.disconnect()

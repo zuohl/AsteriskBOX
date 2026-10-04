@@ -184,6 +184,9 @@
     <string name="monitor_network_error_request">请求失败</string>
     <string name="monitor_network_error_response">探测服务返回了无效地址</string>
     <string name="monitor_network_error_timeout">请求超时</string>
+    <string name="monitor_network_error_unavailable">未分配地址</string>
+    <string name="monitor_network_probe_unallocated_ipv4">未分配 IPv4 地址</string>
+    <string name="monitor_network_probe_unallocated_ipv6">未分配 IPv6 地址</string>
     <string name="monitor_network_gateway">默认网关</string>
     <string name="monitor_network_interface">网络接口</string>
     <string name="monitor_network_local">本地网络</string>

@@ -53,6 +53,7 @@ internal enum class PublicProbeError {
     Timeout,
     Network,
     InvalidResponse,
+    Unavailable,
 }
 
 internal sealed interface PublicProbeAttempt {
@@ -196,13 +197,19 @@ internal fun formatCloudflareColo(colo: String): String {
     return if (city != upper) "$city ($upper)" else "$upper 机房"
 }
 
-internal fun parsePublicProbeResponse(
+internal sealed interface PublicProbeParseOutcome {
+    data class Success(val parsed: ParsedPublicProbeAddress) : PublicProbeParseOutcome
+    data object FamilyUnavailable : PublicProbeParseOutcome
+    data object Invalid : PublicProbeParseOutcome
+}
+
+internal fun parsePublicProbeOutcome(
     body: String,
     family: AddressFamily,
     target: ProbeTarget = ProbeTarget.General,
-): ParsedPublicProbeAddress? {
+): PublicProbeParseOutcome {
     val trimmed = body.trim()
-    if (trimmed.isEmpty()) return null
+    if (trimmed.isEmpty()) return PublicProbeParseOutcome.Invalid
 
     // 1. Cloudflare cdn-cgi/trace 格式解析 (key=value)
     if (trimmed.contains("fl=") || trimmed.contains("colo=") || target == ProbeTarget.Cloudflare) {
@@ -212,22 +219,30 @@ internal fun parsePublicProbeResponse(
             val value = line.substringAfter('=').trim()
             key to value
         }
-        val ip = map["ip"]?.takeIf { value ->
-            when (family) {
-                AddressFamily.Ipv4 -> isIpv4Address(value)
-                AddressFamily.Ipv6 -> isIpv6Address(value)
+        val rawIp = map["ip"]
+        if (rawIp != null) {
+            val matched = when (family) {
+                AddressFamily.Ipv4 -> isIpv4Address(rawIp)
+                AddressFamily.Ipv6 -> isIpv6Address(rawIp)
             }
-        }
-        if (ip != null) {
-            val loc = map["loc"].orEmpty()
-            val colo = map["colo"].orEmpty()
-            val warp = map["warp"].orEmpty()
-            return ParsedPublicProbeAddress(
-                address = ip,
-                countryCode = loc,
-                colo = colo,
-                warp = warp,
-            )
+            if (matched) {
+                val loc = map["loc"].orEmpty()
+                val colo = map["colo"].orEmpty()
+                val warp = map["warp"].orEmpty()
+                return PublicProbeParseOutcome.Success(
+                    ParsedPublicProbeAddress(
+                        address = rawIp,
+                        countryCode = loc,
+                        colo = colo,
+                        warp = warp,
+                    ),
+                )
+            }
+            if ((family == AddressFamily.Ipv6 && isIpv4Address(rawIp)) ||
+                (family == AddressFamily.Ipv4 && isIpv6Address(rawIp))
+            ) {
+                return PublicProbeParseOutcome.FamilyUnavailable
+            }
         }
     }
 
@@ -235,14 +250,22 @@ internal fun parsePublicProbeResponse(
     if (trimmed.startsWith('{')) {
         return runCatching {
             val json = NetworkProbeJson.parseToJsonElement(trimmed).jsonObject
-            val address = PublicAddressJsonKeys.firstNotNullOfOrNull { key ->
+            val rawAddress = PublicAddressJsonKeys.firstNotNullOfOrNull { key ->
                 json[key]?.jsonPrimitive?.contentOrNull?.trim()?.takeIf(String::isNotEmpty)
-            }?.takeIf { value ->
-                when (family) {
-                    AddressFamily.Ipv4 -> isIpv4Address(value)
-                    AddressFamily.Ipv6 -> isIpv6Address(value)
+            } ?: return@runCatching PublicProbeParseOutcome.Invalid
+
+            val matched = when (family) {
+                AddressFamily.Ipv4 -> isIpv4Address(rawAddress)
+                AddressFamily.Ipv6 -> isIpv6Address(rawAddress)
+            }
+            if (!matched) {
+                if ((family == AddressFamily.Ipv6 && isIpv4Address(rawAddress)) ||
+                    (family == AddressFamily.Ipv4 && isIpv6Address(rawAddress))
+                ) {
+                    return@runCatching PublicProbeParseOutcome.FamilyUnavailable
                 }
-            } ?: return@runCatching null
+                return@runCatching PublicProbeParseOutcome.Invalid
+            }
 
             val country = json["country"]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
             val countryCode = (json["country_code"] ?: json["countryCode"])?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
@@ -251,25 +274,45 @@ internal fun parsePublicProbeResponse(
             val isp = (json["organization_name"] ?: json["organization"] ?: json["isp"] ?: json["org"])
                 ?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
 
-            ParsedPublicProbeAddress(
-                address = address,
-                country = country,
-                countryCode = countryCode,
-                region = region,
-                city = city,
-                isp = isp,
+            PublicProbeParseOutcome.Success(
+                ParsedPublicProbeAddress(
+                    address = rawAddress,
+                    country = country,
+                    countryCode = countryCode,
+                    region = region,
+                    city = city,
+                    isp = isp,
+                ),
             )
-        }.getOrNull()
-    } else {
-        // 3. 纯文本单行 IP
-        val address = trimmed.lineSequence().map(String::trim).firstOrNull(String::isNotEmpty)
-            ?.takeIf { value ->
-                when (family) {
-                    AddressFamily.Ipv4 -> isIpv4Address(value)
-                    AddressFamily.Ipv6 -> isIpv6Address(value)
-                }
-            } ?: return null
-        return ParsedPublicProbeAddress(address = address)
+        }.getOrDefault(PublicProbeParseOutcome.Invalid)
+    }
+
+    // 3. 纯文本单行 IP
+    val rawAddress = trimmed.lineSequence().map(String::trim).firstOrNull(String::isNotEmpty)
+        ?: return PublicProbeParseOutcome.Invalid
+    val matched = when (family) {
+        AddressFamily.Ipv4 -> isIpv4Address(rawAddress)
+        AddressFamily.Ipv6 -> isIpv6Address(rawAddress)
+    }
+    if (matched) {
+        return PublicProbeParseOutcome.Success(ParsedPublicProbeAddress(address = rawAddress))
+    }
+    if ((family == AddressFamily.Ipv6 && isIpv4Address(rawAddress)) ||
+        (family == AddressFamily.Ipv4 && isIpv6Address(rawAddress))
+    ) {
+        return PublicProbeParseOutcome.FamilyUnavailable
+    }
+    return PublicProbeParseOutcome.Invalid
+}
+
+internal fun parsePublicProbeResponse(
+    body: String,
+    family: AddressFamily,
+    target: ProbeTarget = ProbeTarget.General,
+): ParsedPublicProbeAddress? {
+    return when (val outcome = parsePublicProbeOutcome(body, family, target)) {
+        is PublicProbeParseOutcome.Success -> outcome.parsed
+        else -> null
     }
 }
 
@@ -347,10 +390,11 @@ private fun PublicAddressProbeResult.applyAttempt(
         )
 
         is PublicProbeAttempt.Failure -> copy(
+            address = if (attempt.error == PublicProbeError.Unavailable) "" else address,
             endpointHost = attempt.endpointHost,
             error = attempt.error,
             errorMessage = attempt.message,
-            stale = address.isNotEmpty(),
+            stale = if (attempt.error == PublicProbeError.Unavailable) false else address.isNotEmpty(),
         )
     }
 }

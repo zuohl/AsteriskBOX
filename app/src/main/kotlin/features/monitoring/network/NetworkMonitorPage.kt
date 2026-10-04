@@ -203,7 +203,7 @@ private fun PublicAddressFamilyCard(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                if (generalResult.error != null || cloudflareResult.error != null) {
+                if (generalResult.hasRetryableError || cloudflareResult.hasRetryableError) {
                     TextButton(
                         onClick = onRetry,
                         enabled = !refreshing,
@@ -216,6 +216,7 @@ private fun PublicAddressFamilyCard(
             PublicAddressSection(
                 title = stringResource(R.string.monitor_network_probe_general),
                 result = generalResult,
+                family = family,
                 onCopy = { onCopy(familyLabel, it) },
             )
 
@@ -227,16 +228,21 @@ private fun PublicAddressFamilyCard(
             PublicAddressSection(
                 title = stringResource(R.string.monitor_network_probe_cloudflare),
                 result = cloudflareResult,
+                family = family,
                 onCopy = { onCopy(familyLabel, it) },
             )
         }
     }
 }
 
+private val PublicAddressProbeResult.hasRetryableError: Boolean
+    get() = error != null && error != PublicProbeError.Unavailable
+
 @Composable
 private fun PublicAddressSection(
     title: String,
     result: PublicAddressProbeResult,
+    family: AddressFamily,
     onCopy: (String) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -250,13 +256,27 @@ private fun PublicAddressSection(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = result.address.ifBlank { "—" },
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                if (result.error == PublicProbeError.Unavailable) {
+                    Text(
+                        text = stringResource(
+                            if (family == AddressFamily.Ipv6) {
+                                R.string.monitor_network_probe_unallocated_ipv6
+                            } else {
+                                R.string.monitor_network_probe_unallocated_ipv4
+                            }
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    Text(
+                        text = result.address.ifBlank { "—" },
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 if (result.locationSummary.isNotBlank()) {
                     Text(
                         text = result.locationSummary,
@@ -275,13 +295,13 @@ private fun PublicAddressSection(
                     )
                 }
             }
-            if (result.address.isNotBlank()) {
+            if (result.address.isNotBlank() && result.error != PublicProbeError.Unavailable) {
                 IconButton(onClick = { onCopy(result.address) }) {
                     Icon(Icons.Rounded.ContentCopy, stringResource(R.string.monitor_copy_value))
                 }
             }
         }
-        if (result.error != null) {
+        if (result.error != null && result.error != PublicProbeError.Unavailable) {
             Text(
                 result.errorMessage.ifBlank { publicProbeErrorLabel(result.error) },
                 style = MaterialTheme.typography.bodySmall,
@@ -325,6 +345,7 @@ private fun publicProbeErrorLabel(error: PublicProbeError): String = stringResou
         PublicProbeError.Timeout -> R.string.monitor_network_error_timeout
         PublicProbeError.Network -> R.string.monitor_network_error_request
         PublicProbeError.InvalidResponse -> R.string.monitor_network_error_response
+        PublicProbeError.Unavailable -> R.string.monitor_network_error_unavailable
     },
 )
 
