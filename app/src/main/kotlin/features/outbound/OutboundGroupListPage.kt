@@ -170,49 +170,6 @@ internal fun OutboundGroupListPage(
     val subscriptionGroups = appState.outboundGroups.outboundSubscriptionGroups()
     val updateAppState = LocalUpdateAppState.current
     val context = LocalContext.current
-    var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
-    var showAddMenu by remember { mutableStateOf(false) }
-    var pendingDeleteSelector by remember { mutableStateOf<SingBoxSelectorState?>(null) }
-    var deletingSelector by remember { mutableStateOf(false) }
-    val selectorDeleteFailedMessage = stringResource(R.string.selector_save_failed)
-    val customSelectors = appState.selectors
-
-    fun deleteSelector(selector: SingBoxSelectorState) {
-        if (deletingSelector) return
-        deletingSelector = true
-        scope.launch {
-            try {
-                val candidateState = appState.copy(
-                    selectors = appState.selectors.filterNot { item -> item.id == selector.id },
-                ).withRemovedManagedOutboundTags(setOf(selector.tag))
-                withContext(Dispatchers.IO) {
-                    validateSingBoxRuntimeConfiguration(context, candidateState)
-                }
-                var committed = false
-                updateAppState { state ->
-                    if (state !== appState) {
-                        state
-                    } else {
-                        committed = true
-                        candidateState
-                    }
-                }
-                if (!committed) {
-                    services.tipNotifier.show(selectorDeleteFailedMessage)
-                }
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Throwable) {
-                services.tipNotifier.showError(
-                    error,
-                    selectorDeleteFailedMessage,
-                    FailureLogContext(operation = "selector_delete"),
-                )
-            } finally {
-                deletingSelector = false
-            }
-        }
-    }
 
     fun saveGroup(group: OutboundGroupState) {
         val session = groupEditorSession
@@ -441,33 +398,12 @@ internal fun OutboundGroupListPage(
                 title = {
                     Column {
                         Text(stringResource(R.string.outbound_group_management))
-                        val subtitle = when (selectedTabIndex) {
-                            1 -> pluralStringResource(
-                                R.plurals.selector_count,
-                                customSelectors.size,
-                                customSelectors.size,
-                            )
-                            2 -> pluralStringResource(
+                        Text(
+                            text = pluralStringResource(
                                 R.plurals.outbound_group_count,
                                 appState.outboundGroups.size,
                                 appState.outboundGroups.size,
-                            )
-                            else -> {
-                                val groupText = pluralStringResource(
-                                    R.plurals.outbound_group_count,
-                                    appState.outboundGroups.size,
-                                    appState.outboundGroups.size,
-                                )
-                                val selectorText = pluralStringResource(
-                                    R.plurals.selector_count,
-                                    customSelectors.size,
-                                    customSelectors.size,
-                                )
-                                "$groupText · $selectorText"
-                            }
-                        }
-                        Text(
-                            text = subtitle,
+                            ),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -484,50 +420,25 @@ internal fun OutboundGroupListPage(
                     }
                 },
                 actions = {
-                    if (selectedTabIndex != 1) {
-                        IconButton(
-                            onClick = ::syncAllSubscriptions,
-                            enabled = subscriptionGroups.isNotEmpty() &&
-                                syncingGroupIds.isEmpty() &&
-                                batchSyncJob?.isActive != true,
-                        ) {
-                            Icon(
-                                Icons.Rounded.Sync,
-                                stringResource(R.string.outbound_group_sync_all),
-                            )
-                        }
+                    IconButton(
+                        onClick = ::syncAllSubscriptions,
+                        enabled = subscriptionGroups.isNotEmpty() &&
+                            syncingGroupIds.isEmpty() &&
+                            batchSyncJob?.isActive != true,
+                    ) {
+                        Icon(
+                            Icons.Rounded.Sync,
+                            stringResource(R.string.outbound_group_sync_all),
+                        )
                     }
-                    Box {
-                        IconButton(onClick = { showAddMenu = true }) {
-                            Icon(Icons.Rounded.Add, stringResource(R.string.common_add))
-                        }
-                        DropdownMenu(
-                            expanded = showAddMenu,
-                            onDismissRequest = { showAddMenu = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.outbound_group_add)) },
-                                leadingIcon = {
-                                    Icon(Icons.Rounded.Folder, contentDescription = null)
-                                },
-                                onClick = {
-                                    showAddMenu = false
-                                    editorGroup = null
-                                    groupEditorSession += 1
-                                    showGroupEditor = true
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.selector_add)) },
-                                leadingIcon = {
-                                    Icon(Icons.Rounded.Tune, contentDescription = null)
-                                },
-                                onClick = {
-                                    showAddMenu = false
-                                    navigator.push(Route.SelectorEdit(0))
-                                },
-                            )
-                        }
+                    IconButton(
+                        onClick = {
+                            editorGroup = null
+                            groupEditorSession += 1
+                            showGroupEditor = true
+                        },
+                    ) {
+                        Icon(Icons.Rounded.Add, stringResource(R.string.outbound_group_add))
                     }
                 },
             )
@@ -567,33 +478,13 @@ internal fun OutboundGroupListPage(
             }
         }
         val displayedGroups = preview.items
-        val selectorPreview = rememberReorderPreview(
-            appState.selectors,
-            SingBoxSelectorState::id,
-            commitScope = scope,
-        ) { ids ->
-            updateAppState { state ->
-                state.copy(selectors = state.selectors.reorderByIds(ids, SingBoxSelectorState::id))
-            }
-            true
-        }
-        val selectorItems = if (selectedTabIndex == 1) selectorPreview.items else customSelectors
-        val selectorItemsCount = if (selectorItems.isEmpty()) 1 else selectorItems.size
-        val groupsOffset = if (selectedTabIndex == 2) 1 else 3 + selectorItemsCount
-        val groupReorderEnabled = displayedGroups.size > 1 && (selectedTabIndex == 0 || selectedTabIndex == 2)
+        val groupReorderEnabled = displayedGroups.size > 1
         val reorderableState = rememberAsteriskReorderableLazyListState(
             lazyListState = listState,
             itemCount = displayedGroups.size,
-            indexOffset = groupsOffset,
+            indexOffset = 0,
             scrollThresholdPadding = verticalReorderScrollThresholdPadding(listContentPadding),
             onMove = preview.onMove,
-        )
-        val selectorReorderableState = rememberAsteriskReorderableLazyListState(
-            lazyListState = listState,
-            itemCount = selectorPreview.items.size,
-            indexOffset = 1,
-            scrollThresholdPadding = verticalReorderScrollThresholdPadding(listContentPadding),
-            onMove = selectorPreview.onMove,
         )
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -601,162 +492,18 @@ internal fun OutboundGroupListPage(
             contentPadding = listContentPadding,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item(key = "tab-selector") {
-                val tabs = listOf(
-                    stringResource(R.string.outbound_group_tab_all),
-                    stringResource(R.string.outbound_group_tab_selectors),
-                    stringResource(R.string.outbound_group_tab_groups),
-                )
-                SingleChoiceSegmentedButtonRow(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                ) {
-                    tabs.forEachIndexed { index, title ->
-                        SegmentedButton(
-                            selected = selectedTabIndex == index,
-                            onClick = { selectedTabIndex = index },
-                            shape = SegmentedButtonDefaults.itemShape(
-                                index = index,
-                                count = tabs.size,
-                            ),
-                        ) {
-                            Text(title)
-                        }
-                    }
+            if (displayedGroups.isEmpty()) {
+                item(key = "groups-empty") {
+                    OutboundGroupEmptyState(
+                        onAdd = {
+                            editorGroup = null
+                            groupEditorSession += 1
+                            showGroupEditor = true
+                        },
+                    )
                 }
-            }
-            if (selectedTabIndex == 0 || selectedTabIndex == 1) {
-                if (selectedTabIndex == 0) {
-                    item(key = "selectors-header") {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = 4.dp, top = 4.dp, end = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = stringResource(R.string.selector_custom_section),
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                            TextButton(
-                                onClick = { navigator.push(Route.SelectorEdit(0)) },
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                            ) {
-                                Icon(
-                                    Icons.Rounded.Add,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                                Spacer(Modifier.width(4.dp))
-                                Text(
-                                    stringResource(R.string.selector_add),
-                                    style = MaterialTheme.typography.labelMedium,
-                                )
-                            }
-                        }
-                    }
-                }
-                if (selectorItems.isEmpty()) {
-                    item(key = "selectors-empty") {
-                        SelectorCustomEmptyState(
-                            onAdd = { navigator.push(Route.SelectorEdit(0)) },
-                        )
-                    }
-                } else {
-                    items(
-                        items = selectorItems,
-                        key = { selector -> "selector:${selector.id}" },
-                        contentType = { "custom-selector" },
-                    ) { selector ->
-                        val selectorKey = "selector:${selector.id}"
-                        if (selectedTabIndex == 1) {
-                            ReorderableItem(
-                                state = selectorReorderableState.reorderableState,
-                                key = selectorKey,
-                                enabled = selectorPreview.items.size > 1,
-                                modifier = Modifier.fillMaxWidth(),
-                                animateItemModifier = Modifier.animateItem(),
-                            ) { isDragging ->
-                                CustomSelectorCard(
-                                    state = appState,
-                                    selector = selector,
-                                    isDragging = isDragging,
-                                    onEdit = { navigator.push(Route.SelectorEdit(selector.id)) },
-                                    onDelete = { pendingDeleteSelector = selector },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .longPressReorderDragHandle(
-                                            scope = this,
-                                            enabled = selectorPreview.items.size > 1,
-                                            state = selectorReorderableState,
-                                            onDragStarted = selectorPreview.onDragStarted,
-                                            onDragStopped = selectorPreview.onDragStopped,
-                                        ),
-                                )
-                            }
-                        } else {
-                            CustomSelectorCard(
-                                state = appState,
-                                selector = selector,
-                                isDragging = false,
-                                onEdit = { navigator.push(Route.SelectorEdit(selector.id)) },
-                                onDelete = { pendingDeleteSelector = selector },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                    }
-                }
-            }
-            if (selectedTabIndex == 0 || selectedTabIndex == 2) {
-                if (selectedTabIndex == 0) {
-                    item(key = "groups-header") {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = 4.dp, top = 8.dp, end = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = stringResource(R.string.outbound_group_tab_groups),
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                            TextButton(
-                                onClick = {
-                                    editorGroup = null
-                                    groupEditorSession += 1
-                                    showGroupEditor = true
-                                },
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                            ) {
-                                Icon(
-                                    Icons.Rounded.Add,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                                Spacer(Modifier.width(4.dp))
-                                Text(
-                                    stringResource(R.string.outbound_group_add),
-                                    style = MaterialTheme.typography.labelMedium,
-                                )
-                            }
-                        }
-                    }
-                }
-                if (displayedGroups.isEmpty()) {
-                    item(key = "groups-empty") {
-                        OutboundGroupEmptyState(
-                            onAdd = {
-                                editorGroup = null
-                                groupEditorSession += 1
-                                showGroupEditor = true
-                            },
-                        )
-                    }
-                } else {
-                    items(
+            } else {
+                items(
                         items = displayedGroups,
                         key = OutboundGroupState::id,
                         contentType = { "outbound-group" },
@@ -837,113 +584,95 @@ internal fun OutboundGroupListPage(
                     }
                 }
             }
-        }
-        OutboundGroupEditorSheet(
-            show = showGroupEditor,
-            appState = appState,
-            group = editorGroup,
-            editorSession = groupEditorSession,
-            busy = savingGroupEditorSession == groupEditorSession,
-            onDismissRequest = {
-                if (savingGroupEditorSession != groupEditorSession) {
-                    showGroupEditor = false
-                    if (createOnOpen) navigator.pop()
-                }
-            },
-            onSave = ::saveGroup,
-        )
-    }
-
-    batchSyncProgress?.let { progress ->
-        OutboundGroupBatchProgressDialog(
-            progress = progress,
-            cancelling = batchSyncCancelling,
-            onCancel = {
-                batchSyncCancelling = true
-                batchSyncJob?.cancel()
-            },
-        )
-    }
-
-    WarningConfirmDialog(
-        show = pendingDelete != null,
-        title = stringResource(R.string.outbound_group_delete_title),
-        summary = stringResource(
-            R.string.outbound_group_delete_message,
-            pendingDelete?.name.orEmpty(),
-        ),
-        dismissText = stringResource(R.string.common_cancel),
-        confirmText = stringResource(R.string.common_delete),
-        onDismissRequest = { pendingDelete = null },
-        onConfirm = {
-            val groupId = pendingDelete?.id ?: return@WarningConfirmDialog
-            if (deletingGroupId != null) return@WarningConfirmDialog
-            deletingGroupId = groupId
-            scope.launch {
-                try {
-                    when (val result = services.outboundRepository.deleteGroup(groupId)) {
-                        OutboundCommandResult.GroupDeleted -> {
-                            if (pendingDelete?.id == groupId) pendingDelete = null
-                        }
-                        OutboundCommandResult.Conflict ->
-                            services.tipNotifier.show(stateChangedMessage)
-                        is OutboundCommandResult.PersistenceFailed ->
-                            services.tipNotifier.showError(
-                                result.error,
-                                importFailedMessage,
-                                FailureLogContext(
-                                    operation = "outbound_group_delete",
-                                    stage = "persist",
-                                ),
-                            )
-                        is OutboundCommandResult.Invalid ->
-                            services.tipNotifier.show(importFailedMessage)
-                        OutboundCommandResult.Deleted,
-                        OutboundCommandResult.GroupEnabledChanged,
-                        OutboundCommandResult.GroupsReordered,
-                        OutboundCommandResult.ImportPersisted,
-                        OutboundCommandResult.Reordered,
-                        is OutboundCommandResult.Saved,
-                        is OutboundCommandResult.GroupSaved,
-                        -> error("Unexpected outbound group delete result: $result")
+            OutboundGroupEditorSheet(
+                show = showGroupEditor,
+                appState = appState,
+                group = editorGroup,
+                editorSession = groupEditorSession,
+                busy = savingGroupEditorSession == groupEditorSession,
+                onDismissRequest = {
+                    if (savingGroupEditorSession != groupEditorSession) {
+                        showGroupEditor = false
+                        if (createOnOpen) navigator.pop()
                     }
-                } finally {
-                    if (deletingGroupId == groupId) deletingGroupId = null
+                },
+                onSave = ::saveGroup,
+            )
+        }
+
+        batchSyncProgress?.let { progress ->
+            OutboundGroupBatchProgressDialog(
+                progress = progress,
+                cancelling = batchSyncCancelling,
+                onCancel = {
+                    batchSyncCancelling = true
+                    batchSyncJob?.cancel()
+                },
+            )
+        }
+
+        WarningConfirmDialog(
+            show = pendingDelete != null,
+            title = stringResource(R.string.outbound_group_delete_title),
+            summary = stringResource(
+                R.string.outbound_group_delete_message,
+                pendingDelete?.name.orEmpty(),
+            ),
+            dismissText = stringResource(R.string.common_cancel),
+            confirmText = stringResource(R.string.common_delete),
+            onDismissRequest = { pendingDelete = null },
+            onConfirm = {
+                val groupId = pendingDelete?.id ?: return@WarningConfirmDialog
+                if (deletingGroupId != null) return@WarningConfirmDialog
+                deletingGroupId = groupId
+                scope.launch {
+                    try {
+                        when (val result = services.outboundRepository.deleteGroup(groupId)) {
+                            OutboundCommandResult.GroupDeleted -> {
+                                if (pendingDelete?.id == groupId) pendingDelete = null
+                            }
+                            OutboundCommandResult.Conflict ->
+                                services.tipNotifier.show(stateChangedMessage)
+                            is OutboundCommandResult.PersistenceFailed ->
+                                services.tipNotifier.showError(
+                                    result.error,
+                                    importFailedMessage,
+                                    FailureLogContext(
+                                        operation = "outbound_group_delete",
+                                        stage = "persist",
+                                    ),
+                                )
+                            is OutboundCommandResult.Invalid ->
+                                services.tipNotifier.show(importFailedMessage)
+                            OutboundCommandResult.Deleted,
+                            OutboundCommandResult.GroupEnabledChanged,
+                            OutboundCommandResult.GroupsReordered,
+                            OutboundCommandResult.ImportPersisted,
+                            OutboundCommandResult.Reordered,
+                            is OutboundCommandResult.Saved,
+                            is OutboundCommandResult.GroupSaved,
+                            -> error("Unexpected outbound group delete result: $result")
+                        }
+                    } finally {
+                        if (deletingGroupId == groupId) deletingGroupId = null
+                    }
                 }
-            }
-        },
-        busy = deletingGroupId != null,
-    )
-    importResultPresentation?.let { presentation ->
-        ImportResultDialog(
-            presentation = presentation,
-            onDismissRequest = { importResultPresentation = null },
+            },
+            busy = deletingGroupId != null,
         )
+        importResultPresentation?.let { presentation ->
+            ImportResultDialog(
+                presentation = presentation,
+                onDismissRequest = { importResultPresentation = null },
+            )
+        }
+        batchSyncResults?.let { results ->
+            OutboundGroupBatchResultDialog(
+                results = results,
+                onDismissRequest = { batchSyncResults = null },
+            )
+        }
     }
-    batchSyncResults?.let { results ->
-        OutboundGroupBatchResultDialog(
-            results = results,
-            onDismissRequest = { batchSyncResults = null },
-        )
-    }
-    WarningConfirmDialog(
-        show = pendingDeleteSelector != null,
-        title = stringResource(R.string.selector_delete_title),
-        summary = stringResource(
-            R.string.selector_delete_message,
-            pendingDeleteSelector?.remarks.orEmpty(),
-        ),
-        dismissText = stringResource(R.string.common_cancel),
-        confirmText = stringResource(R.string.common_delete),
-        onDismissRequest = { pendingDeleteSelector = null },
-        onConfirm = {
-            val target = pendingDeleteSelector ?: return@WarningConfirmDialog
-            deleteSelector(target)
-            pendingDeleteSelector = null
-        },
-        busy = deletingSelector,
-    )
-}
 
 private data class OutboundGroupBatchEntryPresentation(
     val groupName: String,

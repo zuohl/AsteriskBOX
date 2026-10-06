@@ -20,33 +20,26 @@ import kotlin.math.roundToLong
 import kotlin.time.Duration.Companion.milliseconds
 
 internal fun OutboundState.pingHostOrNull(): String? {
+    return pingTargetOrNull()?.first
+}
+
+internal fun OutboundState.pingTargetOrNull(): Pair<String, Int>? {
     val outbound = runCatching {
         SingBoxJson.parseToJsonElement(json) as? JsonObject
     }.getOrNull() ?: return null
-    return (outbound["server"] as? JsonPrimitive)
+    val host = (outbound["server"] as? JsonPrimitive)
         ?.contentOrNull
         ?.trim()
         ?.removeSurrounding("[", "]")
-        ?.takeIf(String::isNotEmpty)
+        ?.takeIf(String::isNotEmpty) ?: return null
+    val port = (outbound["server_port"] as? JsonPrimitive)
+        ?.contentOrNull
+        ?.trim()
+        ?.toIntOrNull()
+        ?: (outbound["port"] as? JsonPrimitive)?.contentOrNull?.trim()?.toIntOrNull()
+        ?: 443
+    return host to port
 }
-
-internal fun parsePingMillis(output: String): Long? {
-    return PingTimeRegex.find(output)
-        ?.groupValues
-        ?.getOrNull(1)
-        ?.replace(',', '.')
-        ?.toDoubleOrNull()
-        ?.roundToLong()
-}
-
-internal fun buildPingCommand(host: String): List<String> = listOf(
-    if (':' in host) Ping6Executable else PingExecutable,
-    "-c",
-    "1",
-    "-W",
-    PingTimeoutSeconds.toString(),
-    host,
-)
 
 internal suspend fun pingOrFailure(ping: suspend () -> Long): Long {
     return try {
@@ -64,11 +57,11 @@ internal fun interface OutboundPinger {
 
 internal class AndroidOutboundPinger : OutboundPinger {
     override suspend fun ping(outbound: OutboundState): Long {
-        val host = outbound.pingHostOrNull() ?: return FailedPingMillis
+        val (host, port) = outbound.pingTargetOrNull() ?: return FailedPingMillis
         var bestMillis = FailedPingMillis
         repeat(PingAttempts) {
             currentCoroutineContext().ensureActive()
-            val elapsedMillis = pingOnce(host)
+            val elapsedMillis = tcpPingOnce(host, port)
             if (elapsedMillis >= 0L && (bestMillis !in 0L..elapsedMillis)) {
                 bestMillis = elapsedMillis
             }
@@ -76,28 +69,20 @@ internal class AndroidOutboundPinger : OutboundPinger {
         return bestMillis
     }
 
-    private suspend fun pingOnce(host: String): Long {
-        return withTimeoutOrNull(PingProcessTimeoutMillis.milliseconds) {
+    private suspend fun tcpPingOnce(host: String, port: Int): Long {
+        return withTimeoutOrNull(PingTimeoutMillis.milliseconds) {
             withContext(Dispatchers.IO) {
-                var process: Process? = null
+                var socket: java.net.Socket? = null
                 try {
-                    val startedAtNanos = System.nanoTime()
-                    val activeProcess = ProcessBuilder(buildPingCommand(host))
-                        .redirectErrorStream(true)
-                        .start()
-                        .also { startedProcess -> process = startedProcess }
-                    runInterruptible { activeProcess.waitFor() }
-                    val output = activeProcess.inputStream.bufferedReader().use { reader ->
-                        reader.readText()
-                    }
-                    if (activeProcess.exitValue() == 0) {
-                        parsePingMillis(output)
-                            ?: TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAtNanos)
-                    } else {
-                        FailedPingMillis
-                    }
+                    val start = System.nanoTime()
+                    socket = java.net.Socket()
+                    socket.soTimeout = PingTimeoutMillis.toInt()
+                    socket.connect(java.net.InetSocketAddress(host, port), PingTimeoutMillis.toInt())
+                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start)
+                } catch (_: Throwable) {
+                    FailedPingMillis
                 } finally {
-                    process?.destroy()
+                    runCatching { socket?.close() }
                 }
             }
         } ?: FailedPingMillis
@@ -106,8 +91,4 @@ internal class AndroidOutboundPinger : OutboundPinger {
 
 internal const val FailedPingMillis = -1L
 private const val PingAttempts = 2
-private const val PingTimeoutSeconds = 3L
-private const val PingProcessTimeoutMillis = (PingTimeoutSeconds + 1L) * 1_000L
-private const val PingExecutable = "/system/bin/ping"
-private const val Ping6Executable = "/system/bin/ping6"
-private val PingTimeRegex = Regex("""time[=<]\s*(\d+(?:[.,]\d+)?)\s*ms""", RegexOption.IGNORE_CASE)
+private const val PingTimeoutMillis = 3_000L

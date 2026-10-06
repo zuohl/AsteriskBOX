@@ -137,6 +137,19 @@ import ui.layout.pageContentPaddingWithCutout
 import ui.layout.pageListPadding
 import ui.theme.AsteriskMotion
 import ui.theme.AsteriskShapeTokens
+import app.AppState
+import app.SingBoxSelectorState
+import app.LocalHomeServiceControl
+import app.ManagedGlobalSelectorTag
+import app.ManagedDirectOutboundTag
+import app.managedOutboundGroupSelectorTag
+import app.withSelectorSelection
+import app.SingBoxSelectorTypeSelector
+import app.SingBoxSelectorTypeUrlTest
+import ui.components.AsteriskModalBottomSheet
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import ui.icons.AsteriskIcons as Icons
 
@@ -234,6 +247,9 @@ internal fun OutboundListPage(
         ).dp
     }
     var query by rememberSaveable { mutableStateOf("") }
+    val homeServiceControl = LocalHomeServiceControl.current
+    val activeTarget = appState.selectorSelections[ManagedGlobalSelectorTag]?.trim().orEmpty()
+    var showGlobalSelectorSheet by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<OutboundState?>(null) }
     var deletingOutboundId by remember { mutableStateOf<Int?>(null) }
     var pendingBatchDelete by remember { mutableStateOf<OutboundBatchDeletion?>(null) }
@@ -650,6 +666,23 @@ internal fun OutboundListPage(
                                 }
                             }
                         }
+                        val allPinging = selectedOutbounds.any { it.id in pingState.runningIds }
+                        IconButton(
+                            onClick = { pingOutbounds(targets = selectedOutbounds) },
+                            enabled = selectedOutbounds.isNotEmpty() && !allPinging,
+                        ) {
+                            if (allPinging) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Rounded.Speed,
+                                    contentDescription = stringResource(R.string.outbound_ping),
+                                )
+                            }
+                        }
                         OutboundOptionsMenu(
                             onInteractionCountChange = onChildInteractionChange,
                             layout = appState.outboundListLayout,
@@ -710,22 +743,79 @@ internal fun OutboundListPage(
                     },
                 )
                 AsteriskTopBarControls {
-                    if (groups.isNotEmpty()) {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(groups, key = OutboundGroupState::id) { group ->
-                                val index = groups.indexOfFirst { it.id == group.id }
-                                val selected = pagerState.currentPage == index
-                                AsteriskFilterChip(
-                                    selected = selected,
-                                    onClick = {
-                                        launchOperation { pagerState.animateScrollToPage(index) }
-                                    },
-                                    label = buildString {
-                                        append(group.displayName())
-                                        append(" · ")
-                                        append(outboundIndex.count(group.id))
-                                    },
+                    val isServiceRunning = appState.proxyRunning
+                    val (globalTitle, globalSubtitle, globalIcon) = remember(
+                        activeTarget,
+                        appState.outbounds,
+                        appState.selectors,
+                        appState.outboundGroups,
+                    ) {
+                        when {
+                            activeTarget == ManagedDirectOutboundTag -> Triple(
+                                "直连 (Direct)",
+                                "绕过代理直接访问互联网",
+                                Icons.Rounded.Route,
+                            )
+                            appState.selectors.any { it.tag == activeTarget } -> {
+                                val sel = appState.selectors.first { it.tag == activeTarget }
+                                val typeName = if (sel.type == SingBoxSelectorTypeUrlTest) "自动优选" else "策略组"
+                                Triple(
+                                    sel.remarks.ifBlank { sel.tag },
+                                    "策略组调度 · $typeName",
+                                    if (sel.type == SingBoxSelectorTypeUrlTest) Icons.Rounded.Speed else Icons.Rounded.Tune,
                                 )
+                            }
+                            appState.outboundGroups.any { managedOutboundGroupSelectorTag(it.id, it.name) == activeTarget } -> {
+                                val grp = appState.outboundGroups.first { managedOutboundGroupSelectorTag(it.id, it.name) == activeTarget }
+                                Triple(
+                                    grp.name,
+                                    "分组策略调度",
+                                    Icons.Rounded.Folder,
+                                )
+                            }
+                            appState.outbounds.any { it.tag == activeTarget } -> {
+                                val node = appState.outbounds.first { it.tag == activeTarget }
+                                Triple(
+                                    node.remarks.ifBlank { node.tag },
+                                    "单节点直连 (${node.type})",
+                                    Icons.Rounded.Dns,
+                                )
+                            }
+                            else -> Triple(
+                                if (activeTarget.isNotBlank()) activeTarget else "全局出站",
+                                "点击切换出站策略或单节点",
+                                Icons.Rounded.Language,
+                            )
+                        }
+                    }
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        GlobalOutboundStatusCard(
+                            title = globalTitle,
+                            subtitle = globalSubtitle,
+                            icon = globalIcon,
+                            isRunning = isServiceRunning,
+                            onClick = { showGlobalSelectorSheet = true },
+                        )
+                        if (groups.isNotEmpty()) {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(groups, key = OutboundGroupState::id) { group ->
+                                    val index = groups.indexOfFirst { it.id == group.id }
+                                    val selected = pagerState.currentPage == index
+                                    AsteriskFilterChip(
+                                        selected = selected,
+                                        onClick = {
+                                            launchOperation { pagerState.animateScrollToPage(index) }
+                                        },
+                                        label = buildString {
+                                            append(group.displayName())
+                                            append(" · ")
+                                            append(outboundIndex.count(group.id))
+                                        },
+                                    )
+                                }
                             }
                         }
                     }
@@ -812,11 +902,27 @@ internal fun OutboundListPage(
                 dragScrollThresholdBottomPadding = dragScrollThresholdBottomPadding,
                 hasQuery = query.isNotBlank(),
                 columns = columns,
+                activeTarget = activeTarget,
                 reorderEnabled = reorderEnabled,
                 pingState = pingState,
                 onMove = preview.onMove,
                 onDragStarted = preview.onDragStarted,
                 onDragStopped = preview.onDragStopped,
+                onSelect = { outbound ->
+                    val wasSelected = activeTarget == outbound.tag
+                    updateAppState { state ->
+                        state.withSelectorSelection(ManagedGlobalSelectorTag, outbound.tag)
+                    }
+                    if (!appState.proxyRunning) {
+                        if (!homeServiceControl.busy) {
+                            homeServiceControl.toggleService()
+                        }
+                    } else if (!wasSelected) {
+                        if (!homeServiceControl.busy) {
+                            homeServiceControl.restartService()
+                        }
+                    }
+                },
                 onEdit = { outbound ->
                     navigator.push(
                         Route.OutboundEdit(
@@ -954,6 +1060,30 @@ internal fun OutboundListPage(
             onDismissRequest = { importResultPresentation = null },
         )
     }
+
+    GlobalSelectorSheet(
+        show = showGlobalSelectorSheet,
+        onDismissRequest = { showGlobalSelectorSheet = false },
+        activeTarget = activeTarget,
+        selectors = appState.selectors,
+        groups = appState.outboundGroups,
+        onSelectTarget = { tag ->
+            val wasSelected = activeTarget == tag
+            updateAppState { state ->
+                state.withSelectorSelection(ManagedGlobalSelectorTag, tag)
+            }
+            showGlobalSelectorSheet = false
+            if (appState.proxyRunning && !wasSelected) {
+                if (!homeServiceControl.busy) {
+                    homeServiceControl.restartService()
+                }
+            }
+        },
+        onAddSelector = {
+            showGlobalSelectorSheet = false
+            navigator.push(Route.SelectorEdit(0))
+        },
+    )
 }
 
 @Composable
@@ -963,11 +1093,13 @@ private fun OutboundPage(
     dragScrollThresholdBottomPadding: androidx.compose.ui.unit.Dp,
     hasQuery: Boolean,
     columns: Int,
+    activeTarget: String,
     reorderEnabled: Boolean,
     pingState: OutboundPingRuntimeState,
     onMove: (fromIndex: Int, toIndex: Int) -> Unit,
     onDragStarted: () -> Unit,
     onDragStopped: () -> Unit,
+    onSelect: (OutboundState) -> Unit,
     onEdit: (OutboundState) -> Unit,
     onShare: (OutboundState, OutboundShareAction, OutboundShareUrlResult) -> Unit,
     onPing: (OutboundState) -> Unit,
@@ -1050,6 +1182,8 @@ private fun OutboundPage(
                         compact = columns > 1,
                         pingState = pingState,
                         isDragging = isDragging && reorderEnabled,
+                        isSelected = outbound.tag == activeTarget,
+                        onSelect = { onSelect(outbound) },
                         onEdit = { onEdit(outbound) },
                         onShare = { action, result -> onShare(outbound, action, result) },
                         onPing = { onPing(outbound) },
@@ -1076,6 +1210,8 @@ private fun OutboundCard(
     compact: Boolean,
     pingState: OutboundPingRuntimeState,
     isDragging: Boolean,
+    isSelected: Boolean,
+    onSelect: () -> Unit,
     onEdit: () -> Unit,
     onShare: (OutboundShareAction, OutboundShareUrlResult) -> Unit,
     onPing: () -> Unit,
@@ -1090,10 +1226,10 @@ private fun OutboundCard(
         encodeOutboundShareUrl(outbound.json, outbound.remarks)
     }
     val containerColor by animateColorAsState(
-        targetValue = if (isDragging) {
-            MaterialTheme.colorScheme.surfaceContainerHigh
-        } else {
-            MaterialTheme.colorScheme.surfaceContainer
+        targetValue = when {
+            isDragging -> MaterialTheme.colorScheme.surfaceContainerHigh
+            isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+            else -> MaterialTheme.colorScheme.surfaceContainer
         },
         animationSpec = AsteriskMotion.effects(),
         label = "outbound-card-color",
@@ -1109,7 +1245,7 @@ private fun OutboundCard(
         label = "outbound-drag-shadow",
     )
     AsteriskExpressiveCard(
-        onClick = onEdit,
+        onClick = onSelect,
         modifier = modifier
             .fillMaxWidth()
             .height(OutboundCardHeight)
@@ -1124,6 +1260,7 @@ private fun OutboundCard(
                 cornerRadius = AsteriskShapeTokens.PageCardRadius,
             ),
         containerColor = containerColor,
+        border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
     ) {
         Column(
             modifier = Modifier
@@ -1136,20 +1273,34 @@ private fun OutboundCard(
                 verticalAlignment = Alignment.Top,
             ) {
                 Column(modifier = Modifier.weight(1f).padding(top = 2.dp)) {
-                    Text(
-                        text = outbound.remarks.ifBlank { outbound.type },
-                        style = if (compact) {
-                            MaterialTheme.typography.titleSmall.copy(
-                                fontSize = 13.sp,
-                                lineHeight = 17.sp,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = outbound.remarks.ifBlank { outbound.type },
+                            style = if (compact) {
+                                MaterialTheme.typography.titleSmall.copy(
+                                    fontSize = 13.sp,
+                                    lineHeight = 17.sp,
+                                )
+                            } else {
+                                MaterialTheme.typography.titleMedium
+                            },
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                            maxLines = if (compact) 2 else 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Rounded.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp),
                             )
-                        } else {
-                            MaterialTheme.typography.titleMedium
-                        },
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = if (compact) 2 else 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                        }
+                    }
                     item.endpointSummary?.takeUnless { compact }?.let { summary ->
                         Text(
                             text = summary,
@@ -1682,5 +1833,236 @@ private fun TrackOutboundInteraction(active: Boolean, onCountChange: (Int) -> Un
     DisposableEffect(active) {
         if (active) callback(1)
         onDispose { if (active) callback(-1) }
+    }
+}
+
+@Composable
+private fun GlobalOutboundStatusCard(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    isRunning: Boolean,
+    onClick: () -> Unit,
+) {
+    AsteriskExpressiveCard(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = if (isRunning) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        },
+        border = if (isRunning) BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) else null,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.weight(1f),
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (isRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp),
+                )
+                Column {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = if (isRunning) "已连接" else "未连接",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (isRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GlobalSelectorSheet(
+    show: Boolean,
+    onDismissRequest: () -> Unit,
+    activeTarget: String,
+    selectors: List<SingBoxSelectorState>,
+    groups: List<OutboundGroupState>,
+    onSelectTarget: (String) -> Unit,
+    onAddSelector: () -> Unit,
+) {
+    AsteriskModalBottomSheet(
+        show = show,
+        onDismissRequest = onDismissRequest,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "出站策略选择",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                TextButton(
+                    onClick = onAddSelector,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                ) {
+                    Icon(
+                        Icons.Rounded.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        stringResource(R.string.selector_add),
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+            }
+
+            // 直连 Direct
+            SelectorChoiceItem(
+                title = "直连 (Direct)",
+                subtitle = "绕过代理直接访问互联网",
+                icon = Icons.Rounded.Route,
+                selected = activeTarget == ManagedDirectOutboundTag,
+                onClick = { onSelectTarget(ManagedDirectOutboundTag) },
+            )
+
+            // 自定义策略组
+            if (selectors.isNotEmpty()) {
+                Text(
+                    text = "自定义策略组",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                selectors.forEach { selector ->
+                    val isUrlTest = selector.type == SingBoxSelectorTypeUrlTest
+                    SelectorChoiceItem(
+                        title = selector.remarks.ifBlank { selector.tag },
+                        subtitle = if (isUrlTest) "自动优选 (${selector.outbounds.size} 个节点)" else "手动策略组 (${selector.outbounds.size} 个节点)",
+                        icon = if (isUrlTest) Icons.Rounded.Speed else Icons.Rounded.Tune,
+                        selected = activeTarget == selector.tag,
+                        onClick = { onSelectTarget(selector.tag) },
+                    )
+                }
+            }
+
+            // 分组策略组
+            if (groups.isNotEmpty()) {
+                Text(
+                    text = "分组策略",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                groups.forEach { group ->
+                    val tag = managedOutboundGroupSelectorTag(group.id, group.name)
+                    SelectorChoiceItem(
+                        title = group.name,
+                        subtitle = "该分组节点集合策略",
+                        icon = Icons.Rounded.Folder,
+                        selected = activeTarget == tag,
+                        onClick = { onSelectTarget(tag) },
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun SelectorChoiceItem(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    AsteriskExpressiveCard(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)
+        } else {
+            MaterialTheme.colorScheme.surfaceContainer
+        },
+        border = if (selected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f),
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp),
+                )
+                Column {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            RadioButton(
+                selected = selected,
+                onClick = onClick,
+            )
+        }
     }
 }
