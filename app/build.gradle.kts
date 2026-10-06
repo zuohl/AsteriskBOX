@@ -29,11 +29,11 @@ android {
     }
 
     defaultConfig {
-        applicationId = ProjectConfig.PACKAGE_NAME
+        applicationId = LiteConfig.PACKAGE_NAME
         minSdk = ProjectConfig.MIN_SDK
         targetSdk = ProjectConfig.TARGET_SDK
-        versionCode = getGitVersionCode()
-        versionName = ProjectConfig.VERSION_NAME
+        versionCode = LiteConfig.calculateVersionCode()
+        versionName = LiteConfig.resolveVersionName()
     }
 
     androidResources {
@@ -55,7 +55,7 @@ android {
         abi {
             isEnable = !isBuildingAppBundle
             reset()
-            include(*ProjectConfig.SUPPORTED_ANDROID_ABIS.toTypedArray())
+            include(*LiteConfig.SUPPORTED_ANDROID_ABIS.toTypedArray())
             isUniversalApk = false
         }
     }
@@ -163,8 +163,8 @@ val generateProjectInfo = tasks.register<GenerateProjectInfoTask>("generateProje
     description = "Generate ProjectInfo object for the app"
     packageName.set("app")
     projectName.set(ProjectConfig.PROJECT_NAME)
-    versionName.set(ProjectConfig.VERSION_NAME)
-    versionCode.set(getGitVersionCode())
+    versionName.set(LiteConfig.resolveVersionName())
+    versionCode.set(LiteConfig.calculateVersionCode())
     androidLibBoxLiteVersion.set(ProjectConfig.ANDROID_LIB_BOX_LITE_VERSION)
     hevSocks5TunnelVersion.set(ProjectConfig.HEV_SOCKS5_TUNNEL_VERSION)
     outputDirectory.set(generatedSrcDir.map { it.dir("kotlin") })

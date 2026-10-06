@@ -15,7 +15,7 @@ android {
     defaultConfig {
         minSdk = ProjectConfig.MIN_SDK
         ndk {
-            abiFilters += ProjectConfig.SUPPORTED_ANDROID_ABIS
+            abiFilters += LiteConfig.SUPPORTED_ANDROID_ABIS
         }
     }
 
@@ -45,7 +45,7 @@ val buildAsteriskd = tasks.register<BuildAsteriskdTask>("buildAsteriskd") {
         .takeIf { it.asFile.exists() }
         ?.let(localPropertiesFile::set)
     minSdk.set(ProjectConfig.MIN_SDK)
-    targetAbis.set(ProjectConfig.SUPPORTED_ANDROID_ABIS)
+    targetAbis.set(LiteConfig.SUPPORTED_ANDROID_ABIS)
 }
 
 tasks.named("preBuild") {
