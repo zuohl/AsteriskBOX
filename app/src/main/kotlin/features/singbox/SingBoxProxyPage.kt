@@ -84,6 +84,7 @@ import androidx.compose.ui.unit.sp
 import app.AppServices
 import app.LocalAppServices
 import app.LocalAppStateStore
+import app.LocalHomeServiceControl
 import app.LocalIsWideScreen
 import app.LocalNavigator
 import app.LocalUpdateAppState
@@ -730,6 +731,7 @@ private fun SingBoxProxyOptionsMenu(
     onLayoutChange: (Int) -> Unit,
     onSortChange: (Int) -> Unit,
     onOpenOutbounds: () -> Unit,
+    onRestartService: (() -> Unit)? = null,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     var level by rememberSaveable { mutableStateOf(ProxyOptionsLevel.Main) }
@@ -819,6 +821,16 @@ private fun SingBoxProxyOptionsMenu(
                         },
                         leadingIcon = { Icon(Icons.Rounded.AltRoute, contentDescription = null) },
                     )
+                    if (onRestartService != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.proxy_service_restart_action)) },
+                            onClick = {
+                                dismissMenu()
+                                onRestartService()
+                            },
+                            leadingIcon = { Icon(Icons.Rounded.Refresh, contentDescription = null) },
+                        )
+                    }
                 }
 
                 ProxyOptionsLevel.Layout -> {

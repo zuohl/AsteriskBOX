@@ -153,7 +153,7 @@ internal class SingBoxRuntimeRepository(
         reloadConfiguration(appState)
     }
 
-    private suspend fun reloadConfiguration(appState: AppState) {
+    internal suspend fun reloadConfiguration(appState: AppState) {
         if (!appState.proxyRunning) return
         val active = requireActiveSession(appState)
         val activeGeneration = synchronized(sessionLock) {

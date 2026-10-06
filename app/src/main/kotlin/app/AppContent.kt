@@ -526,6 +526,7 @@ internal class HomeServiceControl(private val operationState: HomeServiceOperati
     val serviceOperationInProgress: Boolean get() = operation != HomeServiceOperation.Idle
     val busy: Boolean get() = serviceOperationInProgress || modeOperationInProgress
     var toggleService: () -> Unit = {}
+    var restartService: () -> Unit = {}
 }
 
 internal val LocalHomeServiceControl = staticCompositionLocalOf<HomeServiceControl> {
@@ -542,8 +543,9 @@ private fun rememberHomeServiceControl(): HomeServiceControl {
     val stopFailedMessage = stringResource(R.string.sing_box_dashboard_stop_failed)
     val serviceStartedMessage = stringResource(R.string.proxy_service_started)
     val serviceStoppedMessage = stringResource(R.string.proxy_service_stopped)
+    val serviceRestartedMessage = stringResource(R.string.proxy_service_restarted)
 
-    suspend fun handleProxyServiceResult(result: ProxyServiceResult, wasRunning: Boolean) {
+    suspend fun handleProxyServiceResult(result: ProxyServiceResult, wasRunning: Boolean, isRestart: Boolean = false) {
         when (result) {
             is ProxyServiceResult.Success -> {
                 updateAppState { state ->
@@ -553,10 +555,10 @@ private fun rememberHomeServiceControl(): HomeServiceControl {
                         singBoxControlPort = result.appState?.singBoxControlPort ?: state.singBoxControlPort,
                     )
                 }
-                val serviceMessage = if (result.proxyRunning) {
-                    serviceStartedMessage
-                } else {
-                    serviceStoppedMessage
+                val serviceMessage = when {
+                    isRestart && result.proxyRunning -> serviceRestartedMessage
+                    result.proxyRunning -> serviceStartedMessage
+                    else -> serviceStoppedMessage
                 }
                 services.tipNotifier.show(serviceMessage)
             }
@@ -584,6 +586,27 @@ private fun rememberHomeServiceControl(): HomeServiceControl {
             }
         }
     }
+
+    control.restartService = restart@{
+        if (control.busy) return@restart
+        val stateSnapshot = stateStore.state.value
+        if (!stateSnapshot.proxyRunning) {
+            control.toggleService()
+            return@restart
+        }
+        control.operation = HomeServiceOperation.Restarting
+        services.appScope.launch {
+            try {
+                handleProxyServiceResult(
+                    result = services.proxyServiceUseCase.restart(stateSnapshot),
+                    wasRunning = true,
+                    isRestart = true,
+                )
+            } finally {
+                control.operation = HomeServiceOperation.Idle
+            }
+        }
+    }
     return control
 }
 
@@ -595,6 +618,7 @@ private fun HomeServicePowerButton(modifier: Modifier = Modifier) {
         when (control.operation) {
             HomeServiceOperation.Starting -> R.string.home_service_starting
             HomeServiceOperation.Stopping -> R.string.home_service_stopping
+            HomeServiceOperation.Restarting -> R.string.proxy_service_restarting
             HomeServiceOperation.Idle -> if (appState.proxyRunning) R.string.home_service_stop else R.string.home_service_start
         },
     )
