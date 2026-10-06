@@ -1063,6 +1063,7 @@
     <string name="proxy_service_restarted">Proxy service restarted</string>
     <string name="proxy_service_restarting">Restarting…</string>
     <string name="proxy_service_reloaded">Settings saved and applied</string>
+    <string name="proxy_service_reload_requires_restart">Settings saved, please restart proxy to apply</string>
     <string name="proxy_service_restart_action">Restart proxy</string>
     <string name="settings_proxy_bpf2socks">Proxy settings (BPF2SOCKS)</string>
     <string name="settings_proxy_ebpf">Proxy settings (eBPF)</string>

@@ -31,6 +31,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.milliseconds
+import ui.feedback.AndroidToastTipNotifier
 
 internal class SingBoxRuntimeRepository(
     private val appScope: CoroutineScope,
@@ -176,6 +177,25 @@ internal class SingBoxRuntimeRepository(
             } else {
                 error("ROOT runtime configuration changes require a supervised restart")
             }
+        }
+    }
+
+    internal suspend fun applyConfigurationChange(
+        appState: AppState,
+        tipNotifier: AndroidToastTipNotifier? = null,
+    ) {
+        if (!appState.proxyRunning) return
+        if (appState.runMode == RunModeVpnService) {
+            val result = runCatching {
+                reloadConfiguration(appState)
+            }
+            if (result.isSuccess) {
+                tipNotifier?.show(appContext.getString(app.R.string.proxy_service_reloaded))
+            } else {
+                tipNotifier?.show(appContext.getString(app.R.string.proxy_service_reload_requires_restart))
+            }
+        } else {
+            tipNotifier?.show(appContext.getString(app.R.string.proxy_service_reload_requires_restart))
         }
     }
 

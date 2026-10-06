@@ -1047,6 +1047,7 @@
     <string name="proxy_service_restarted">代理服务已重启</string>
     <string name="proxy_service_restarting">正在重启…</string>
     <string name="proxy_service_reloaded">配置已保存并生效</string>
+    <string name="proxy_service_reload_requires_restart">配置已保存，请重启代理以生效</string>
     <string name="proxy_service_restart_action">重启代理</string>
     <string name="settings_proxy_bpf2socks">代理设置（BPF2SOCKS）</string>
     <string name="settings_proxy_ebpf">代理设置（eBPF）</string>
