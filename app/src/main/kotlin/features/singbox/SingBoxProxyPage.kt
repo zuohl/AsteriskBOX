@@ -917,6 +917,7 @@ private fun SingBoxProxyNodeCard(
                 protocol = node.type,
                 delay = node.delay,
                 delayStatus = delayStatus,
+                delayUpdatedAtEpochSeconds = node.delayUpdatedAtEpochSeconds,
                 selected = selected,
                 testing = testing,
                 enabled = delayTestEnabled,
@@ -943,12 +944,15 @@ private fun ProtocolDelayLine(
     protocol: String,
     delay: Int?,
     delayStatus: SingBoxProxyDelayStatus,
+    delayUpdatedAtEpochSeconds: Long?,
     selected: Boolean,
     testing: Boolean,
     enabled: Boolean,
     compact: Boolean,
     onClick: () -> Unit,
 ) {
+    val isStale = delayUpdatedAtEpochSeconds != null &&
+        (System.currentTimeMillis() / 1000L - delayUpdatedAtEpochSeconds > StaleDelayThresholdSeconds)
     val delayText = when (delayStatus) {
         SingBoxProxyDelayStatus.NotTested ->
             stringResource(R.string.sing_box_proxies_delay_not_tested)
@@ -1010,7 +1014,7 @@ private fun ProtocolDelayLine(
                             MaterialTheme.typography.labelMedium
                         },
                         fontWeight = FontWeight.Medium,
-                        color = delayColor(delayStatus, delay),
+                        color = delayColor(delayStatus, delay, isStale),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.End,
@@ -1128,9 +1132,10 @@ private fun SingBoxProxyLoadingCard() {
 private fun delayColor(
     delayStatus: SingBoxProxyDelayStatus,
     delay: Int?,
+    isStale: Boolean = false,
 ): Color {
     val darkTheme = isInDarkTheme()
-    return when (delayStatus) {
+    val baseColor = when (delayStatus) {
         SingBoxProxyDelayStatus.NotTested, SingBoxProxyDelayStatus.Testing -> MaterialTheme.colorScheme.onSurfaceVariant
         SingBoxProxyDelayStatus.Failed -> if (darkTheme) Color(0xFFF12522) else Color(0xFFE94634)
         SingBoxProxyDelayStatus.Measured -> when {
@@ -1142,9 +1147,16 @@ private fun delayColor(
             else -> if (darkTheme) Color(0xFFF12522) else Color(0xFFE94634)
         }
     }
+    return if (isStale && delayStatus == SingBoxProxyDelayStatus.Measured) {
+        baseColor.copy(alpha = 0.55f)
+    } else {
+        baseColor
+    }
 }
 
 private val SingBoxProxyNodeCardHeight = 112.dp
 private val SingBoxProxyNodeCardPadding = PaddingValues(start = 10.dp, top = 14.dp, end = 10.dp, bottom = 10.dp)
 private val SingBoxProxyNodeGridSpacing = 12.dp
 private val SingBoxFloatingToolbarBottomSpacing = 16.dp
+private const val StaleDelayThresholdSeconds = 3600L // 1 hour
+

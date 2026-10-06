@@ -42,6 +42,7 @@ internal class SingBoxRuntimeRepository(
     private val trafficHistoryLock = Any()
     private val sessionLock = Any()
     private val delayTestRunGate = SingBoxDelayTestRunGate()
+    private val proxyDelayCache = SingBoxProxyDelayCache(context)
     @Volatile
     private var session: SingBoxCommandClient? = null
     private var sessionTarget: SingBoxCommandTarget? = null
@@ -92,6 +93,7 @@ internal class SingBoxRuntimeRepository(
         if (previous != null) {
             appScope.launch(Dispatchers.IO) { previous.disconnect() }
         }
+        proxyDelayCache.flush()
         latestConnections = SingBoxConnectionsState()
         if (resetSnapshots) {
             synchronized(trafficHistoryLock) { trafficHistory.clear() }
@@ -365,8 +367,10 @@ internal class SingBoxRuntimeRepository(
             }
 
             override fun onProxies(proxies: SingBoxProxiesState) {
+                proxyDelayCache.record(proxies)
+                val enriched = proxyDelayCache.enrich(proxies)
                 updateIfCurrent(listenerGeneration) { current ->
-                    current.withProxySnapshot(proxies)
+                    current.withProxySnapshot(enriched)
                 }
             }
 
