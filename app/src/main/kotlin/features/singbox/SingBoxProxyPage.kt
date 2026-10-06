@@ -93,6 +93,7 @@ import app.collectAppState
 import app.isManagedSingBoxTag
 import app.managedOutboundGroupSelectorTag
 import app.managedTagIdentityOrNull
+import app.ManagedTagKind
 import app.navigation.Route
 import app.selectableManagedOutbounds
 import app.withSelectorSelection
@@ -819,7 +820,7 @@ private fun SingBoxProxyOptionsMenu(
                             dismissMenu()
                             onOpenOutbounds()
                         },
-                        leadingIcon = { Icon(Icons.Rounded.AltRoute, contentDescription = null) },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Rounded.AltRoute, contentDescription = null) },
                     )
                     if (onRestartService != null) {
                         DropdownMenuItem(
