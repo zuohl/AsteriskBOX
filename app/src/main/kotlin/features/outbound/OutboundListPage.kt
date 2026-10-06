@@ -104,6 +104,7 @@ import app.modes.OutboundListSortRealLatency
 import app.modes.OutboundListSortType
 import app.navigation.Route
 import app.navigation.MainDestination
+import engine.singbox.config.APP_ALL_NODES_TEST_SELECTOR
 import engine.singbox.config.validateSingBoxRuntimeConfiguration
 import features.importing.ImportOperation
 import features.importing.ImportResultDialog
@@ -741,6 +742,7 @@ internal fun OutboundListPage(
                             onClick = {
                                 if (appState.proxyRunning) {
                                     val groupToTest = when {
+                                        runtimeState.proxies.groups.any { it.name == APP_ALL_NODES_TEST_SELECTOR } -> APP_ALL_NODES_TEST_SELECTOR
                                         isSelectorMode -> activeTarget
                                         runtimeState.proxies.groups.isNotEmpty() -> runtimeState.proxies.groups.first().name
                                         else -> ""
@@ -757,7 +759,6 @@ internal fun OutboundListPage(
                                                     services.tipNotifier.show(it.message ?: context.getString(R.string.sing_box_proxies_delay_failed))
                                                 }
                                         }
-                                        // 极简模式或部分节点不在内核组中时，剩余节点通过底层网络 ping 补充测速
                                         val remainingTargets = selectedOutbounds.filter { it.tag !in kernelNodeNames }
                                         if (remainingTargets.isNotEmpty()) {
                                             pingOutbounds(targets = remainingTargets)
@@ -766,7 +767,7 @@ internal fun OutboundListPage(
                                         pingOutbounds(targets = selectedOutbounds)
                                     }
                                 } else {
-                                    // 未启动代理情况下直接执行 ping 测速
+                                    // 未启动代理情况下直接执行真实独立测速
                                     pingOutbounds(targets = selectedOutbounds)
                                 }
                             },

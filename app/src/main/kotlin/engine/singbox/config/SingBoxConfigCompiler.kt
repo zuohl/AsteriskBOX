@@ -62,6 +62,7 @@ import kotlinx.serialization.json.putJsonObject
 import java.io.File
 
 internal const val APP_GLOBAL_SELECTOR = ManagedGlobalSelectorTag
+internal const val APP_ALL_NODES_TEST_SELECTOR = "__all_nodes_test__"
 internal const val APP_LOCAL_INBOUND = ManagedLocalInboundTag
 internal const val APP_TUN_INBOUND = ManagedTunInboundTag
 internal const val APP_DIRECT_OUTBOUND = ManagedDirectOutboundTag
@@ -527,6 +528,11 @@ internal fun compileOutbounds(root: JsonObject, appState: AppState): JsonArray {
         requiredOutbounds.values.forEach { ob ->
             retainedSingle += compileOutboundObject(ob)
         }
+        val standbyOutbounds = appState.outbounds
+            .filter { it.groupId in enabledGroupIds && it.tag !in allSingleTags }
+        standbyOutbounds.forEach { ob ->
+            retainedSingle += compileOutboundObject(ob)
+        }
         retainedSingle += buildJsonObject {
             put("type", "direct")
             put("tag", APP_DIRECT_OUTBOUND)
@@ -541,6 +547,14 @@ internal fun compileOutbounds(root: JsonObject, appState: AppState): JsonArray {
             }
             put("default", activeTarget)
             put("interrupt_exist_connections", true)
+        }
+        retainedSingle += buildJsonObject {
+            put("type", "selector")
+            put("tag", APP_ALL_NODES_TEST_SELECTOR)
+            putJsonArray("outbounds") {
+                (allSingleTags + standbyOutbounds.map { it.tag }).distinct().forEach(::add)
+            }
+            put("interrupt_exist_connections", false)
         }
         return JsonArray(retainedSingle.map { (it as? JsonObject)?.let(::sanitizeOutboundXhttpUtls) ?: it })
     }
@@ -739,10 +753,18 @@ internal fun compileOutbounds(root: JsonObject, appState: AppState): JsonArray {
         )
         put("interrupt_exist_connections", true)
     }
+    retained += buildJsonObject {
+        put("type", "selector")
+        put("tag", APP_ALL_NODES_TEST_SELECTOR)
+        putJsonArray("outbounds") {
+            managedTags.forEach(::add)
+        }
+        put("interrupt_exist_connections", false)
+    }
     return JsonArray(retained.map { (it as? JsonObject)?.let(::sanitizeOutboundXhttpUtls) ?: it })
 }
 
-private fun OutboundState.shouldRetainRawGroupedOutbound(parsed: JsonObject): Boolean {
+internal fun OutboundState.shouldRetainRawGroupedOutbound(parsed: JsonObject): Boolean {
     if (
         type != SingBoxSelectorTypeSelector &&
         type != SingBoxSelectorTypeUrlTest

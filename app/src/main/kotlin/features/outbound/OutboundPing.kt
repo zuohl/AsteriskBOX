@@ -3,21 +3,20 @@
 
 package features.outbound
 
+import android.content.Context
+import app.AppState
 import app.OutboundState
+import engine.singbox.config.APP_ALL_NODES_TEST_SELECTOR
 import engine.singbox.config.SingBoxJson
+import engine.singbox.runtime.SingBoxRuntimeRepository
+import engine.singbox.runtime.SingBoxStandaloneUrlTester
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.runInterruptible
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
-import java.util.concurrent.TimeUnit
-import kotlin.math.roundToLong
-import kotlin.time.Duration.Companion.milliseconds
 
 internal fun OutboundState.pingHostOrNull(): String? {
     return pingTargetOrNull()?.first
@@ -51,44 +50,95 @@ internal suspend fun pingOrFailure(ping: suspend () -> Long): Long {
     }
 }
 
-internal fun interface OutboundPinger {
+internal interface OutboundPinger {
     suspend fun ping(outbound: OutboundState): Long
+
+    suspend fun pingBatch(
+        outbounds: List<OutboundState>,
+        onProgress: (outboundId: Int, latencyMillis: Long) -> Unit,
+    ): Map<Int, Long> {
+        return outbounds.associate { outbound ->
+            val latency = ping(outbound)
+            onProgress(outbound.id, latency)
+            outbound.id to latency
+        }
+    }
 }
 
-internal class AndroidOutboundPinger : OutboundPinger {
+internal class RealDelayPinger(
+    private val context: Context,
+    private val singBoxRuntime: SingBoxRuntimeRepository,
+    private val getAppState: () -> AppState,
+) : OutboundPinger {
     override suspend fun ping(outbound: OutboundState): Long {
-        val (host, port) = outbound.pingTargetOrNull() ?: return FailedPingMillis
-        var bestMillis = FailedPingMillis
-        repeat(PingAttempts) {
-            currentCoroutineContext().ensureActive()
-            val elapsedMillis = tcpPingOnce(host, port)
-            if (elapsedMillis >= 0L && (bestMillis !in 0L..elapsedMillis)) {
-                bestMillis = elapsedMillis
-            }
+        val appState = getAppState()
+        return if (appState.proxyRunning) {
+            val result = singBoxRuntime.testProxyDelay(appState, outbound.tag)
+            val delay = result.getOrNull()?.delays?.get(outbound.tag)
+            if (delay != null && delay > 0) delay.toLong() else FailedPingMillis
+        } else {
+            val detours = appState.outboundGroups.associate { it.id to it.detour }
+            val results = SingBoxStandaloneUrlTester.testOutbounds(
+                context = context,
+                outbounds = listOf(outbound),
+                groupDetours = detours,
+            )
+            results[outbound.id] ?: FailedPingMillis
         }
-        return bestMillis
     }
 
-    private suspend fun tcpPingOnce(host: String, port: Int): Long {
-        return withTimeoutOrNull(PingTimeoutMillis.milliseconds) {
-            withContext(Dispatchers.IO) {
-                var socket: java.net.Socket? = null
-                try {
-                    val start = System.nanoTime()
-                    socket = java.net.Socket()
-                    socket.soTimeout = PingTimeoutMillis.toInt()
-                    socket.connect(java.net.InetSocketAddress(host, port), PingTimeoutMillis.toInt())
-                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start)
-                } catch (_: Throwable) {
-                    FailedPingMillis
-                } finally {
-                    runCatching { socket?.close() }
+    override suspend fun pingBatch(
+        outbounds: List<OutboundState>,
+        onProgress: (outboundId: Int, latencyMillis: Long) -> Unit,
+    ): Map<Int, Long> {
+        val appState = getAppState()
+        return if (appState.proxyRunning) {
+            // 代理运行中：通过主内核测试
+            val groupResult = singBoxRuntime.testGroupDelay(appState, APP_ALL_NODES_TEST_SELECTOR)
+            if (groupResult.isSuccess) {
+                val groupDelays = groupResult.getOrNull()?.delays.orEmpty()
+                outbounds.associate { ob ->
+                    val delay = groupDelays[ob.tag]?.takeIf { it > 0 }?.toLong() ?: FailedPingMillis
+                    onProgress(ob.id, delay)
+                    ob.id to delay
+                }
+            } else {
+                // 回退为单节点并发测速
+                coroutineScope {
+                    outbounds.map { ob ->
+                        async {
+                            val res = singBoxRuntime.testProxyDelay(appState, ob.tag)
+                            val delay = res.getOrNull()?.delays?.get(ob.tag)?.takeIf { it > 0 }?.toLong() ?: FailedPingMillis
+                            onProgress(ob.id, delay)
+                            ob.id to delay
+                        }
+                    }.awaitAll().toMap()
                 }
             }
-        } ?: FailedPingMillis
+        } else {
+            // 代理未运行：通过独立无 TUN 实例进行真实 URLTest
+            val detours = appState.outboundGroups.associate { it.id to it.detour }
+            SingBoxStandaloneUrlTester.testOutbounds(
+                context = context,
+                outbounds = outbounds,
+                groupDetours = detours,
+                onProgress = onProgress,
+            )
+        }
     }
+}
+
+internal class AndroidOutboundPinger(
+    private val delegate: OutboundPinger? = null,
+) : OutboundPinger {
+    override suspend fun ping(outbound: OutboundState): Long =
+        delegate?.ping(outbound) ?: FailedPingMillis
+
+    override suspend fun pingBatch(
+        outbounds: List<OutboundState>,
+        onProgress: (outboundId: Int, latencyMillis: Long) -> Unit,
+    ): Map<Int, Long> =
+        delegate?.pingBatch(outbounds, onProgress) ?: outbounds.associate { it.id to FailedPingMillis }
 }
 
 internal const val FailedPingMillis = -1L
-private const val PingAttempts = 2
-private const val PingTimeoutMillis = 3_000L

@@ -105,21 +105,17 @@ internal class OutboundPingRuntimeRepository(
             var cancelled = false
 
             try {
-                supervisorScope {
-                    plan.targets.map { outbound ->
-                        launch {
-                            val latencyMillis = semaphore.withPermit {
-                                pingOrFailure { pinger.ping(outbound) }
-                            }
-                            recordCompletion(
-                                Completion(
-                                    identity = plan.identities.getValue(outbound.id),
-                                    batchId = plan.batchId,
-                                    latencyMillis = latencyMillis,
-                                )
+                pinger.pingBatch(plan.targets) { outboundId, latencyMillis ->
+                    val identity = plan.identities[outboundId]
+                    if (identity != null) {
+                        recordCompletion(
+                            Completion(
+                                identity = identity,
+                                batchId = plan.batchId,
+                                latencyMillis = latencyMillis,
                             )
-                        }
-                    }.joinAll()
+                        )
+                    }
                 }
             } catch (error: CancellationException) {
                 cancelled = true

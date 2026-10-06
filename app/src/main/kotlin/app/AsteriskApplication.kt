@@ -15,7 +15,7 @@ import data.AndroidAppStateStore
 import data.AppSettingsPreferences
 import engine.singbox.config.validateSingBoxRuntimeConfiguration
 import features.outbound.parseOutboundImportContent
-import features.outbound.AndroidOutboundPinger
+import features.outbound.RealDelayPinger
 import features.outbound.OutboundListProjectionCache
 import features.outbound.OutboundCommandResult
 import features.outbound.OutboundPingRuntimeRepository
@@ -54,7 +54,11 @@ class AsteriskApplication : Application(), SingletonImageLoader.Factory {
     internal val outboundPingRuntime: OutboundPingRuntimeRepository by lazy {
         OutboundPingRuntimeRepository(
             scope = appScope,
-            pinger = AndroidOutboundPinger(),
+            pinger = RealDelayPinger(
+                context = applicationContext,
+                singBoxRuntime = singBoxRuntime,
+                getAppState = { stateStore.state.value },
+            ),
         )
     }
     internal val outboundListProjectionCache: OutboundListProjectionCache by lazy {
