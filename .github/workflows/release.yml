@@ -7,6 +7,11 @@ on:
         description: "Override output file version name, for example 1.0.1"
         required: false
         type: string
+      sing_box_tag:
+        description: "Kernel sing-box release tag (leave empty for latest)"
+        required: false
+        type: string
+        default: ""
       send_to_telegram:
         description: "Upload arm64-v8a release APKs to Telegram"
         required: true
@@ -197,14 +202,26 @@ jobs:
 
       - name: Prepare trimmed libbox.aar
         shell: bash
+        env:
+          REQUESTED_KERNEL_TAG: ${{ github.event.inputs.sing_box_tag }}
         run: |
           mkdir -p app/libs
           if [ ! -f "app/libs/libbox.aar" ]; then
-            echo "Fetching trimmed libbox.aar from sing-box release v1.15.0-lite..."
-            curl -sSL -f -o app/libs/libbox.aar https://github.com/zuohl/sing-box/releases/download/v1.15.0-lite/libbox.aar || {
-              echo "Warning: Failed to fetch trimmed libbox.aar from release, falling back to default ivy dependency."
-              rm -f app/libs/libbox.aar
-            }
+            if [ -n "$REQUESTED_KERNEL_TAG" ]; then
+              KERNEL_URL="https://github.com/zuohl/sing-box/releases/download/${REQUESTED_KERNEL_TAG}/libbox.aar"
+              echo "Fetching trimmed libbox.aar from specified kernel release: $REQUESTED_KERNEL_TAG..."
+            else
+              KERNEL_URL="https://github.com/zuohl/sing-box/releases/latest/download/libbox.aar"
+              echo "Fetching trimmed libbox.aar from latest kernel release..."
+            fi
+
+            if ! curl -sSL -f -o app/libs/libbox.aar "$KERNEL_URL"; then
+              echo "Warning: Failed to fetch from $KERNEL_URL, falling back to v1.15.0-lite..."
+              curl -sSL -f -o app/libs/libbox.aar https://github.com/zuohl/sing-box/releases/download/v1.15.0-lite/libbox.aar || {
+                echo "Warning: Failed to fetch fallback libbox.aar, falling back to default ivy dependency."
+                rm -f app/libs/libbox.aar
+              }
+            fi
           fi
           if [ -f "app/libs/libbox.aar" ]; then
             echo "Successfully prepared trimmed libbox.aar ($(ls -lh app/libs/libbox.aar | awk '{print $5}'))"
