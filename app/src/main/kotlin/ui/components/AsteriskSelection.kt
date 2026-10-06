@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 internal fun AsteriskSelectionCard(
     selected: Boolean,
     onClick: (() -> Unit)?,
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
@@ -24,6 +25,7 @@ internal fun AsteriskSelectionCard(
         selected = selected,
         enabled = enabled,
         onClick = onClick,
+        onLongClick = onLongClick,
         containerColor = containerColor,
         selectedContainerColor = selectedContainerColor,
         content = content,

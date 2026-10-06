@@ -6,6 +6,7 @@ package ui.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -34,6 +35,7 @@ internal fun AsteriskExpressiveCard(
     expanded: Boolean = false,
     enabled: Boolean = true,
     onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
     selectedContainerColor: Color = MaterialTheme.colorScheme.surfaceContainerHighest,
     border: BorderStroke? = null,
@@ -47,12 +49,32 @@ internal fun AsteriskExpressiveCard(
         else -> ExpressiveInteractionState.Rest
     }
     val shape = rememberExpressiveShape(role, interactionState)
-    val cardModifier = if (onClick == null) modifier else modifier.heightIn(min = 48.dp)
+    val cardModifier = if (onClick == null && onLongClick == null) modifier else modifier.heightIn(min = 48.dp)
     val colors = CardDefaults.cardColors(
         containerColor = if (selected) selectedContainerColor else containerColor,
     )
 
-    if (onClick == null) {
+    if (onLongClick != null && onClick != null) {
+        Card(
+            modifier = cardModifier,
+            shape = shape,
+            colors = colors,
+            border = border,
+        ) {
+            androidx.compose.foundation.layout.Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .androidx.compose.foundation.combinedClickable(
+                        interactionSource = interactionSource,
+                        indication = androidx.compose.material3.ripple(),
+                        enabled = enabled,
+                        onClick = onClick,
+                        onLongClick = onLongClick,
+                    ),
+                content = content,
+            )
+        }
+    } else if (onClick == null) {
         Card(
             modifier = cardModifier,
             shape = shape,

@@ -42,9 +42,6 @@ private fun JsonObject.encodeHysteriaShareUrl(remarks: String): String {
     requireQuicTuningEmpty()
     val upMbps = intValue("up_mbps")
     val downMbps = intValue("down_mbps")
-    require(upMbps > 0 && downMbps > 0) {
-        "Hysteria upload and download bandwidth are required"
-    }
     val alpn = objectValue("tls")?.stringListValue("alpn").orEmpty()
     require(alpn.size <= 1) { "Hysteria URI supports at most one ALPN value" }
     val tls = readShareTls(required = true)
@@ -54,8 +51,8 @@ private fun JsonObject.encodeHysteriaShareUrl(remarks: String): String {
         stringValue("auth_str").takeIf(String::isNotBlank)?.let { add("auth" to it) }
         tls.parameterValue("sni").takeIf(String::isNotBlank)?.let { add("peer" to it) }
         tls.parameterValue("insecure").takeIf(String::isNotBlank)?.let { add("insecure" to it) }
-        add("upmbps" to upMbps.toString())
-        add("downmbps" to downMbps.toString())
+        if (upMbps > 0) add("upmbps" to upMbps.toString())
+        if (downMbps > 0) add("downmbps" to downMbps.toString())
         alpn.singleOrNull()?.let { add("alpn" to it) }
         stringValue("obfs").takeIf(String::isNotBlank)?.let {
             add("obfs" to "xplus")
@@ -85,9 +82,6 @@ private fun JsonObject.encodeHysteria2ShareUrl(remarks: String): String {
         "keep_alive_period",
     )
     require(stringValue("hop_interval").isBlank()) { "Hysteria2 hop interval cannot be shared" }
-    require(intValue("up_mbps") == 0 && intValue("down_mbps") == 0) {
-        "Hysteria2 bandwidth is intentionally excluded by its share URI"
-    }
     require(stringValue("network").isBlank()) { "Hysteria2 network cannot be shared" }
     requireQuicTuningEmpty()
     val password = stringValue("password")

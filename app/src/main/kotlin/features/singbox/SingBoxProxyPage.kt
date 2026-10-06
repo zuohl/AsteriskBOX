@@ -85,11 +85,14 @@ import app.AppServices
 import app.LocalAppServices
 import app.LocalAppStateStore
 import app.LocalIsWideScreen
+import app.LocalNavigator
 import app.LocalUpdateAppState
 import app.R
 import app.collectAppState
 import app.isManagedSingBoxTag
 import app.managedOutboundGroupSelectorTag
+import app.managedTagIdentityOrNull
+import app.navigation.Route
 import app.selectableManagedOutbounds
 import app.withSelectorSelection
 import app.modes.SingBoxProxyLayoutAuto
@@ -143,6 +146,7 @@ fun SingBoxProxyPage(
     padding: PaddingValues,
 ) {
     val isWideScreen = LocalIsWideScreen.current
+    val navigator = LocalNavigator.current
     val appState by LocalAppStateStore.current.collectAppState()
     val updateAppState = LocalUpdateAppState.current
     val services = LocalAppServices.current
@@ -190,6 +194,17 @@ fun SingBoxProxyPage(
     }
     val managedGroupNames = appState.outboundGroups.associate { group ->
         managedOutboundGroupSelectorTag(group.id, group.name) to group.name
+    }
+    val outboundById = remember(appState.outbounds) {
+        appState.outbounds.associateBy { it.id }
+    }
+    val outboundByTagOrRemarks = remember(appState.outbounds) {
+        buildMap {
+            appState.outbounds.forEach { outbound ->
+                put(outbound.tag, outbound)
+                put(outbound.remarks, outbound)
+            }
+        }
     }
     val visibleProxies = remember(
         proxies,
@@ -373,6 +388,7 @@ fun SingBoxProxyPage(
                                         state.copy(singBoxProxySort = sort)
                                     }
                                 },
+                                onOpenOutbounds = { navigator.push(Route.OutboundList) },
                             )
                         }
                     },
@@ -514,6 +530,25 @@ fun SingBoxProxyPage(
                                             } else {
                                                 null
                                             }
+                                        val matchedOutbound = outboundByTagOrRemarks[node.name]
+                                            ?: managedTagIdentityOrNull(node.name)?.let { identity ->
+                                                if (identity.kind == ManagedTagKind.OUTBOUND && identity.id != null) {
+                                                    outboundById[identity.id]
+                                                } else {
+                                                    null
+                                                }
+                                            }
+                                        val onEdit: (() -> Unit)? = matchedOutbound?.let { outbound ->
+                                            {
+                                                navigator.push(
+                                                    Route.OutboundEdit(
+                                                        outboundId = outbound.id,
+                                                        groupId = outbound.groupId,
+                                                        type = outbound.type,
+                                                    )
+                                                )
+                                            }
+                                        }
                                         SingBoxProxyNodeCard(
                                             modifier = Modifier
                                                 .animateItem()
@@ -541,6 +576,7 @@ fun SingBoxProxyPage(
                                             testing = testingTarget == node.name,
                                             onSelect = onSelect,
                                             onDelayTest = { testProxy(node) },
+                                            onEdit = onEdit,
                                         )
                                     }
                                 }
@@ -693,6 +729,7 @@ private fun SingBoxProxyOptionsMenu(
     sort: Int,
     onLayoutChange: (Int) -> Unit,
     onSortChange: (Int) -> Unit,
+    onOpenOutbounds: () -> Unit,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     var level by rememberSaveable { mutableStateOf(ProxyOptionsLevel.Main) }
@@ -772,6 +809,15 @@ private fun SingBoxProxyOptionsMenu(
                         onClick = { level = ProxyOptionsLevel.Sort },
                         leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Sort, contentDescription = null) },
                         trailingIcon = { Icon(Icons.Rounded.ChevronRight, contentDescription = null) },
+                    )
+                    HorizontalDivider()
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.settings_outbound_management)) },
+                        onClick = {
+                            dismissMenu()
+                            onOpenOutbounds()
+                        },
+                        leadingIcon = { Icon(Icons.Rounded.AltRoute, contentDescription = null) },
                     )
                 }
 
@@ -876,6 +922,7 @@ private fun SingBoxProxyNodeCard(
     testing: Boolean,
     onSelect: (() -> Unit)?,
     onDelayTest: () -> Unit,
+    onEdit: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val content: @Composable () -> Unit = {
@@ -933,6 +980,7 @@ private fun SingBoxProxyNodeCard(
         selected = selected,
         enabled = selectionEnabled,
         onClick = onSelect,
+        onLongClick = onEdit,
         modifier = cardModifier,
     ) {
         content()
