@@ -409,10 +409,16 @@
     <string name="outbound_share_qr">Generate QR code</string>
     <string name="outbound_share_url">Copy URL</string>
     <string name="outbound_sort">Sort</string>
+    <string name="outbound_sort_real_latency">Real latency</string>
     <string name="outbound_sort_latency">Ping latency</string>
     <string name="outbound_sort_original">Manual order</string>
     <string name="outbound_sort_remarks">Remarks</string>
     <string name="outbound_sort_type">Protocol</string>
+    <string name="outbound_action_single_connect">Start as single node</string>
+    <string name="outbound_single_connect_success">Connected as single node: %s</string>
+    <string name="selector_section_single">Single node</string>
+    <string name="selector_section_single_desc">Bypass selector groups and run only this node (Minimal mode)</string>
+    <string name="selector_choose_single_node">Select node for single node mode</string>
     <string name="settings_outbound_management">Outbound management</string>
     <string name="settings_outbound_management_summary">Import, add, and edit core outbound proxy servers</string>
 

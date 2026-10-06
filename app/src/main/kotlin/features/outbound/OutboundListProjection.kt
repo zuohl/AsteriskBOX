@@ -6,7 +6,9 @@ package features.outbound
 import app.OutboundState
 import app.modes.OutboundListSortLatency
 import app.modes.OutboundListSortName
+import app.modes.OutboundListSortRealLatency
 import app.modes.OutboundListSortType
+import engine.singbox.runtime.SingBoxProxiesState
 import features.singbox.displaySingBoxProtocolName
 
 internal data class OutboundListItem(
@@ -64,6 +66,7 @@ internal class OutboundListIndex internal constructor(
         query: String,
         sort: Int,
         pingState: OutboundPingRuntimeState,
+        proxiesState: SingBoxProxiesState? = null,
     ): List<OutboundListItem> {
         val visible = byGroup[groupId].orEmpty().filter { item ->
             query.isBlank() || item.searchText.contains(query.lowercase())
@@ -71,6 +74,13 @@ internal class OutboundListIndex internal constructor(
         return when (sort) {
             OutboundListSortName -> visible.sortedWith(
                 compareBy(String.CASE_INSENSITIVE_ORDER, OutboundListItem::remarks),
+            )
+
+            OutboundListSortRealLatency -> visible.sortedWith(
+                compareBy<OutboundListItem> { item ->
+                    val delay = proxiesState?.nodeByName?.get(item.outbound.tag)?.delay
+                    if (delay != null && delay > 0) delay.toLong() else Long.MAX_VALUE
+                }.thenBy(String.CASE_INSENSITIVE_ORDER, OutboundListItem::remarks),
             )
 
             OutboundListSortLatency -> visible.sortedWith(

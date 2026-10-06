@@ -9,6 +9,7 @@ import ui.components.AsteriskDropdownMenuItem
 import android.content.Context
 import android.net.Uri
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -96,6 +97,7 @@ import app.modes.OutboundListLayoutSingle
 import app.modes.OutboundListSortDefault
 import app.modes.OutboundListSortLatency
 import app.modes.OutboundListSortName
+import app.modes.OutboundListSortRealLatency
 import app.modes.OutboundListSortType
 import app.navigation.Route
 import app.navigation.MainDestination
@@ -311,6 +313,7 @@ internal fun OutboundListPage(
         query = query,
         sort = appState.outboundListSort,
         pingState = pingState,
+        proxiesState = runtimeState.proxies,
     ).size
     val columns = resolveOutboundListColumns(appState.outboundListLayout, isWideScreen)
     val importFailedMessage = stringResource(R.string.outbound_import_failed)
@@ -915,6 +918,7 @@ internal fun OutboundListPage(
                 query = query,
                 sort = appState.outboundListSort,
                 pingState = pingState,
+                proxiesState = runtimeState.proxies,
             )
             val reorderEnabled =
                 appState.outboundListSort == OutboundListSortDefault && query.isBlank()
@@ -1006,6 +1010,29 @@ internal fun OutboundListPage(
                                 homeServiceControl.restartService()
                             }
                         }
+                    }
+                },
+                onSingleConnect = { outbound ->
+                    val wasSelected = activeTarget == outbound.tag
+                    updateAppState { state ->
+                        state.withSelectorSelection(ManagedGlobalSelectorTag, outbound.tag)
+                    }
+                    if (!appState.proxyRunning) {
+                        if (!homeServiceControl.busy) {
+                            homeServiceControl.toggleService()
+                        }
+                    } else if (!wasSelected) {
+                        if (!homeServiceControl.busy) {
+                            homeServiceControl.restartService()
+                        }
+                    }
+                    scope.launch {
+                        services.tipNotifier.show(
+                            context.getString(
+                                R.string.outbound_single_connect_success,
+                                outbound.remarks.ifBlank { outbound.tag },
+                            ),
+                        )
                     }
                 },
                 onEdit = { outbound ->
@@ -1203,6 +1230,7 @@ private fun OutboundPage(
     onDragStarted: () -> Unit,
     onDragStopped: () -> Unit,
     onSelect: (OutboundState) -> Unit,
+    onSingleConnect: (OutboundState) -> Unit,
     onEdit: (OutboundState) -> Unit,
     onShare: (OutboundState, OutboundShareAction, OutboundShareUrlResult) -> Unit,
     onPing: (OutboundState) -> Unit,
@@ -1293,6 +1321,7 @@ private fun OutboundPage(
                         isDragging = isDragging && reorderEnabled,
                         isSelected = isNodeSelected,
                         onSelect = { onSelect(outbound) },
+                        onSingleConnect = { onSingleConnect(outbound) },
                         onEdit = { onEdit(outbound) },
                         onShare = { action, result -> onShare(outbound, action, result) },
                         onPing = { onPing(outbound) },
@@ -1322,6 +1351,7 @@ private fun OutboundCard(
     isDragging: Boolean,
     isSelected: Boolean,
     onSelect: () -> Unit,
+    onSingleConnect: () -> Unit,
     onEdit: () -> Unit,
     onShare: (OutboundShareAction, OutboundShareUrlResult) -> Unit,
     onPing: () -> Unit,
@@ -1434,6 +1464,7 @@ private fun OutboundCard(
                     onInteractionCountChange = onInteractionCountChange,
                     pingEnabled = !isTesting,
                     shareUrlResult = shareUrlResult,
+                    onSingleConnect = onSingleConnect,
                     onEdit = onEdit,
                     onShare = onShare,
                     onPing = onPing,
@@ -1470,6 +1501,7 @@ private fun OutboundCard(
 private fun OutboundCardMenu(
     pingEnabled: Boolean,
     shareUrlResult: OutboundShareUrlResult,
+    onSingleConnect: () -> Unit,
     onEdit: () -> Unit,
     onShare: (OutboundShareAction, OutboundShareUrlResult) -> Unit,
     onPing: () -> Unit,
@@ -1519,6 +1551,15 @@ private fun OutboundCardMenu(
                 Column(modifier = Modifier.fillMaxWidth()) {
                     when (currentLevel) {
                         OutboundCardMenuLevel.MAIN -> {
+                            OutboundMenuItem(
+                                text = stringResource(R.string.outbound_action_single_connect),
+                                icon = Icons.Rounded.PlayArrow,
+                                onClick = {
+                                    dismissMenu()
+                                    onSingleConnect()
+                                },
+                            )
+                            HorizontalDivider()
                             OutboundMenuItem(
                                 text = stringResource(R.string.outbound_ping),
                                 icon = Icons.Rounded.Speed,
@@ -1666,6 +1707,7 @@ private fun OutboundOptionsMenu(
     val sortLabel = stringResource(
         when (sort) {
             OutboundListSortName -> R.string.outbound_sort_remarks
+            OutboundListSortRealLatency -> R.string.outbound_sort_real_latency
             OutboundListSortLatency -> R.string.outbound_sort_latency
             OutboundListSortType -> R.string.outbound_sort_type
             else -> R.string.outbound_sort_original
@@ -1861,14 +1903,19 @@ private fun OutboundOptionsMenu(
                                     Icons.AutoMirrored.Rounded.Sort,
                                 ),
                                 Triple(
-                                    OutboundListSortName,
-                                    R.string.outbound_sort_remarks,
-                                    Icons.Rounded.SortByAlpha,
+                                    OutboundListSortRealLatency,
+                                    R.string.outbound_sort_real_latency,
+                                    Icons.Rounded.Speed,
                                 ),
                                 Triple(
                                     OutboundListSortLatency,
                                     R.string.outbound_sort_latency,
-                                    Icons.Rounded.Speed,
+                                    Icons.Rounded.Timer,
+                                ),
+                                Triple(
+                                    OutboundListSortName,
+                                    R.string.outbound_sort_remarks,
+                                    Icons.Rounded.SortByAlpha,
                                 ),
                                 Triple(
                                     OutboundListSortType,
@@ -2129,21 +2176,97 @@ private fun GlobalSelectorSheet(
             }
 
             // 单节点直连
-            val activeNode = outbounds.firstOrNull { it.tag == activeTarget }
-            if (activeNode != null) {
+            if (outbounds.isNotEmpty()) {
+                val activeNode = outbounds.firstOrNull { it.tag == activeTarget }
                 Text(
-                    text = "单节点直连",
+                    text = stringResource(R.string.selector_section_single),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(top = 4.dp),
                 )
-                SelectorChoiceItem(
-                    title = activeNode.remarks.ifBlank { activeNode.tag },
-                    subtitle = "当前正在以单节点极简模式直连",
-                    icon = Icons.Rounded.Dns,
-                    selected = true,
-                    onClick = { onSelectTarget(activeNode.tag) },
+                Text(
+                    text = stringResource(R.string.selector_section_single_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+
+                if (activeNode != null) {
+                    SelectorChoiceItem(
+                        title = activeNode.remarks.ifBlank { activeNode.tag },
+                        subtitle = "当前正在以单节点极简模式直连 (${activeNode.type.displaySingBoxProtocolName()})",
+                        icon = Icons.Rounded.Dns,
+                        selected = true,
+                        onClick = { onSelectTarget(activeNode.tag) },
+                    )
+                }
+
+                var showNodePicker by rememberSaveable { mutableStateOf(false) }
+                AsteriskExpressiveCard(
+                    onClick = { showNodePicker = !showNodePicker },
+                    modifier = Modifier.fillMaxWidth(),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Dns,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Text(
+                                text = if (showNodePicker) "收起节点列表" else "选择节点切换为单节点直连 (${outbounds.size} 个可用)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+                        Icon(
+                            imageVector = if (showNodePicker) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+
+                AnimatedVisibility(visible = showNodePicker) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        val outboundsByGroup = remember(outbounds) { outbounds.groupBy { it.groupId } }
+                        groups.forEach { group ->
+                            val groupNodes = outboundsByGroup[group.id].orEmpty()
+                            if (groupNodes.isNotEmpty()) {
+                                Text(
+                                    text = group.name,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.padding(start = 4.dp, top = 6.dp),
+                                )
+                                groupNodes.forEach { node ->
+                                    val isCurrent = activeTarget == node.tag
+                                    SelectorChoiceItem(
+                                        title = node.remarks.ifBlank { node.tag },
+                                        subtitle = "${node.type.displaySingBoxProtocolName()} · 单节点极简启动",
+                                        icon = Icons.Rounded.Dns,
+                                        selected = isCurrent,
+                                        onClick = { onSelectTarget(node.tag) },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
