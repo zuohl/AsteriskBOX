@@ -396,16 +396,14 @@ private fun CompactScreenLayout(
         isBottomBarVisible = true
     }
 
-    val nestedScrollConnection = remember(mainDestinationState.current) {
+    val nestedScrollConnection = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (mainDestinationState.current == MainDestination.Proxies) {
-                    val delta = available.y
-                    if (delta < -10f && isBottomBarVisible) {
-                        isBottomBarVisible = false
-                    } else if (delta > 10f && !isBottomBarVisible) {
-                        isBottomBarVisible = true
-                    }
+                val delta = available.y
+                if (delta < -10f && isBottomBarVisible) {
+                    isBottomBarVisible = false
+                } else if (delta > 10f && !isBottomBarVisible) {
+                    isBottomBarVisible = true
                 }
                 return Offset.Zero
             }

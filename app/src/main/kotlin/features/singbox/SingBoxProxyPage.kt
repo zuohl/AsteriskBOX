@@ -12,7 +12,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,7 +25,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -41,7 +39,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -226,6 +226,7 @@ fun SingBoxProxyPage(
     val proxyLayout = resolveSingBoxProxyLayout(appState.singBoxProxyLayout, isWideScreen)
     val columns = resolveSingBoxProxyColumns(proxyLayout)
     var pendingSelections by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var locateRequestTrigger by remember { mutableIntStateOf(0) }
     val resolvedSelectedGroupIndex = groupNames.indexOf(resolvedSelectedGroupName).coerceAtLeast(0)
     val groupPagerState = key(groupNames) {
         rememberPagerState(
@@ -359,42 +360,20 @@ fun SingBoxProxyPage(
                             enter = AsteriskMotion.fadeEnter(contentEffectsMotion),
                             exit = AsteriskMotion.fadeExit(contentEffectsMotion),
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                selectedGroup?.let { group ->
-                                    val isTesting = testingTarget == group.name
-                                    IconButton(
-                                        onClick = { testGroup(group) },
-                                        enabled = runtimeAvailable && testingTarget == null,
-                                    ) {
-                                        if (isTesting) {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(20.dp),
-                                                strokeWidth = 2.dp,
-                                                color = MaterialTheme.colorScheme.primary,
-                                            )
-                                        } else {
-                                            Icon(
-                                                imageVector = Icons.Rounded.Speed,
-                                                contentDescription = stringResource(R.string.sing_box_proxies_group_test),
-                                            )
-                                        }
+                            SingBoxProxyOptionsMenu(
+                                layout = appState.singBoxProxyLayout,
+                                sort = resolveSingBoxProxySort(appState.singBoxProxySort),
+                                onLayoutChange = { layout ->
+                                    updateAppState { state ->
+                                        state.copy(singBoxProxyLayout = layout)
                                     }
-                                }
-                                SingBoxProxyOptionsMenu(
-                                    layout = appState.singBoxProxyLayout,
-                                    sort = resolveSingBoxProxySort(appState.singBoxProxySort),
-                                    onLayoutChange = { layout ->
-                                        updateAppState { state ->
-                                            state.copy(singBoxProxyLayout = layout)
-                                        }
-                                    },
-                                    onSortChange = { sort ->
-                                        updateAppState { state ->
-                                            state.copy(singBoxProxySort = sort)
-                                        }
-                                    },
-                                )
-                            }
+                                },
+                                onSortChange = { sort ->
+                                    updateAppState { state ->
+                                        state.copy(singBoxProxySort = sort)
+                                    }
+                                },
+                            )
                         }
                     },
                 )
@@ -409,6 +388,7 @@ fun SingBoxProxyPage(
                                 groups = visibleProxies.groups,
                                 selectedGroupName = resolvedSelectedGroupName,
                                 onSelectedGroupNameChange = { selectedGroupName = it },
+                                onReselectCurrentGroup = { locateRequestTrigger++ },
                             )
                         }
                     }
@@ -421,7 +401,7 @@ fun SingBoxProxyPage(
             outerPadding = padding,
             isWideScreen = isWideScreen,
         )
-        val listPadding = pageListPadding(contentPadding, bottomExtra = 24.dp)
+        val listPadding = pageListPadding(contentPadding, bottomExtra = 104.dp)
 
         AnimatedContent(
             targetState = contentState == SingBoxProxyContentState.ServiceStopped,
@@ -468,65 +448,26 @@ fun SingBoxProxyPage(
                             )
                         }
                         val selectedNodeName = (pendingSelections[group?.name] ?: group?.now).orEmpty().takeIf(String::isNotBlank)
-                        val initialTargetIndex = remember(group?.name) {
-                            if (group != null && selectedNodeName != null) {
-                                val idx = pageNodes.indexOf(selectedNodeName)
-                                if (idx >= 0) (idx / columns) * columns else 0
-                            } else {
-                                0
-                            }
-                        }
-                        val pageGridState = rememberLazyGridState(initialFirstVisibleItemIndex = initialTargetIndex)
+                        val pageGridState = rememberLazyGridState()
                         val isCurrentPage = groupPagerState.currentPage == page
-                        var hasScrolledForActivation by remember { mutableStateOf(false) }
 
-                        LaunchedEffect(isCurrentPage) {
-                            if (!isCurrentPage) {
-                                hasScrolledForActivation = false
-                            }
-                        }
-
-                        LaunchedEffect(
-                            isCurrentPage,
-                            groupPagerState.isScrollInProgress,
-                            pageNodes,
-                            selectedNodeName,
-                        ) {
-                            if (!isCurrentPage || groupPagerState.isScrollInProgress || hasScrolledForActivation) {
-                                return@LaunchedEffect
-                            }
-                            if (group == null || pageNodes.isEmpty() || selectedNodeName == null) {
-                                return@LaunchedEffect
-                            }
+                        LaunchedEffect(locateRequestTrigger) {
+                            if (locateRequestTrigger == 0 || !isCurrentPage) return@LaunchedEffect
+                            if (group == null || pageNodes.isEmpty() || selectedNodeName == null) return@LaunchedEffect
                             val selectedIndex = pageNodes.indexOf(selectedNodeName)
-                            if (selectedIndex < 0) {
-                                return@LaunchedEffect
-                            }
-                            hasScrolledForActivation = true
-                            val layoutInfo = pageGridState.layoutInfo
-                            val isFullyVisible = layoutInfo.visibleItemsInfo.any { item ->
-                                item.index == selectedIndex &&
-                                    item.offset.y >= layoutInfo.viewportStartOffset &&
-                                    (item.offset.y + item.size.height) <= layoutInfo.viewportEndOffset
-                            }
-                            val hasHeroHeader = searchQuery.isBlank()
-                            val headerOffset = if (hasHeroHeader) 1 else 0
-                            val targetItemIndex = (selectedIndex / columns) * columns + headerOffset
-                            val isAtTarget = pageGridState.firstVisibleItemIndex == targetItemIndex &&
-                                pageGridState.firstVisibleItemScrollOffset == 0
-                            if (!isFullyVisible && !isAtTarget) {
-                                val firstVisible = pageGridState.firstVisibleItemIndex
-                                val distance = kotlin.math.abs(firstVisible - targetItemIndex)
-                                if (distance > 12) {
-                                    val preIndex = if (targetItemIndex > firstVisible) {
-                                        (targetItemIndex - columns).coerceAtLeast(0)
-                                    } else {
-                                        (targetItemIndex + columns).coerceAtMost(pageNodes.lastIndex)
-                                    }
-                                    pageGridState.scrollToItem(preIndex)
+                            if (selectedIndex < 0) return@LaunchedEffect
+                            val targetItemIndex = (selectedIndex / columns) * columns
+                            val firstVisible = pageGridState.firstVisibleItemIndex
+                            val distance = kotlin.math.abs(firstVisible - targetItemIndex)
+                            if (distance > 12) {
+                                val preIndex = if (targetItemIndex > firstVisible) {
+                                    (targetItemIndex - columns).coerceAtLeast(0)
+                                } else {
+                                    (targetItemIndex + columns).coerceAtMost(pageNodes.lastIndex)
                                 }
-                                pageGridState.animateScrollToItem(targetItemIndex)
+                                pageGridState.scrollToItem(preIndex)
                             }
+                            pageGridState.animateScrollToItem(targetItemIndex)
                         }
 
                         Box(Modifier.fillMaxSize()) {
@@ -557,42 +498,6 @@ fun SingBoxProxyPage(
                                         SingBoxProxyEmptyCard()
                                     }
                                 } else {
-                                    if (searchQuery.isBlank()) {
-                                        item(
-                                            key = "hero_current_proxy:${group.name}",
-                                            span = { GridItemSpan(maxLineSpan) },
-                                        ) {
-                                            val activeNodeName = selectedNodeName ?: pageNodes.firstOrNull().orEmpty()
-                                            val activeNode = proxies.node(activeNodeName)
-                                            val activeDisplayName = pageDisplayNames[activeNode.name]
-                                                ?: activeNode.name.visibleRuntimeName(unavailableLabel)
-                                            val activeDelayStatus = resolveSingBoxProxyDelayStatus(
-                                                nodeName = activeNode.name,
-                                                delay = activeNode.delay,
-                                                delayUpdatedAtEpochSeconds = activeNode.delayUpdatedAtEpochSeconds,
-                                                testingBaselines = runtimeState.delayTestingBaselines,
-                                                failedNodes = runtimeState.delayFailedNodes,
-                                            )
-                                            SingBoxCurrentProxyHeroCard(
-                                                group = group,
-                                                node = activeNode,
-                                                displayName = activeDisplayName,
-                                                delayStatus = activeDelayStatus,
-                                                groupTesting = testingTarget == group.name,
-                                                testingEnabled = runtimeAvailable && testingTarget == null,
-                                                onGroupDelayTest = { testGroup(group) },
-                                                onLocateInList = {
-                                                    val targetIdx = pageNodes.indexOf(activeNode.name)
-                                                    if (targetIdx >= 0) {
-                                                        scope.launch {
-                                                            val rowFirst = (targetIdx / columns) * columns + 1
-                                                            pageGridState.animateScrollToItem(rowFirst)
-                                                        }
-                                                    }
-                                                },
-                                            )
-                                        }
-                                    }
                                     items(
                                         items = pageNodes,
                                         key = { nodeName -> "${group.name}:$nodeName" },
@@ -641,6 +546,17 @@ fun SingBoxProxyPage(
                                 }
                             }
                         }
+                    }
+                    selectedGroup?.let { group ->
+                        ProxyFloatingActions(
+                            runtimeAvailable = runtimeAvailable,
+                            testing = testingTarget == group.name,
+                            canLocate = (pendingSelections[group.name] ?: group.now).isNotBlank(),
+                            onLocate = { locateRequestTrigger++ },
+                            onDelayTest = { testGroup(group) },
+                            bottomPadding = contentPadding.calculateBottomPadding(),
+                            modifier = Modifier.align(Alignment.BottomEnd),
+                        )
                     }
                 }
             }
@@ -695,6 +611,7 @@ private fun ProxyGroupTabs(
     groups: List<SingBoxProxyGroup>,
     selectedGroupName: String,
     onSelectedGroupNameChange: (String) -> Unit,
+    onReselectCurrentGroup: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     if (groups.isEmpty()) return
@@ -727,7 +644,13 @@ private fun ProxyGroupTabs(
             groups.forEach { group ->
                 AsteriskFilterChip(
                     selected = group.name == selectedGroupName,
-                    onClick = { onSelectedGroupNameChange(group.name) },
+                    onClick = {
+                        if (group.name == selectedGroupName) {
+                            onReselectCurrentGroup()
+                        } else {
+                            onSelectedGroupNameChange(group.name)
+                        }
+                    },
                     label = group.displayName,
                     modifier = Modifier.onGloballyPositioned { coordinates ->
                         val bounds = ProxyGroupTabBounds(
@@ -1107,150 +1030,66 @@ private fun String.visibleRuntimeName(unavailableLabel: String): String {
 }
 
 @Composable
-private fun SingBoxCurrentProxyHeroCard(
-    group: SingBoxProxyGroup,
-    node: SingBoxProxyNode,
-    displayName: String,
-    delayStatus: SingBoxProxyDelayStatus,
-    groupTesting: Boolean,
-    testingEnabled: Boolean,
-    onGroupDelayTest: () -> Unit,
-    onLocateInList: () -> Unit,
+private fun ProxyFloatingActions(
+    runtimeAvailable: Boolean,
+    testing: Boolean,
+    canLocate: Boolean,
+    onLocate: () -> Unit,
+    onDelayTest: () -> Unit,
+    bottomPadding: Dp,
     modifier: Modifier = Modifier,
 ) {
-    val delayText = when (delayStatus) {
-        SingBoxProxyDelayStatus.NotTested ->
-            stringResource(R.string.sing_box_proxies_delay_not_tested)
-        SingBoxProxyDelayStatus.Testing ->
-            stringResource(R.string.sing_box_proxies_delay_testing)
-        SingBoxProxyDelayStatus.Measured -> node.delay?.let { measuredDelay ->
-            stringResource(R.string.monitor_milliseconds, measuredDelay)
-        } ?: stringResource(R.string.sing_box_proxies_delay_not_tested)
-        SingBoxProxyDelayStatus.Failed ->
-            stringResource(R.string.sing_box_proxies_delay_status_failed)
-    }.trim()
-
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(ui.theme.AsteriskShapeTokens.HeroContainer)
-            .clickable(onClick = onLocateInList),
-        shape = ui.theme.AsteriskShapeTokens.HeroContainer,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 2.dp,
-        border = BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+    Row(
+        modifier = modifier.padding(
+            end = 20.dp,
+            bottom = bottomPadding + SingBoxFloatingToolbarBottomSpacing,
         ),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+        if (canLocate) {
+            FloatingActionButton(
+                onClick = onLocate,
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                shape = CircleShape,
+                modifier = Modifier.size(56.dp),
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.weight(1f, fill = false),
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.AltRoute,
-                        contentDescription = null,
-                        modifier = Modifier.size(15.dp),
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                    Text(
-                        text = group.displayName.ifBlank { group.name },
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-
-                FilledTonalButton(
-                    onClick = onGroupDelayTest,
-                    enabled = testingEnabled,
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                    modifier = Modifier.height(28.dp),
-                    shape = ui.theme.AsteriskShapeTokens.Pill,
-                ) {
-                    if (groupTesting) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(12.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
-                        Spacer(Modifier.width(4.dp))
-                    } else {
-                        Icon(
-                            imageVector = Icons.Rounded.Speed,
-                            contentDescription = null,
-                            modifier = Modifier.size(13.dp),
-                        )
-                        Spacer(Modifier.width(4.dp))
-                    }
-                    Text(
-                        text = stringResource(R.string.sing_box_proxies_group_test),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(end = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    Text(
-                        text = displayName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = node.type.displaySingBoxProtocolName(compact = false),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text(
-                        text = delayText,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = delayColor(delayStatus, node.delay),
-                    )
-                    Icon(
-                        imageVector = Icons.Rounded.ChevronRight,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Rounded.MyLocation,
+                    contentDescription = stringResource(R.string.sing_box_proxies_locate_selected),
+                    modifier = Modifier.size(24.dp),
+                )
             }
         }
+        ExtendedFloatingActionButton(
+            onClick = { if (runtimeAvailable && !testing) onDelayTest() },
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(
+                alpha = if (runtimeAvailable && !testing) 1f else 0.45f,
+            ),
+            icon = {
+                if (testing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.5.dp,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                } else {
+                    DelayToolbarGlyph()
+                }
+            },
+            text = { Text(stringResource(R.string.sing_box_proxies_group_test)) },
+        )
     }
+}
+
+@Composable
+private fun DelayToolbarGlyph() {
+    Icon(
+        imageVector = Icons.Rounded.Speed,
+        contentDescription = stringResource(R.string.sing_box_proxies_group_test),
+    )
 }
 
 @Composable
