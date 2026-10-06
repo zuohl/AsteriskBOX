@@ -195,7 +195,6 @@ internal fun DnsRuleEditorPage(
                 )
                 if (committed) {
                     navigator.pop()
-                    services.singBoxRuntime.applyConfigurationChange(candidateState, services.tipNotifier)
                 } else {
                     tipNotifier.show(saveFailedMessage)
                 }

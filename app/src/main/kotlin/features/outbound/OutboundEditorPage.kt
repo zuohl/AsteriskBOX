@@ -169,10 +169,7 @@ internal fun OutboundEditorPage(
                 scope.launch {
                     try {
                         when (val result = services.outboundRepository.save(editing, draft)) {
-                            is OutboundCommandResult.Saved -> {
-                                navigator.pop()
-                                services.singBoxRuntime.applyConfigurationChange(appState, services.tipNotifier)
-                            }
+                            is OutboundCommandResult.Saved -> navigator.pop()
                             OutboundCommandResult.Conflict -> services.tipNotifier.show(stateChangedMessage)
                             is OutboundCommandResult.Invalid -> services.tipNotifier.show(invalidMessage)
                             is OutboundCommandResult.PersistenceFailed -> services.tipNotifier.showError(
