@@ -12,8 +12,11 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -282,6 +285,8 @@ internal fun OutboundListPage(
     val activeNodeRemarks = appState.outbounds.firstOrNull { it.tag == effectiveActiveNodeTag }?.remarks
         ?: effectiveActiveNodeTag.takeIf(String::isNotBlank)
     var showGlobalSelectorSheet by remember { mutableStateOf(false) }
+    var locateTargetTag by remember { mutableStateOf<String?>(null) }
+    var locateTrigger by remember { mutableStateOf(0L) }
     var pendingDelete by remember { mutableStateOf<OutboundState?>(null) }
     var deletingOutboundId by remember { mutableStateOf<Int?>(null) }
     var pendingBatchDelete by remember { mutableStateOf<OutboundBatchDeletion?>(null) }
@@ -699,6 +704,37 @@ internal fun OutboundListPage(
                                 }
                             }
                         }
+                        val currentActiveTag = if (isSelectorMode) effectiveActiveNodeTag else activeTarget
+                        val activeOutbound = appState.outbounds.firstOrNull { it.tag == currentActiveTag }
+                        IconButton(
+                            onClick = {
+                                if (activeOutbound != null) {
+                                    val targetPageIndex = groups.indexOfFirst { it.id == activeOutbound.groupId }
+                                    scope.launch {
+                                        if (targetPageIndex >= 0 && targetPageIndex != pagerState.currentPage) {
+                                            pagerState.animateScrollToPage(targetPageIndex)
+                                        }
+                                        locateTargetTag = activeOutbound.tag
+                                        locateTrigger = System.currentTimeMillis()
+                                        services.tipNotifier.show(
+                                            context.getString(
+                                                R.string.outbound_locate_success,
+                                                activeOutbound.remarks.ifBlank { activeOutbound.tag },
+                                            ),
+                                        )
+                                    }
+                                } else {
+                                    scope.launch {
+                                        services.tipNotifier.show(context.getString(R.string.outbound_locate_not_found))
+                                    }
+                                }
+                            },
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.MyLocation,
+                                contentDescription = stringResource(R.string.outbound_locate_active),
+                            )
+                        }
                         val isTestingDelay = (runtimeState.delayTestingTarget != null) ||
                             selectedOutbounds.any { it.id in pingState.runningIds }
                         IconButton(
@@ -709,7 +745,9 @@ internal fun OutboundListPage(
                                         runtimeState.proxies.groups.isNotEmpty() -> runtimeState.proxies.groups.first().name
                                         else -> ""
                                     }
-                                    if (groupToTest.isNotEmpty()) {
+                                    val kernelGroup = runtimeState.proxies.groups.firstOrNull { it.name == groupToTest }
+                                    val kernelNodeNames = kernelGroup?.all?.toSet().orEmpty()
+                                    if (groupToTest.isNotEmpty() && kernelNodeNames.isNotEmpty()) {
                                         scope.launch {
                                             services.singBoxRuntime.testGroupDelay(appState, groupToTest)
                                                 .onSuccess {
@@ -719,13 +757,17 @@ internal fun OutboundListPage(
                                                     services.tipNotifier.show(it.message ?: context.getString(R.string.sing_box_proxies_delay_failed))
                                                 }
                                         }
+                                        // 极简模式或部分节点不在内核组中时，剩余节点通过底层网络 ping 补充测速
+                                        val remainingTargets = selectedOutbounds.filter { it.tag !in kernelNodeNames }
+                                        if (remainingTargets.isNotEmpty()) {
+                                            pingOutbounds(targets = remainingTargets)
+                                        }
                                     } else {
                                         pingOutbounds(targets = selectedOutbounds)
                                     }
                                 } else {
-                                    scope.launch {
-                                        services.tipNotifier.show("请先启动代理服务后进行真实延迟测速")
-                                    }
+                                    // 未启动代理情况下直接执行 ping 测速
+                                    pingOutbounds(targets = selectedOutbounds)
                                 }
                             },
                             enabled = selectedOutbounds.isNotEmpty() && !isTestingDelay,
@@ -1075,7 +1117,8 @@ internal fun OutboundListPage(
                     }
                 },
                 onPing = { outbound ->
-                    if (appState.proxyRunning) {
+                    val inKernel = appState.proxyRunning && runtimeState.proxies.nodeByName.containsKey(outbound.tag)
+                    if (inKernel) {
                         scope.launch {
                             services.singBoxRuntime.testProxyDelay(appState, outbound.tag)
                                 .onSuccess {
@@ -1086,12 +1129,12 @@ internal fun OutboundListPage(
                                 }
                         }
                     } else {
-                        scope.launch {
-                            services.tipNotifier.show("请先启动代理服务后进行真实延迟测速")
-                        }
+                        pingOutbounds(targets = listOf(outbound))
                     }
                 },
                 onDelete = { pendingDelete = it },
+                locateTargetTag = locateTargetTag,
+                locateTrigger = locateTrigger,
             )
         }
     }
@@ -1235,9 +1278,19 @@ private fun OutboundPage(
     onShare: (OutboundState, OutboundShareAction, OutboundShareUrlResult) -> Unit,
     onPing: (OutboundState) -> Unit,
     onDelete: (OutboundState) -> Unit,
+    locateTargetTag: String? = null,
+    locateTrigger: Long = 0L,
     onInteractionCountChange: (Int) -> Unit = {},
 ) {
     val gridState = rememberLazyGridState()
+    LaunchedEffect(locateTrigger) {
+        if (locateTrigger > 0L && !locateTargetTag.isNullOrBlank()) {
+            val targetIndex = outbounds.indexOfFirst { it.outbound.tag == locateTargetTag }
+            if (targetIndex >= 0) {
+                gridState.animateScrollToItem(targetIndex)
+            }
+        }
+    }
     val reorderableState = rememberAsteriskReorderableLazyGridState(
         lazyGridState = gridState,
         itemCount = outbounds.size,
@@ -1488,10 +1541,21 @@ private fun OutboundCard(
                         MaterialTheme.typography.labelSmall
                     },
                 )
-                OutboundPingStatus(
-                    latencyMillis = if (isFailed) FailedPingMillis else realLatencyMillis,
-                    pinging = isTesting,
-                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable(
+                            enabled = !isTesting,
+                            onClick = onPing,
+                        )
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    OutboundPingStatus(
+                        latencyMillis = if (isFailed) FailedPingMillis else realLatencyMillis,
+                        pinging = isTesting,
+                    )
+                }
             }
         }
     }
@@ -1644,13 +1708,31 @@ private fun OutboundPingStatus(
         val description = stringResource(R.string.outbound_ping_running)
         CircularProgressIndicator(
             modifier = Modifier
-                .size(18.dp)
+                .size(16.dp)
                 .semantics { contentDescription = description },
             strokeWidth = 2.dp,
         )
         return
     }
-    latencyMillis ?: return
+    if (latencyMillis == null) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Speed,
+                contentDescription = stringResource(R.string.outbound_ping),
+                modifier = Modifier.size(12.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            )
+            Text(
+                text = "-- ms",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            )
+        }
+        return
+    }
     Text(
         text = if (latencyMillis >= 0L) {
             stringResource(R.string.outbound_ping_latency, latencyMillis)

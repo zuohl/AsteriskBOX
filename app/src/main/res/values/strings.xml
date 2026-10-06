@@ -419,6 +419,9 @@
     <string name="selector_section_single">Single node</string>
     <string name="selector_section_single_desc">Bypass selector groups and run only this node (Minimal mode)</string>
     <string name="selector_choose_single_node">Select node for single node mode</string>
+    <string name="outbound_locate_active">Locate active node</string>
+    <string name="outbound_locate_success">Located active node: %s</string>
+    <string name="outbound_locate_not_found">Active node not found</string>
     <string name="settings_outbound_management">Outbound management</string>
     <string name="settings_outbound_management_summary">Import, add, and edit core outbound proxy servers</string>
 

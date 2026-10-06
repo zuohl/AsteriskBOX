@@ -464,32 +464,69 @@ internal fun compileOutbounds(root: JsonObject, appState: AppState): JsonArray {
         !isGroupSelector
 
     if (isSingleOutbound) {
-        val singleOutbound = selectedSingleOutbound
-        val parsedJson = runCatching { parseSingBoxJson(singleOutbound.json) }.getOrNull()
-        val outboundObj = if (parsedJson != null && singleOutbound.shouldRetainRawGroupedOutbound(parsedJson)) {
-            JsonObject(
-                buildMap {
-                    putAll(parsedJson)
-                    put("type", JsonPrimitive(singleOutbound.type))
-                    put("tag", JsonPrimitive(singleOutbound.tag))
-                    singleOutbound.inheritedGroupDetour(groupDetours[singleOutbound.groupId].orEmpty(), parsedJson)
-                        ?.let { detour -> put("detour", JsonPrimitive(detour)) }
-                },
-            )
-        } else {
-            buildJsonObject {
-                put("type", singleOutbound.type)
-                put("tag", singleOutbound.tag)
+        val outboundsByTag = appState.outbounds.associateBy { it.tag }
+        val routeReferencedTags = buildSet {
+            appState.routeRules
+                .filter { it.enabled && it.action != SingBoxRouteRuleActionReject }
+                .mapNotNull { it.outbound.trim().takeIf(String::isNotEmpty) }
+                .forEach(::add)
+            appState.routeFinal.trim().takeIf(String::isNotEmpty)?.let(::add)
+        }
+
+        val requiredOutbounds = linkedMapOf<String, OutboundState>()
+        val queue = ArrayDeque<String>()
+        queue.add(selectedSingleOutbound.tag)
+        queue.addAll(routeReferencedTags)
+
+        while (queue.isNotEmpty()) {
+            val tag = queue.removeFirst()
+            val outbound = outboundsByTag[tag] ?: continue
+            if (requiredOutbounds.put(tag, outbound) == null) {
+                val parsed = runCatching { parseSingBoxJson(outbound.json) }.getOrNull()
+                val explicitDetour = (parsed?.get("detour") as? JsonPrimitive)?.contentOrNull?.trim()
+                val detourTag = if (!explicitDetour.isNullOrBlank()) {
+                    explicitDetour
+                } else if (parsed != null) {
+                    outbound.inheritedGroupDetour(groupDetours[outbound.groupId].orEmpty(), parsed)
+                } else null
+                if (!detourTag.isNullOrBlank() && detourTag !in requiredOutbounds && detourTag in outboundsByTag) {
+                    queue.add(detourTag)
+                }
             }
         }
+
+        fun compileOutboundObject(singleOutbound: OutboundState): JsonObject {
+            val parsedJson = runCatching { parseSingBoxJson(singleOutbound.json) }.getOrNull()
+            return if (parsedJson != null && singleOutbound.shouldRetainRawGroupedOutbound(parsedJson)) {
+                JsonObject(
+                    buildMap {
+                        putAll(parsedJson)
+                        put("type", JsonPrimitive(singleOutbound.type))
+                        put("tag", JsonPrimitive(singleOutbound.tag))
+                        singleOutbound.inheritedGroupDetour(groupDetours[singleOutbound.groupId].orEmpty(), parsedJson)
+                            ?.let { detour -> put("detour", JsonPrimitive(detour)) }
+                    },
+                )
+            } else {
+                buildJsonObject {
+                    put("type", singleOutbound.type)
+                    put("tag", singleOutbound.tag)
+                }
+            }
+        }
+
+        val allSingleTags = requiredOutbounds.keys
         val retainedSingle = (root["outbounds"] as? JsonArray)
             .orEmptyObjects()
             .filterNot { outbound ->
                 outbound.hasAppTag() ||
-                    (outbound["tag"] as? JsonPrimitive)?.contentOrNull == activeTarget
+                    (outbound["tag"] as? JsonPrimitive)?.contentOrNull in allSingleTags
             }
             .toMutableList()
-        retainedSingle += outboundObj
+
+        requiredOutbounds.values.forEach { ob ->
+            retainedSingle += compileOutboundObject(ob)
+        }
         retainedSingle += buildJsonObject {
             put("type", "direct")
             put("tag", APP_DIRECT_OUTBOUND)
@@ -499,6 +536,7 @@ internal fun compileOutbounds(root: JsonObject, appState: AppState): JsonArray {
             put("tag", APP_GLOBAL_SELECTOR)
             putJsonArray("outbounds") {
                 add(activeTarget)
+                (allSingleTags - activeTarget).forEach(::add)
                 add(APP_DIRECT_OUTBOUND)
             }
             put("default", activeTarget)

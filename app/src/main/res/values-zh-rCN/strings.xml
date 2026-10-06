@@ -411,6 +411,9 @@
     <string name="selector_section_single">单节点直连</string>
     <string name="selector_section_single_desc">绕过所有策略组，直接以此节点启动运行 (极简模式)</string>
     <string name="selector_choose_single_node">选择节点作为单节点直连</string>
+    <string name="outbound_locate_active">定位当前节点</string>
+    <string name="outbound_locate_success">已定位到当前节点：%s</string>
+    <string name="outbound_locate_not_found">未找到当前活动节点</string>
     <string name="settings_outbound_management">出站管理</string>
     <string name="settings_outbound_management_summary">导入、添加、编辑核心出站代理服务器</string>
 
