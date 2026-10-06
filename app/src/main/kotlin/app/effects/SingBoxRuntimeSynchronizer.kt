@@ -57,7 +57,11 @@ private fun AppState.hasKernelConfigurationChanged(other: AppState): Boolean {
         dnsRules != other.dnsRules ||
         dnsServers != other.dnsServers ||
         dnsFinal != other.dnsFinal ||
-        dnsClientConfig != other.dnsClientConfig ||
+        dnsCacheCapacity != other.dnsCacheCapacity ||
+        dnsOptimisticCache != other.dnsOptimisticCache ||
+        dnsDisableCache != other.dnsDisableCache ||
+        dnsDisableExpire != other.dnsDisableExpire ||
+        dnsTimeout != other.dnsTimeout ||
         enableLocalDns != other.enableLocalDns ||
         enableIpv6 != other.enableIpv6 ||
         configOverrideScript != other.configOverrideScript ||
