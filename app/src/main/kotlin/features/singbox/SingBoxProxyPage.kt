@@ -12,18 +12,21 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -356,20 +359,42 @@ fun SingBoxProxyPage(
                             enter = AsteriskMotion.fadeEnter(contentEffectsMotion),
                             exit = AsteriskMotion.fadeExit(contentEffectsMotion),
                         ) {
-                            SingBoxProxyOptionsMenu(
-                                layout = appState.singBoxProxyLayout,
-                                sort = resolveSingBoxProxySort(appState.singBoxProxySort),
-                                onLayoutChange = { layout ->
-                                    updateAppState { state ->
-                                        state.copy(singBoxProxyLayout = layout)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                selectedGroup?.let { group ->
+                                    val isTesting = testingTarget == group.name
+                                    IconButton(
+                                        onClick = { testGroup(group) },
+                                        enabled = runtimeAvailable && testingTarget == null,
+                                    ) {
+                                        if (isTesting) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(20.dp),
+                                                strokeWidth = 2.dp,
+                                                color = MaterialTheme.colorScheme.primary,
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Speed,
+                                                contentDescription = stringResource(R.string.sing_box_proxies_group_test),
+                                            )
+                                        }
                                     }
-                                },
-                                onSortChange = { sort ->
-                                    updateAppState { state ->
-                                        state.copy(singBoxProxySort = sort)
-                                    }
-                                },
-                            )
+                                }
+                                SingBoxProxyOptionsMenu(
+                                    layout = appState.singBoxProxyLayout,
+                                    sort = resolveSingBoxProxySort(appState.singBoxProxySort),
+                                    onLayoutChange = { layout ->
+                                        updateAppState { state ->
+                                            state.copy(singBoxProxyLayout = layout)
+                                        }
+                                    },
+                                    onSortChange = { sort ->
+                                        updateAppState { state ->
+                                            state.copy(singBoxProxySort = sort)
+                                        }
+                                    },
+                                )
+                            }
                         }
                     },
                 )
@@ -396,7 +421,7 @@ fun SingBoxProxyPage(
             outerPadding = padding,
             isWideScreen = isWideScreen,
         )
-        val listPadding = pageListPadding(contentPadding, bottomExtra = 104.dp)
+        val listPadding = pageListPadding(contentPadding, bottomExtra = 24.dp)
 
         AnimatedContent(
             targetState = contentState == SingBoxProxyContentState.ServiceStopped,
@@ -484,7 +509,9 @@ fun SingBoxProxyPage(
                                     item.offset.y >= layoutInfo.viewportStartOffset &&
                                     (item.offset.y + item.size.height) <= layoutInfo.viewportEndOffset
                             }
-                            val targetItemIndex = (selectedIndex / columns) * columns
+                            val hasHeroHeader = searchQuery.isBlank()
+                            val headerOffset = if (hasHeroHeader) 1 else 0
+                            val targetItemIndex = (selectedIndex / columns) * columns + headerOffset
                             val isAtTarget = pageGridState.firstVisibleItemIndex == targetItemIndex &&
                                 pageGridState.firstVisibleItemScrollOffset == 0
                             if (!isFullyVisible && !isAtTarget) {
@@ -530,6 +557,42 @@ fun SingBoxProxyPage(
                                         SingBoxProxyEmptyCard()
                                     }
                                 } else {
+                                    if (searchQuery.isBlank()) {
+                                        item(
+                                            key = "hero_current_proxy:${group.name}",
+                                            span = { GridItemSpan(maxLineSpan) },
+                                        ) {
+                                            val activeNodeName = selectedNodeName ?: pageNodes.firstOrNull().orEmpty()
+                                            val activeNode = proxies.node(activeNodeName)
+                                            val activeDisplayName = pageDisplayNames[activeNode.name]
+                                                ?: activeNode.name.visibleRuntimeName(unavailableLabel)
+                                            val activeDelayStatus = resolveSingBoxProxyDelayStatus(
+                                                nodeName = activeNode.name,
+                                                delay = activeNode.delay,
+                                                delayUpdatedAtEpochSeconds = activeNode.delayUpdatedAtEpochSeconds,
+                                                testingBaselines = runtimeState.delayTestingBaselines,
+                                                failedNodes = runtimeState.delayFailedNodes,
+                                            )
+                                            SingBoxCurrentProxyHeroCard(
+                                                group = group,
+                                                node = activeNode,
+                                                displayName = activeDisplayName,
+                                                delayStatus = activeDelayStatus,
+                                                groupTesting = testingTarget == group.name,
+                                                testingEnabled = runtimeAvailable && testingTarget == null,
+                                                onGroupDelayTest = { testGroup(group) },
+                                                onLocateInList = {
+                                                    val targetIdx = pageNodes.indexOf(activeNode.name)
+                                                    if (targetIdx >= 0) {
+                                                        scope.launch {
+                                                            val rowFirst = (targetIdx / columns) * columns + 1
+                                                            pageGridState.animateScrollToItem(rowFirst)
+                                                        }
+                                                    }
+                                                },
+                                            )
+                                        }
+                                    }
                                     items(
                                         items = pageNodes,
                                         key = { nodeName -> "${group.name}:$nodeName" },
@@ -578,15 +641,6 @@ fun SingBoxProxyPage(
                                 }
                             }
                         }
-                    }
-                    selectedGroup?.let { group ->
-                        ProxyDelayToolbar(
-                            enabled = runtimeAvailable && testingTarget == null,
-                            testing = testingTarget == group.name,
-                            onDelayTest = { testGroup(group) },
-                            bottomPadding = contentPadding.calculateBottomPadding(),
-                            modifier = Modifier.align(Alignment.BottomEnd),
-                        )
                     }
                 }
             }
@@ -1053,48 +1107,150 @@ private fun String.visibleRuntimeName(unavailableLabel: String): String {
 }
 
 @Composable
-private fun ProxyDelayToolbar(
-    enabled: Boolean,
-    testing: Boolean,
-    onDelayTest: () -> Unit,
-    bottomPadding: Dp,
+private fun SingBoxCurrentProxyHeroCard(
+    group: SingBoxProxyGroup,
+    node: SingBoxProxyNode,
+    displayName: String,
+    delayStatus: SingBoxProxyDelayStatus,
+    groupTesting: Boolean,
+    testingEnabled: Boolean,
+    onGroupDelayTest: () -> Unit,
+    onLocateInList: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier = modifier.padding(
-            end = 20.dp,
-            bottom = bottomPadding + SingBoxFloatingToolbarBottomSpacing,
+    val delayText = when (delayStatus) {
+        SingBoxProxyDelayStatus.NotTested ->
+            stringResource(R.string.sing_box_proxies_delay_not_tested)
+        SingBoxProxyDelayStatus.Testing ->
+            stringResource(R.string.sing_box_proxies_delay_testing)
+        SingBoxProxyDelayStatus.Measured -> node.delay?.let { measuredDelay ->
+            stringResource(R.string.monitor_milliseconds, measuredDelay)
+        } ?: stringResource(R.string.sing_box_proxies_delay_not_tested)
+        SingBoxProxyDelayStatus.Failed ->
+            stringResource(R.string.sing_box_proxies_delay_status_failed)
+    }.trim()
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(ui.theme.AsteriskShapeTokens.Card)
+            .clickable(onClick = onLocateInList),
+        shape = ui.theme.AsteriskShapeTokens.Card,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = 2.dp,
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
         ),
     ) {
-        ExtendedFloatingActionButton(
-            onClick = { if (enabled) onDelayTest() },
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(
-                alpha = if (enabled && !testing) 1f else 0.45f,
-            ),
-            icon = {
-                if (testing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.5.dp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.weight(1f, fill = false),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Navigation,
+                        contentDescription = null,
+                        modifier = Modifier.size(15.dp),
+                        tint = MaterialTheme.colorScheme.primary,
                     )
-                } else {
-                    DelayToolbarGlyph()
+                    Text(
+                        text = group.displayName.ifBlank { group.name },
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
-            },
-            text = { Text(stringResource(R.string.sing_box_proxies_group_test)) },
-        )
-    }
-}
 
-@Composable
-private fun DelayToolbarGlyph(
-) {
-    Icon(
-        imageVector = Icons.Rounded.Speed,
-        contentDescription = stringResource(R.string.sing_box_proxies_group_test),
-    )
+                FilledTonalButton(
+                    onClick = onGroupDelayTest,
+                    enabled = testingEnabled,
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                    modifier = Modifier.height(28.dp),
+                    shape = ui.theme.AsteriskShapeTokens.Pill,
+                ) {
+                    if (groupTesting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(12.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                        Spacer(Modifier.width(4.dp))
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.Speed,
+                            contentDescription = null,
+                            modifier = Modifier.size(13.dp),
+                        )
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    Text(
+                        text = stringResource(R.string.sing_box_proxies_group_test),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        text = displayName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = node.type.displaySingBoxProtocolName(compact = false),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = delayText,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = delayColor(delayStatus, node.delay),
+                    )
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
