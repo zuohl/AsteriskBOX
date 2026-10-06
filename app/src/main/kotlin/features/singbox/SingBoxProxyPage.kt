@@ -1133,9 +1133,9 @@ private fun SingBoxCurrentProxyHeroCard(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .clip(ui.theme.AsteriskShapeTokens.Card)
+            .clip(ui.theme.AsteriskShapeTokens.HeroContainer)
             .clickable(onClick = onLocateInList),
-        shape = ui.theme.AsteriskShapeTokens.Card,
+        shape = ui.theme.AsteriskShapeTokens.HeroContainer,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 2.dp,
         border = BorderStroke(
@@ -1160,7 +1160,7 @@ private fun SingBoxCurrentProxyHeroCard(
                     modifier = Modifier.weight(1f, fill = false),
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Navigation,
+                        imageVector = Icons.AutoMirrored.Rounded.AltRoute,
                         contentDescription = null,
                         modifier = Modifier.size(15.dp),
                         tint = MaterialTheme.colorScheme.primary,
