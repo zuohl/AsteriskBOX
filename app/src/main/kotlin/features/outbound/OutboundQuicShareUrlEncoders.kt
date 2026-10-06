@@ -103,8 +103,12 @@ private fun JsonObject.encodeHysteria2ShareUrl(remarks: String): String {
         }
     }
     val tls = readShareTls(required = true)
-        .requireOnlyShareParameters("Hysteria2", "sni", "insecure", "ech")
+        .requireOnlyShareParameters("Hysteria2", "sni", "insecure", "alpn", "ech")
     parameters += tls.parameters
+    val upMbps = intValue("up_mbps")
+    val downMbps = intValue("down_mbps")
+    if (upMbps > 0) parameters += "upmbps" to upMbps.toString()
+    if (downMbps > 0) parameters += "downmbps" to downMbps.toString()
     val serverPorts = stringListValue("server_ports")
     val encodedServerPorts = serverPorts.map(::encodeHysteriaPortRange)
     val endpoint = if (encodedServerPorts.isEmpty()) {
