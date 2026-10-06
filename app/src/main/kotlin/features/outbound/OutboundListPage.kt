@@ -152,6 +152,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import ui.icons.AsteriskIcons as Icons
+import engine.singbox.runtime.SingBoxRuntimeState
 
 private enum class OutboundImportMenuLevel {
     MAIN,
@@ -249,6 +250,35 @@ internal fun OutboundListPage(
     var query by rememberSaveable { mutableStateOf("") }
     val homeServiceControl = LocalHomeServiceControl.current
     val activeTarget = appState.selectorSelections[ManagedGlobalSelectorTag]?.trim().orEmpty()
+    val runtimeState by remember(services.singBoxRuntime) {
+        services.singBoxRuntime.state
+    }.collectAsState()
+    val isCustomSelector = appState.selectors.any { it.tag == activeTarget }
+    val isGroupSelector = activeTarget.startsWith("outbound_group_")
+    val isSelectorMode = isCustomSelector || isGroupSelector
+    val activeSelector = if (isCustomSelector) appState.selectors.firstOrNull { it.tag == activeTarget } else null
+    val activeGroup = if (isGroupSelector) groups.firstOrNull { managedOutboundGroupSelectorTag(it.id, it.name) == activeTarget } else null
+    val selectedSingleOutbound = if (!isSelectorMode && activeTarget.isNotEmpty() && activeTarget != ManagedDirectOutboundTag) {
+        appState.outbounds.firstOrNull { it.tag == activeTarget }
+    } else null
+
+    val effectiveActiveNodeTag = when {
+        selectedSingleOutbound != null -> selectedSingleOutbound.tag
+        isSelectorMode -> {
+            val runtimeGroup = runtimeState.proxies.groups.firstOrNull { it.name == activeTarget }
+            val runtimeNow = runtimeGroup?.now?.takeIf(String::isNotBlank)
+            val persistedSelection = appState.selectorSelections[activeTarget]?.takeIf(String::isNotBlank)
+            val defaultCandidate = if (isCustomSelector) {
+                activeSelector?.outbounds?.firstOrNull()
+            } else {
+                activeGroup?.let { g -> appState.outbounds.firstOrNull { it.groupId == g.id }?.tag }
+            }
+            runtimeNow ?: persistedSelection ?: defaultCandidate.orEmpty()
+        }
+        else -> ""
+    }
+    val activeNodeRemarks = appState.outbounds.firstOrNull { it.tag == effectiveActiveNodeTag }?.remarks
+        ?: effectiveActiveNodeTag.takeIf(String::isNotBlank)
     var showGlobalSelectorSheet by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<OutboundState?>(null) }
     var deletingOutboundId by remember { mutableStateOf<Int?>(null) }
@@ -666,12 +696,38 @@ internal fun OutboundListPage(
                                 }
                             }
                         }
-                        val allPinging = selectedOutbounds.any { it.id in pingState.runningIds }
+                        val isTestingDelay = (runtimeState.delayTestingTarget != null) ||
+                            selectedOutbounds.any { it.id in pingState.runningIds }
                         IconButton(
-                            onClick = { pingOutbounds(targets = selectedOutbounds) },
-                            enabled = selectedOutbounds.isNotEmpty() && !allPinging,
+                            onClick = {
+                                if (appState.proxyRunning) {
+                                    val groupToTest = when {
+                                        isSelectorMode -> activeTarget
+                                        runtimeState.proxies.groups.isNotEmpty() -> runtimeState.proxies.groups.first().name
+                                        else -> ""
+                                    }
+                                    if (groupToTest.isNotEmpty()) {
+                                        scope.launch {
+                                            services.singBoxRuntime.testGroupDelay(appState, groupToTest)
+                                                .onSuccess {
+                                                    services.tipNotifier.show(context.getString(R.string.sing_box_proxies_delay_done))
+                                                }
+                                                .onFailure {
+                                                    services.tipNotifier.show(it.message ?: context.getString(R.string.sing_box_proxies_delay_failed))
+                                                }
+                                        }
+                                    } else {
+                                        pingOutbounds(targets = selectedOutbounds)
+                                    }
+                                } else {
+                                    scope.launch {
+                                        services.tipNotifier.show("请先启动代理服务后进行真实延迟测速")
+                                    }
+                                }
+                            },
+                            enabled = selectedOutbounds.isNotEmpty() && !isTestingDelay,
                         ) {
-                            if (allPinging) {
+                            if (isTestingDelay) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(20.dp),
                                     strokeWidth = 2.dp,
@@ -746,6 +802,8 @@ internal fun OutboundListPage(
                     val isServiceRunning = appState.proxyRunning
                     val (globalTitle, globalSubtitle, globalIcon) = remember(
                         activeTarget,
+                        effectiveActiveNodeTag,
+                        activeNodeRemarks,
                         appState.outbounds,
                         appState.selectors,
                         appState.outboundGroups,
@@ -756,28 +814,27 @@ internal fun OutboundListPage(
                                 "绕过代理直接访问互联网",
                                 Icons.Rounded.Route,
                             )
-                            appState.selectors.any { it.tag == activeTarget } -> {
+                            isCustomSelector -> {
                                 val sel = appState.selectors.first { it.tag == activeTarget }
                                 val typeName = if (sel.type == SingBoxSelectorTypeUrlTest) "自动优选" else "策略组"
                                 Triple(
                                     sel.remarks.ifBlank { sel.tag },
-                                    "策略组调度 · $typeName",
+                                    if (activeNodeRemarks != null) "当前节点: $activeNodeRemarks" else "策略组调度 · $typeName",
                                     if (sel.type == SingBoxSelectorTypeUrlTest) Icons.Rounded.Speed else Icons.Rounded.Tune,
                                 )
                             }
-                            appState.outboundGroups.any { managedOutboundGroupSelectorTag(it.id, it.name) == activeTarget } -> {
+                            isGroupSelector -> {
                                 val grp = appState.outboundGroups.first { managedOutboundGroupSelectorTag(it.id, it.name) == activeTarget }
                                 Triple(
                                     grp.name,
-                                    "分组策略调度",
+                                    if (activeNodeRemarks != null) "当前节点: $activeNodeRemarks" else "分组策略调度",
                                     Icons.Rounded.Folder,
                                 )
                             }
-                            appState.outbounds.any { it.tag == activeTarget } -> {
-                                val node = appState.outbounds.first { it.tag == activeTarget }
+                            selectedSingleOutbound != null -> {
                                 Triple(
-                                    node.remarks.ifBlank { node.tag },
-                                    "单节点直连 (${node.type})",
+                                    selectedSingleOutbound.remarks.ifBlank { selectedSingleOutbound.tag },
+                                    "单节点直连 (${selectedSingleOutbound.type}) · 极简配置",
                                     Icons.Rounded.Dns,
                                 )
                             }
@@ -905,21 +962,49 @@ internal fun OutboundListPage(
                 activeTarget = activeTarget,
                 reorderEnabled = reorderEnabled,
                 pingState = pingState,
+                runtimeState = runtimeState,
+                isSelectorMode = isSelectorMode,
+                effectiveActiveNodeTag = effectiveActiveNodeTag,
                 onMove = preview.onMove,
                 onDragStarted = preview.onDragStarted,
                 onDragStopped = preview.onDragStopped,
                 onSelect = { outbound ->
-                    val wasSelected = activeTarget == outbound.tag
-                    updateAppState { state ->
-                        state.withSelectorSelection(ManagedGlobalSelectorTag, outbound.tag)
-                    }
-                    if (!appState.proxyRunning) {
-                        if (!homeServiceControl.busy) {
-                            homeServiceControl.toggleService()
+                    if (isSelectorMode) {
+                        val activeGroupTag = activeTarget
+                        val wasSelected = effectiveActiveNodeTag == outbound.tag
+                        if (!wasSelected) {
+                            updateAppState { state ->
+                                state.withSelectorSelection(activeGroupTag, outbound.tag)
+                            }
+                            if (appState.proxyRunning) {
+                                scope.launch {
+                                    services.singBoxRuntime.selectProxy(appState, activeGroupTag, outbound.tag)
+                                        .onSuccess {
+                                            services.tipNotifier.show("已切换至 ${outbound.remarks.ifBlank { outbound.tag }}")
+                                        }
+                                        .onFailure {
+                                            services.tipNotifier.show(it.message ?: "切换失败")
+                                        }
+                                }
+                            } else {
+                                scope.launch {
+                                    services.tipNotifier.show("已选择 ${outbound.remarks.ifBlank { outbound.tag }}")
+                                }
+                            }
                         }
-                    } else if (!wasSelected) {
-                        if (!homeServiceControl.busy) {
-                            homeServiceControl.restartService()
+                    } else {
+                        val wasSelected = activeTarget == outbound.tag
+                        updateAppState { state ->
+                            state.withSelectorSelection(ManagedGlobalSelectorTag, outbound.tag)
+                        }
+                        if (!appState.proxyRunning) {
+                            if (!homeServiceControl.busy) {
+                                homeServiceControl.toggleService()
+                            }
+                        } else if (!wasSelected) {
+                            if (!homeServiceControl.busy) {
+                                homeServiceControl.restartService()
+                            }
                         }
                     }
                 },
@@ -963,7 +1048,21 @@ internal fun OutboundListPage(
                     }
                 },
                 onPing = { outbound ->
-                    pingOutbounds(targets = listOf(outbound))
+                    if (appState.proxyRunning) {
+                        scope.launch {
+                            services.singBoxRuntime.testProxyDelay(appState, outbound.tag)
+                                .onSuccess {
+                                    services.tipNotifier.show("测速完成: ${outbound.remarks.ifBlank { outbound.tag }}")
+                                }
+                                .onFailure {
+                                    services.tipNotifier.show(it.message ?: "测速失败")
+                                }
+                        }
+                    } else {
+                        scope.launch {
+                            services.tipNotifier.show("请先启动代理服务后进行真实延迟测速")
+                        }
+                    }
                 },
                 onDelete = { pendingDelete = it },
             )
@@ -1067,6 +1166,7 @@ internal fun OutboundListPage(
         activeTarget = activeTarget,
         selectors = appState.selectors,
         groups = appState.outboundGroups,
+        outbounds = appState.outbounds,
         onSelectTarget = { tag ->
             val wasSelected = activeTarget == tag
             updateAppState { state ->
@@ -1096,6 +1196,9 @@ private fun OutboundPage(
     activeTarget: String,
     reorderEnabled: Boolean,
     pingState: OutboundPingRuntimeState,
+    runtimeState: SingBoxRuntimeState,
+    isSelectorMode: Boolean,
+    effectiveActiveNodeTag: String,
     onMove: (fromIndex: Int, toIndex: Int) -> Unit,
     onDragStarted: () -> Unit,
     onDragStopped: () -> Unit,
@@ -1176,13 +1279,19 @@ private fun OutboundPage(
                     modifier = Modifier.fillMaxWidth(),
                     animateItemModifier = Modifier.animateItem(),
                 ) { isDragging ->
+                    val isNodeSelected = if (isSelectorMode) {
+                        outbound.tag == effectiveActiveNodeTag
+                    } else {
+                        outbound.tag == activeTarget
+                    }
                     OutboundCard(
                         onInteractionCountChange = onInteractionCountChange,
                         item = item,
                         compact = columns > 1,
                         pingState = pingState,
+                        runtimeState = runtimeState,
                         isDragging = isDragging && reorderEnabled,
-                        isSelected = outbound.tag == activeTarget,
+                        isSelected = isNodeSelected,
                         onSelect = { onSelect(outbound) },
                         onEdit = { onEdit(outbound) },
                         onShare = { action, result -> onShare(outbound, action, result) },
@@ -1209,6 +1318,7 @@ private fun OutboundCard(
     item: OutboundListItem,
     compact: Boolean,
     pingState: OutboundPingRuntimeState,
+    runtimeState: SingBoxRuntimeState,
     isDragging: Boolean,
     isSelected: Boolean,
     onSelect: () -> Unit,
@@ -1221,7 +1331,15 @@ private fun OutboundCard(
 ) {
     TrackOutboundInteraction(isDragging, onInteractionCountChange)
     val outbound = item.outbound
-    val pinging = outbound.id in pingState.runningIds
+    val runtimeNode = runtimeState.proxies.nodeByName[outbound.tag]
+    val fallbackLatency = item.pingLatencyMillis(pingState)
+    val realLatencyMillis = runtimeNode?.delay?.takeIf { it > 0 }?.toLong() ?: fallbackLatency
+    val isTesting = (runtimeState.delayTestingTarget != null &&
+        (runtimeState.delayTestingTarget == outbound.tag ||
+            runtimeState.proxies.groups.any { it.name == runtimeState.delayTestingTarget && outbound.tag in it.all })) ||
+        (outbound.id in pingState.runningIds)
+    val isFailed = (runtimeNode != null && runtimeNode.name in runtimeState.delayFailureBaselines) ||
+        (fallbackLatency == FailedPingMillis)
     val shareUrlResult = remember(outbound.json, outbound.remarks) {
         encodeOutboundShareUrl(outbound.json, outbound.remarks)
     }
@@ -1314,7 +1432,7 @@ private fun OutboundCard(
                 }
                 OutboundCardMenu(
                     onInteractionCountChange = onInteractionCountChange,
-                    pingEnabled = item.pingHost != null && !pinging,
+                    pingEnabled = !isTesting,
                     shareUrlResult = shareUrlResult,
                     onEdit = onEdit,
                     onShare = onShare,
@@ -1339,7 +1457,10 @@ private fun OutboundCard(
                         MaterialTheme.typography.labelSmall
                     },
                 )
-                OutboundPingStatus(item.pingLatencyMillis(pingState), pinging)
+                OutboundPingStatus(
+                    latencyMillis = if (isFailed) FailedPingMillis else realLatencyMillis,
+                    pinging = isTesting,
+                )
             }
         }
     }
@@ -1916,6 +2037,7 @@ private fun GlobalSelectorSheet(
     activeTarget: String,
     selectors: List<SingBoxSelectorState>,
     groups: List<OutboundGroupState>,
+    outbounds: List<OutboundState>,
     onSelectTarget: (String) -> Unit,
     onAddSelector: () -> Unit,
 ) {
@@ -2004,6 +2126,24 @@ private fun GlobalSelectorSheet(
                         onClick = { onSelectTarget(tag) },
                     )
                 }
+            }
+
+            // 单节点直连
+            val activeNode = outbounds.firstOrNull { it.tag == activeTarget }
+            if (activeNode != null) {
+                Text(
+                    text = "单节点直连",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                SelectorChoiceItem(
+                    title = activeNode.remarks.ifBlank { activeNode.tag },
+                    subtitle = "当前正在以单节点极简模式直连",
+                    icon = Icons.Rounded.Dns,
+                    selected = true,
+                    onClick = { onSelectTarget(activeNode.tag) },
+                )
             }
             Spacer(modifier = Modifier.height(16.dp))
         }

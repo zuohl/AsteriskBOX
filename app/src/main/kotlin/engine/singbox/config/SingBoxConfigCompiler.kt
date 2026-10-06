@@ -454,13 +454,17 @@ internal fun compileOutbounds(root: JsonObject, appState: AppState): JsonArray {
     val enabledGroupIds = enabledGroups.mapTo(mutableSetOf()) { group -> group.id }
     val groupDetours = enabledGroups.associate { group -> group.id to group.detour }
     val activeTarget = appState.selectorSelections[APP_GLOBAL_SELECTOR]?.trim().orEmpty()
-    val isSingleOutbound = activeTarget.isNotEmpty() &&
-        !isManagedSingBoxTag(activeTarget) &&
-        appState.selectors.none { it.tag == activeTarget } &&
-        appState.outbounds.any { it.tag == activeTarget }
+    val isCustomSelector = appState.selectors.any { it.tag == activeTarget }
+    val isGroupSelector = activeTarget.startsWith("outbound_group_")
+    val selectedSingleOutbound = appState.outbounds.firstOrNull { it.tag == activeTarget }
+    val isSingleOutbound = selectedSingleOutbound != null &&
+        activeTarget != APP_DIRECT_OUTBOUND &&
+        activeTarget != APP_GLOBAL_SELECTOR &&
+        !isCustomSelector &&
+        !isGroupSelector
 
     if (isSingleOutbound) {
-        val singleOutbound = appState.outbounds.first { it.tag == activeTarget }
+        val singleOutbound = selectedSingleOutbound
         val parsedJson = runCatching { parseSingBoxJson(singleOutbound.json) }.getOrNull()
         val outboundObj = if (parsedJson != null && singleOutbound.shouldRetainRawGroupedOutbound(parsedJson)) {
             JsonObject(
