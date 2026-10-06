@@ -1231,13 +1231,23 @@ internal fun OutboundListPage(
         )
     }
 
+    val enabledSelectorGroups = remember(appState.outboundGroups) {
+        appState.outboundGroups.filter { it.enabled }
+    }
+    val enabledSelectorGroupIds = remember(enabledSelectorGroups) {
+        enabledSelectorGroups.mapTo(mutableSetOf()) { it.id }
+    }
+    val enabledSelectorOutbounds = remember(appState.outbounds, enabledSelectorGroupIds) {
+        appState.outbounds.filter { it.groupId in enabledSelectorGroupIds }
+    }
+
     GlobalSelectorSheet(
         show = showGlobalSelectorSheet,
         onDismissRequest = { showGlobalSelectorSheet = false },
         activeTarget = activeTarget,
         selectors = appState.selectors,
-        groups = appState.outboundGroups,
-        outbounds = appState.outbounds,
+        groups = enabledSelectorGroups,
+        outbounds = enabledSelectorOutbounds,
         onSelectTarget = { tag ->
             val wasSelected = activeTarget == tag
             updateAppState { state ->

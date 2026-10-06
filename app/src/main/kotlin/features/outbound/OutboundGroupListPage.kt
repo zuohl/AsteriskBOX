@@ -72,6 +72,7 @@ import app.AppState
 import app.selectableGroupDetourOutbounds
 import app.LocalAppServices
 import app.LocalAppStateStore
+import app.LocalHomeServiceControl
 import app.LocalIsWideScreen
 import app.LocalNavigator
 import app.LocalUpdateAppState
@@ -144,6 +145,7 @@ internal fun OutboundGroupListPage(
     val stateStore = LocalAppStateStore.current
     val appState by stateStore.collectAppState()
     val navigator = LocalNavigator.current
+    val homeServiceControl = LocalHomeServiceControl.current
     val services = LocalAppServices.current
     val resources = LocalResources.current
     val isWideScreen = LocalIsWideScreen.current
@@ -183,6 +185,9 @@ internal fun OutboundGroupListPage(
                         if (groupEditorSession == session) {
                             showGroupEditor = false
                             if (createOnOpen) navigator.pop()
+                        }
+                        if (appState.proxyRunning && !homeServiceControl.busy) {
+                            homeServiceControl.restartService()
                         }
                     }
                     OutboundCommandResult.Conflict ->
@@ -281,6 +286,9 @@ internal fun OutboundGroupListPage(
                                 ),
                             )
                         }
+                        if (appState.proxyRunning && !homeServiceControl.busy && group.enabled && !result.notModified) {
+                            homeServiceControl.restartService()
+                        }
                     }
                     is OutboundGroupUpdateResult.Failure -> {
                         reportImportFailure(
@@ -367,6 +375,9 @@ internal fun OutboundGroupListPage(
                     },
                 )
                 batchSyncResults = entryResults.toList()
+                if (updatedCount > 0 && appState.proxyRunning && !homeServiceControl.busy) {
+                    homeServiceControl.restartService()
+                }
             } catch (_: CancellationException) {
                 val skippedCount = groups.size - completedCount
                 withContext(NonCancellable) {
@@ -535,7 +546,11 @@ internal fun OutboundGroupListPage(
                                                     enabled,
                                                 )
                                             ) {
-                                                OutboundCommandResult.GroupEnabledChanged -> Unit
+                                                OutboundCommandResult.GroupEnabledChanged -> {
+                                                    if (appState.proxyRunning && !homeServiceControl.busy) {
+                                                        homeServiceControl.restartService()
+                                                    }
+                                                }
                                                 OutboundCommandResult.Conflict ->
                                                     services.tipNotifier.show(stateChangedMessage)
                                                 is OutboundCommandResult.PersistenceFailed ->
@@ -630,6 +645,9 @@ internal fun OutboundGroupListPage(
                         when (val result = services.outboundRepository.deleteGroup(groupId)) {
                             OutboundCommandResult.GroupDeleted -> {
                                 if (pendingDelete?.id == groupId) pendingDelete = null
+                                if (appState.proxyRunning && !homeServiceControl.busy) {
+                                    homeServiceControl.restartService()
+                                }
                             }
                             OutboundCommandResult.Conflict ->
                                 services.tipNotifier.show(stateChangedMessage)

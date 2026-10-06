@@ -108,6 +108,7 @@ import ui.components.AsteriskFilterChip
 import ui.components.AsteriskInfoChip
 import ui.components.AsteriskSelectionCard
 import ui.components.localizedLabel
+import engine.singbox.config.APP_ALL_NODES_TEST_SELECTOR
 import engine.singbox.config.APP_GLOBAL_SELECTOR
 import engine.singbox.runtime.SingBoxProxiesState
 import engine.singbox.runtime.SingBoxProxyGroup
@@ -208,17 +209,47 @@ fun SingBoxProxyPage(
             }
         }
     }
+    val enabledGroups = remember(appState.outboundGroups) {
+        appState.outboundGroups.filter { it.enabled }
+    }
+    val enabledGroupIds = remember(enabledGroups) {
+        enabledGroups.mapTo(mutableSetOf()) { it.id }
+    }
+    val enabledGroupTags = remember(enabledGroups) {
+        enabledGroups.mapTo(mutableSetOf()) { group ->
+            managedOutboundGroupSelectorTag(group.id, group.name)
+        }
+    }
     val visibleProxies = remember(
         proxies,
         managedGroupNames,
         globalGroupName,
         outboundDisplayNames,
         unavailableLabel,
+        enabledGroupIds,
+        enabledGroupTags,
+        outboundByTagOrRemarks,
     ) {
         val prioritized = prioritizeGlobalSingBoxProxyGroup(proxies)
+        val filteredGroups = prioritized.groups.filter { group ->
+            if (group.name == APP_ALL_NODES_TEST_SELECTOR) return@filter false
+            val identity = managedTagIdentityOrNull(group.name)
+            if (identity?.kind == ManagedTagKind.OUTBOUND_GROUP) {
+                return@filter identity.id in enabledGroupIds
+            }
+            if (group.name.startsWith("outbound_group_")) {
+                return@filter group.name in enabledGroupTags
+            }
+            true
+        }
         prioritized.copy(
-            groups = prioritized.groups.map { group ->
+            groups = filteredGroups.map { group ->
+                val filteredAll = group.all.filter { nodeName ->
+                    val outbound = outboundByTagOrRemarks[nodeName]
+                    outbound == null || outbound.groupId in enabledGroupIds
+                }
                 group.copy(
+                    all = filteredAll,
                     displayName = managedGroupNames[group.name]
                         ?: globalGroupName.takeIf { group.name == APP_GLOBAL_SELECTOR }
                         ?: outboundDisplayNames[group.name]
