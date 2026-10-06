@@ -442,7 +442,65 @@ fun SingBoxProxyPage(
                                 failedNodes = runtimeState.delayFailedNodes,
                             )
                         }
-                        val pageGridState = rememberLazyGridState()
+                        val selectedNodeName = (pendingSelections[group?.name] ?: group?.now).orEmpty().takeIf(String::isNotBlank)
+                        val initialTargetIndex = remember(group?.name) {
+                            if (group != null && selectedNodeName != null) {
+                                val idx = pageNodes.indexOf(selectedNodeName)
+                                if (idx >= 0) (idx / columns) * columns else 0
+                            } else {
+                                0
+                            }
+                        }
+                        val pageGridState = rememberLazyGridState(initialFirstVisibleItemIndex = initialTargetIndex)
+                        val isCurrentPage = groupPagerState.currentPage == page
+                        var hasScrolledForActivation by remember { mutableStateOf(false) }
+
+                        LaunchedEffect(isCurrentPage) {
+                            if (!isCurrentPage) {
+                                hasScrolledForActivation = false
+                            }
+                        }
+
+                        LaunchedEffect(
+                            isCurrentPage,
+                            groupPagerState.isScrollInProgress,
+                            pageNodes,
+                            selectedNodeName,
+                        ) {
+                            if (!isCurrentPage || groupPagerState.isScrollInProgress || hasScrolledForActivation) {
+                                return@LaunchedEffect
+                            }
+                            if (group == null || pageNodes.isEmpty() || selectedNodeName == null) {
+                                return@LaunchedEffect
+                            }
+                            val selectedIndex = pageNodes.indexOf(selectedNodeName)
+                            if (selectedIndex < 0) {
+                                return@LaunchedEffect
+                            }
+                            hasScrolledForActivation = true
+                            val layoutInfo = pageGridState.layoutInfo
+                            val isFullyVisible = layoutInfo.visibleItemsInfo.any { item ->
+                                item.index == selectedIndex &&
+                                    item.offset.y >= layoutInfo.viewportStartOffset &&
+                                    (item.offset.y + item.size.height) <= layoutInfo.viewportEndOffset
+                            }
+                            val targetItemIndex = (selectedIndex / columns) * columns
+                            val isAtTarget = pageGridState.firstVisibleItemIndex == targetItemIndex &&
+                                pageGridState.firstVisibleItemScrollOffset == 0
+                            if (!isFullyVisible && !isAtTarget) {
+                                val firstVisible = pageGridState.firstVisibleItemIndex
+                                val distance = kotlin.math.abs(firstVisible - targetItemIndex)
+                                if (distance > 12) {
+                                    val preIndex = if (targetItemIndex > firstVisible) {
+                                        (targetItemIndex - columns).coerceAtLeast(0)
+                                    } else {
+                                        (targetItemIndex + columns).coerceAtMost(pageNodes.lastIndex)
+                                    }
+                                    pageGridState.scrollToItem(preIndex)
+                                }
+                                pageGridState.animateScrollToItem(targetItemIndex)
+                            }
+                        }
 
                         Box(Modifier.fillMaxSize()) {
                             LazyVerticalGrid(
