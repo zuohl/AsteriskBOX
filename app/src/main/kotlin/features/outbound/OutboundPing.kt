@@ -105,14 +105,28 @@ internal class RealDelayPinger(
 
             if (groupSelector != null) {
                 // 如果当前测速的节点全都在同一个管理分组，且内核中有该分组的选择器，则仅测试该分组
-                val groupResult = singBoxRuntime.testGroupDelay(appState, groupSelector)
+                val targetByTag = outbounds.associateBy { it.tag }
+                val reportedIds = mutableSetOf<Int>()
+                val resultsMap = mutableMapOf<Int, Long>()
+
+                val groupResult = singBoxRuntime.testGroupDelay(appState, groupSelector) { nodeName, delay ->
+                    targetByTag[nodeName]?.let { ob ->
+                        val delayLong = delay.takeIf { it > 0 }?.toLong() ?: FailedPingMillis
+                        reportedIds += ob.id
+                        resultsMap[ob.id] = delayLong
+                        onProgress(ob.id, delayLong)
+                    }
+                }
                 if (groupResult.isSuccess) {
                     val groupDelays = groupResult.getOrNull()?.delays.orEmpty()
-                    outbounds.associate { ob ->
-                        val delay = groupDelays[ob.tag]?.takeIf { it > 0 }?.toLong() ?: FailedPingMillis
-                        onProgress(ob.id, delay)
-                        ob.id to delay
+                    outbounds.forEach { ob ->
+                        if (ob.id !in reportedIds) {
+                            val delay = groupDelays[ob.tag]?.takeIf { it > 0 }?.toLong() ?: FailedPingMillis
+                            resultsMap[ob.id] = delay
+                            onProgress(ob.id, delay)
+                        }
                     }
+                    resultsMap
                 } else {
                     // 若整组测试失败，并发测试传入的单个节点
                     testNodesConcurrently(appState, outbounds, onProgress)

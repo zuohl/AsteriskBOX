@@ -174,17 +174,10 @@ internal class OutboundPingRuntimeRepository(
     }
 
     private fun recordCompletion(completion: Completion) {
-        var newPublisherToken: Long? = null
         synchronized(lock) {
             pendingCompletions += completion
-            if (snapshotIntervalMillis == 0L) {
-                publishPendingLocked()
-            } else if (publisherToken == null) {
-                newPublisherToken = ++nextPublisherToken
-                publisherToken = newPublisherToken
-            }
+            publishPendingLocked()
         }
-        newPublisherToken?.let(::launchPublisher)
     }
 
     private fun launchPublisher(token: Long) {

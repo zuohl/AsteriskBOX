@@ -215,6 +215,7 @@ internal suspend fun awaitSingBoxDelayTestSnapshot(
     knownFailures: Set<String>,
     idleTimeoutMillis: Long,
     hardTimeoutMillis: Long,
+    onFreshDelay: ((nodeName: String, delay: Int) -> Unit)? = null,
 ): SingBoxDelayAwaitResult {
     var latestProxies = SingBoxProxiesState()
     var observedFreshDelays = emptyMap<String, Int>()
@@ -223,8 +224,13 @@ internal suspend fun awaitSingBoxDelayTestSnapshot(
             .map { runtime ->
                 check(runtime.running) { "sing-box API disconnected during delay test" }
                 latestProxies = runtime.proxies
-                observedFreshDelays = observedFreshDelays +
-                    plan.freshDelays(runtime.proxies, baselineTimes)
+                val newFresh = plan.freshDelays(runtime.proxies, baselineTimes)
+                newFresh.forEach { (nodeName, delay) ->
+                    if (nodeName !in observedFreshDelays) {
+                        onFreshDelay?.invoke(nodeName, delay)
+                    }
+                }
+                observedFreshDelays = observedFreshDelays + newFresh
                 SingBoxDelayObservation(
                     proxies = runtime.proxies,
                     freshDelays = observedFreshDelays,
