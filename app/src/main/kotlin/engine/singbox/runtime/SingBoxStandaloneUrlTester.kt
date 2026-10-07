@@ -5,6 +5,7 @@ package engine.singbox.runtime
 
 import android.content.Context
 import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import app.DefaultSingBoxUrlTestUrl
 import app.OutboundState
@@ -306,9 +307,17 @@ private class StandalonePlatformInterface(
         destinationPort: Int,
     ): ConnectionOwner = error("connection owner not supported")
 
+    @Suppress("DEPRECATION")
     override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener?) {
-        val network = connectivityManager?.activeNetwork
-        val interfaceName = network
+        val physicalNetwork = connectivityManager?.allNetworks?.firstOrNull { net ->
+            val caps = connectivityManager.getNetworkCapabilities(net)
+            caps != null && !caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+                (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                 caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                 caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
+        } ?: connectivityManager?.activeNetwork
+
+        val interfaceName = physicalNetwork
             ?.let { connectivityManager.getLinkProperties(it) }
             ?.interfaceName
             .orEmpty()

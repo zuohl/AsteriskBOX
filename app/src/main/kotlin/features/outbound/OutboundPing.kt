@@ -72,28 +72,27 @@ internal class RealDelayPinger(
 ) : OutboundPinger {
     override suspend fun ping(outbound: OutboundState): Long {
         val appState = getAppState()
-        return if (appState.proxyRunning) {
+        val inActiveRuntime = appState.proxyRunning && singBoxRuntime.state.value.proxies.nodeByName.containsKey(outbound.tag)
+        return if (inActiveRuntime) {
             val result = singBoxRuntime.testProxyDelay(appState, outbound.tag)
             val delay = result.getOrNull()?.delays?.get(outbound.tag)
             if (delay != null && delay > 0) {
                 delay.toLong()
             } else {
                 val detours = appState.outboundGroups.associate { it.id to it.detour }
-                val results = SingBoxStandaloneUrlTester.testOutbounds(
+                SingBoxStandaloneUrlTester.testOutbounds(
                     context = context,
                     outbounds = listOf(outbound),
                     groupDetours = detours,
-                )
-                results[outbound.id] ?: FailedPingMillis
+                )[outbound.id] ?: FailedPingMillis
             }
         } else {
             val detours = appState.outboundGroups.associate { it.id to it.detour }
-            val results = SingBoxStandaloneUrlTester.testOutbounds(
+            SingBoxStandaloneUrlTester.testOutbounds(
                 context = context,
                 outbounds = listOf(outbound),
                 groupDetours = detours,
-            )
-            results[outbound.id] ?: FailedPingMillis
+            )[outbound.id] ?: FailedPingMillis
         }
     }
 
