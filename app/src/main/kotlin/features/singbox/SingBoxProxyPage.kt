@@ -227,6 +227,13 @@ fun SingBoxProxyPage(
                 managedOutboundGroupSelectorTag(group.id, group.name)
             }
     }
+    val disabledGroupNames = remember(appState.outboundGroups) {
+        appState.outboundGroups.filterNot { it.enabled }.mapTo(mutableSetOf()) { it.name }
+    }
+    val disabledOutboundTags = remember(appState.outbounds, appState.outboundGroups) {
+        val disabledIds = appState.outboundGroups.filterNot { it.enabled }.mapTo(mutableSetOf()) { it.id }
+        appState.outbounds.filter { it.groupId in disabledIds }.mapTo(mutableSetOf()) { it.tag }
+    }
     val visibleProxies = remember(
         proxies,
         managedGroupNames,
@@ -236,13 +243,15 @@ fun SingBoxProxyPage(
         enabledGroupIds,
         enabledGroupTags,
         disabledGroupTags,
+        disabledGroupNames,
+        disabledOutboundTags,
         outboundByTagOrRemarks,
         outboundById,
     ) {
         val prioritized = prioritizeGlobalSingBoxProxyGroup(proxies)
         val filteredGroups = prioritized.groups.filter { group ->
             if (group.name == APP_ALL_NODES_TEST_SELECTOR) return@filter false
-            if (group.name in disabledGroupTags) return@filter false
+            if (group.name in disabledGroupTags || group.name in disabledGroupNames) return@filter false
             val identity = managedTagIdentityOrNull(group.name)
             if (identity?.kind == ManagedTagKind.OUTBOUND_GROUP) {
                 return@filter identity.id in enabledGroupIds
@@ -255,7 +264,7 @@ fun SingBoxProxyPage(
 
         fun isMemberVisible(name: String): Boolean {
             if (name == APP_ALL_NODES_TEST_SELECTOR) return false
-            if (name in disabledGroupTags) return false
+            if (name in disabledGroupTags || name in disabledGroupNames || name in disabledOutboundTags) return false
             val groupIdentity = managedTagIdentityOrNull(name)
             if (groupIdentity?.kind == ManagedTagKind.OUTBOUND_GROUP) {
                 return groupIdentity.id in enabledGroupIds

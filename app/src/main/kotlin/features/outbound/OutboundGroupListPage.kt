@@ -73,6 +73,7 @@ import app.selectableGroupDetourOutbounds
 import app.LocalAppServices
 import app.LocalAppStateStore
 import app.LocalHomeServiceControl
+import app.isGroupAffectingActiveProxy
 import app.LocalIsWideScreen
 import app.LocalNavigator
 import app.LocalUpdateAppState
@@ -186,7 +187,7 @@ internal fun OutboundGroupListPage(
                             showGroupEditor = false
                             if (createOnOpen) navigator.pop()
                         }
-                        if (appState.proxyRunning && !homeServiceControl.busy) {
+                        if (appState.proxyRunning && !homeServiceControl.busy && appState.isGroupAffectingActiveProxy(result.group.id)) {
                             homeServiceControl.restartService()
                         }
                     }
@@ -286,7 +287,7 @@ internal fun OutboundGroupListPage(
                                 ),
                             )
                         }
-                        if (appState.proxyRunning && !homeServiceControl.busy && group.enabled && !result.notModified) {
+                        if (appState.proxyRunning && !homeServiceControl.busy && group.enabled && !result.notModified && appState.isGroupAffectingActiveProxy(group.id)) {
                             homeServiceControl.restartService()
                         }
                     }
@@ -327,6 +328,7 @@ internal fun OutboundGroupListPage(
         var updatedCount = 0
         var failedCount = 0
         val entryResults = mutableListOf<OutboundGroupBatchEntryPresentation>()
+        val affectedActiveGroupIds = mutableSetOf<Int>()
         lateinit var syncJob: Job
         syncJob = scope.launch(start = CoroutineStart.LAZY) {
             try {
@@ -358,7 +360,10 @@ internal fun OutboundGroupListPage(
                         completedCount += 1
                         entryResults += updateResult.toBatchEntryPresentation(group.name)
                         when (updateResult) {
-                            is OutboundGroupUpdateResult.Success -> updatedCount += 1
+                            is OutboundGroupUpdateResult.Success -> {
+                                updatedCount += 1
+                                affectedActiveGroupIds += group.id
+                            }
                             is OutboundGroupUpdateResult.Failure -> {
                                 failedCount += 1
                                 reportImportFailure(
@@ -375,7 +380,8 @@ internal fun OutboundGroupListPage(
                     },
                 )
                 batchSyncResults = entryResults.toList()
-                if (updatedCount > 0 && appState.proxyRunning && !homeServiceControl.busy) {
+                val anyAffectsActive = affectedActiveGroupIds.any { appState.isGroupAffectingActiveProxy(it) }
+                if (updatedCount > 0 && appState.proxyRunning && !homeServiceControl.busy && anyAffectsActive) {
                     homeServiceControl.restartService()
                 }
             } catch (_: CancellationException) {
@@ -547,7 +553,7 @@ internal fun OutboundGroupListPage(
                                                 )
                                             ) {
                                                 OutboundCommandResult.GroupEnabledChanged -> {
-                                                    if (appState.proxyRunning && !homeServiceControl.busy) {
+                                                    if (appState.proxyRunning && !homeServiceControl.busy && appState.isGroupAffectingActiveProxy(groupId)) {
                                                         homeServiceControl.restartService()
                                                     }
                                                 }
@@ -645,7 +651,7 @@ internal fun OutboundGroupListPage(
                         when (val result = services.outboundRepository.deleteGroup(groupId)) {
                             OutboundCommandResult.GroupDeleted -> {
                                 if (pendingDelete?.id == groupId) pendingDelete = null
-                                if (appState.proxyRunning && !homeServiceControl.busy) {
+                                if (appState.proxyRunning && !homeServiceControl.busy && appState.isGroupAffectingActiveProxy(groupId)) {
                                     homeServiceControl.restartService()
                                 }
                             }

@@ -243,8 +243,15 @@ internal fun OutboundListPage(
     val outboundIndex = remember(appState.outbounds) {
         services.outboundListProjectionCache.build(appState.outbounds)
     }
-    val groups = appState.outboundGroups
+    val groups = remember(appState.outboundGroups) {
+        appState.outboundGroups.filter { it.enabled }
+    }
     val pagerState = rememberPagerState(pageCount = { groups.size.coerceAtLeast(1) })
+    LaunchedEffect(groups.size) {
+        if (groups.isNotEmpty() && pagerState.currentPage >= groups.size) {
+            pagerState.scrollToPage(groups.size - 1)
+        }
+    }
     var importMenuExpanded by remember { mutableStateOf(false) }
     var importMenuLevel by remember { mutableStateOf(OutboundImportMenuLevel.MAIN) }
     val manualImportMenuScrollState = rememberScrollState()
@@ -263,7 +270,7 @@ internal fun OutboundListPage(
     val isGroupSelector = activeTarget.startsWith("outbound_group_")
     val isSelectorMode = isCustomSelector || isGroupSelector
     val activeSelector = if (isCustomSelector) appState.selectors.firstOrNull { it.tag == activeTarget } else null
-    val activeGroup = if (isGroupSelector) groups.firstOrNull { managedOutboundGroupSelectorTag(it.id, it.name) == activeTarget } else null
+    val activeGroup = if (isGroupSelector) appState.outboundGroups.firstOrNull { managedOutboundGroupSelectorTag(it.id, it.name) == activeTarget } else null
     val selectedSingleOutbound = if (!isSelectorMode && activeTarget.isNotEmpty() && activeTarget != ManagedDirectOutboundTag) {
         appState.outbounds.firstOrNull { it.tag == activeTarget }
     } else null
@@ -841,9 +848,9 @@ internal fun OutboundListPage(
                                 )
                             }
                             isGroupSelector -> {
-                                val grp = appState.outboundGroups.first { managedOutboundGroupSelectorTag(it.id, it.name) == activeTarget }
+                                val grp = appState.outboundGroups.firstOrNull { managedOutboundGroupSelectorTag(it.id, it.name) == activeTarget }
                                 Triple(
-                                    grp.name,
+                                    grp?.name ?: activeTarget,
                                     if (activeNodeRemarks != null) "当前节点: $activeNodeRemarks" else "分组策略调度",
                                     Icons.Rounded.Folder,
                                 )
