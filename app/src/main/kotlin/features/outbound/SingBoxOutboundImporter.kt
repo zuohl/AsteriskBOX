@@ -53,19 +53,22 @@ internal object SingBoxOutboundImporter {
         val mutations = mutableListOf<ImportMutation>()
         val outbounds = when (element) {
             is JsonObject -> {
-                if ("outbounds" in element) {
+                val hasOutbounds = "outbounds" in element
+                val hasEndpoints = "endpoints" in element
+                if (hasOutbounds || hasEndpoints) {
                     element.keys
-                        .filterNot { key -> key == "outbounds" }
+                        .filterNot { key -> key == "outbounds" || key == "endpoints" }
                         .forEach { _ ->
                             mutations += ImportMutation(
                                 code = ImportMutationCode.IGNORED_SECTION,
                                 message = "Ignored a top-level sing-box section",
                             )
                         }
-                    element["outbounds"] as? JsonArray
-                        ?: throw IllegalArgumentException(
-                            "sing-box configuration must contain an outbounds array",
-                        )
+                    val combined = buildList {
+                        (element["outbounds"] as? JsonArray)?.let { addAll(it) }
+                        (element["endpoints"] as? JsonArray)?.let { addAll(it) }
+                    }
+                    JsonArray(combined)
                 } else {
                     JsonArray(listOf(element))
                 }
@@ -169,27 +172,46 @@ internal object SingBoxOutboundImporter {
         formatter: SingBoxOutboundConfigFormatter,
     ): List<ImportedSingBoxOutbound> {
         val candidates = extractSupportedCandidates(outbounds)
+        val normalCandidates = candidates.filter { it.outbound.stringField("type") != "wireguard" }
+        val wireguardCandidates = candidates.filter { it.outbound.stringField("type") == "wireguard" }
         val minimalRoot = buildJsonObject {
-            put(
-                "outbounds",
-                JsonArray(candidates.map(RawOutboundImportCandidate::outbound)),
-            )
+            if (normalCandidates.isNotEmpty()) {
+                put(
+                    "outbounds",
+                    JsonArray(normalCandidates.map(RawOutboundImportCandidate::outbound)),
+                )
+            }
+            if (wireguardCandidates.isNotEmpty()) {
+                put(
+                    "endpoints",
+                    JsonArray(wireguardCandidates.map(RawOutboundImportCandidate::outbound)),
+                )
+            }
         }
         val formatted = formatter.format(
             SingBoxJson.encodeToString(JsonElement.serializer(), minimalRoot),
         )
         val formattedRoot = parseSingBoxJson(formatted)
-        val formattedOutbounds = formattedRoot["outbounds"] as? JsonArray
-            ?: throw IllegalArgumentException(
-                "Formatted sing-box configuration must contain an outbounds array",
-            )
-        if (formattedOutbounds.size != candidates.size) {
+        val formattedOutbounds = (formattedRoot["outbounds"] as? JsonArray).orEmpty()
+        val formattedEndpoints = (formattedRoot["endpoints"] as? JsonArray).orEmpty()
+        if (formattedOutbounds.size != normalCandidates.size ||
+            formattedEndpoints.size != wireguardCandidates.size
+        ) {
             throw IllegalArgumentException(
                 "Formatted sing-box configuration changed the outbound count",
             )
         }
+        var normalIdx = 0
+        var wgIdx = 0
+        val reassembled = candidates.map { candidate ->
+            if (candidate.outbound.stringField("type") == "wireguard") {
+                formattedEndpoints[wgIdx++]
+            } else {
+                formattedOutbounds[normalIdx++]
+            }
+        }
         return parsePreparedOutboundArray(
-            outbounds = formattedOutbounds,
+            outbounds = JsonArray(reassembled),
             sourceIndexes = candidates.map(RawOutboundImportCandidate::sourceIndex),
         )
     }
@@ -201,7 +223,12 @@ internal object SingBoxOutboundImporter {
         require(outbounds.size == sourceIndexes.size) {
             "Prepared outbound indexes do not match outbound count"
         }
-        val root = buildJsonObject { put("outbounds", outbounds) }
+        val normalOutbounds = outbounds.filter { (it as? JsonObject)?.stringField("type") != "wireguard" }
+        val wireguardEndpoints = outbounds.filter { (it as? JsonObject)?.stringField("type") == "wireguard" }
+        val root = buildJsonObject {
+            if (normalOutbounds.isNotEmpty()) put("outbounds", JsonArray(normalOutbounds))
+            if (wireguardEndpoints.isNotEmpty()) put("endpoints", JsonArray(wireguardEndpoints))
+        }
         SingBoxDeprecatedConfigValidator.validate(root)
         val imported = outbounds.mapIndexedNotNull { convertedIndex, element ->
             val sourceIndex = sourceIndexes[convertedIndex]
@@ -540,6 +567,7 @@ internal val SupportedSingBoxProxyOutboundTypes = linkedSetOf(
     "anytls",
     "snell",
     "ssh",
+    "wireguard",
 )
 
 private val ExpectedIgnoredSingBoxOutboundTypes = setOf(

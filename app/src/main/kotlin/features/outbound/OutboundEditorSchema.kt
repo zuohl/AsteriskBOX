@@ -87,6 +87,7 @@ internal object OutboundEditorRegistry {
         OutboundEditorDescriptor("anytls", "AnyTLS"),
         OutboundEditorDescriptor("snell", "Snell"),
         OutboundEditorDescriptor("ssh", "SSH"),
+        OutboundEditorDescriptor("wireguard", "WireGuard"),
     )
     private val schemaCache = mutableMapOf<String, OutboundEditorSchema>()
 
@@ -164,6 +165,7 @@ internal object OutboundEditorRegistry {
         "anytls" -> schema(type, descriptor(type).title, anyTlsOutboundFields(), tls = true)
         "snell" -> schema(type, descriptor(type).title, snellOutboundFields())
         "ssh" -> schema(type, descriptor(type).title, sshOutboundFields())
+        "wireguard" -> schema(type, descriptor(type).title, wireguardOutboundFields())
         else -> throw IllegalArgumentException("Unsupported outbound type: $type")
     }
 
@@ -688,6 +690,7 @@ internal fun outboundFieldLabelResource(label: String): Int = when (label) {
     "IPv4 bind address" -> R.string.outbound_field_ipv4_bind_address
     "IPv6 bind address" -> R.string.outbound_field_ipv6_bind_address
     "Key exchange algorithms" -> R.string.outbound_field_key_exchange_algorithms
+    "Local address" -> R.string.outbound_field_local_address
     "MAC algorithms" -> R.string.outbound_field_mac_algorithms
     "Maximum connections" -> R.string.outbound_field_maximum_connections
     "Maximum concurrent streams" -> R.string.outbound_field_maximum_concurrent_streams
@@ -700,6 +703,7 @@ internal fun outboundFieldLabelResource(label: String): Int = when (label) {
     "Minimum packet size" -> R.string.outbound_field_minimum_packet_size
     "Minimum streams" -> R.string.outbound_field_minimum_streams
     "Minimum TLS version" -> R.string.outbound_field_minimum_tls_version
+    "MTU" -> R.string.outbound_field_mtu
     "Multiplex" -> R.string.outbound_field_multiplex
     "Multiplex protocol" -> R.string.outbound_field_multiplex_protocol
     "Network" -> R.string.outbound_field_network
@@ -714,6 +718,7 @@ internal fun outboundFieldLabelResource(label: String): Int = when (label) {
     "Padding" -> R.string.outbound_field_padding
     "Password" -> R.string.outbound_field_password
     "Path" -> R.string.outbound_field_path
+    "Peer public key" -> R.string.outbound_field_peer_public_key
     "Permit without stream" -> R.string.outbound_field_permit_without_stream
     "Ping timeout" -> R.string.outbound_field_ping_timeout
     "Plugin" -> R.string.outbound_field_plugin
@@ -730,6 +735,7 @@ internal fun outboundFieldLabelResource(label: String): Int = when (label) {
     "Reality public key" -> R.string.outbound_field_reality_public_key
     "Reality short ID" -> R.string.outbound_field_reality_short_id
     "Request path" -> R.string.outbound_field_request_path
+    "Reserved bytes" -> R.string.outbound_field_reserved
     "Reuse address" -> R.string.outbound_field_reuse_address
     "Routing mark" -> R.string.outbound_field_routing_mark
     "Security" -> R.string.outbound_field_security
@@ -765,6 +771,7 @@ internal fun outboundFieldLabelResource(label: String): Int = when (label) {
     "uTLS" -> R.string.outbound_field_utls
     "uTLS fingerprint" -> R.string.outbound_field_utls_fingerprint
     "UUID" -> R.string.outbound_field_uuid
+    "Workers" -> R.string.outbound_field_workers
     "XHTTP extra" -> R.string.outbound_field_xhttp_extra
     "XHTTP mode" -> R.string.outbound_field_xhttp_mode
     "XHTTP padding bytes" -> R.string.outbound_field_xhttp_padding_bytes
@@ -880,7 +887,11 @@ internal data class OutboundEditorDocument(
             }
         }
         if (errors.isEmpty()) {
-            val root = buildJsonObject { put("outbounds", JsonArray(listOf(value))) }
+            val root = if (type == "wireguard") {
+                buildJsonObject { put("endpoints", JsonArray(listOf(value))) }
+            } else {
+                buildJsonObject { put("outbounds", JsonArray(listOf(value))) }
+            }
             SingBoxDeprecatedConfigValidator.validate(root)
         }
         return errors.distinctBy(OutboundEditorValidationError::path)
@@ -991,6 +1002,11 @@ internal data class OutboundEditorDocument(
                 }
                 "hysteria2" -> Unit
                 "snell" -> document = document.setText("version", "4")
+                "wireguard" -> {
+                    document = document
+                        .setText("server_port", "51820")
+                        .setText("mtu", "1420")
+                }
             }
             if (type in MandatoryTlsOutboundTypes) {
                 document = document.setBoolean("tls.enabled", true)

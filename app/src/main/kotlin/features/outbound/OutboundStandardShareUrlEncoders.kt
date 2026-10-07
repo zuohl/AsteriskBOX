@@ -20,6 +20,7 @@ internal fun encodeStandardOutboundShareUrl(
     "shadowtls" -> outbound.encodeShadowTlsShareUrl(remarks)
     "snell" -> outbound.encodeSnellShareUrl(remarks)
     "ssh" -> outbound.encodeSshShareUrl(remarks)
+    "wireguard" -> outbound.encodeWireGuardShareUrl(remarks)
     else -> null
 }
 
@@ -290,6 +291,71 @@ private fun JsonObject.encodeSshShareUrl(remarks: String): String {
         scheme = "ssh",
         endpoint = requireShareEndpoint(),
         encodedUserInfo = encodeShareCredentials(stringValue("user"), stringValue("password")),
+        remarks = remarks,
+    )
+}
+
+private fun JsonObject.encodeWireGuardShareUrl(remarks: String): String {
+    val privateKey = stringValue("private_key")
+    require(privateKey.isNotBlank()) { "WireGuard private key is required" }
+    val peers = (get("peers") as? kotlinx.serialization.json.JsonArray).orEmpty()
+    val firstPeer = peers.firstOrNull() as? JsonObject
+    val peerHost = firstPeer?.stringValue("address")?.ifBlank { null }
+        ?: stringValue("server")
+    val peerPort = (firstPeer?.intValue("port") ?: intValue("server_port")).takeIf { it > 0 } ?: 51820
+    val publicKey = firstPeer?.stringValue("public_key")?.ifBlank { null }
+        ?: stringValue("public_key")
+    require(!peerHost.isNullOrBlank()) { "WireGuard peer host is required" }
+    require(!publicKey.isNullOrBlank()) { "WireGuard peer public key is required" }
+
+    val addressList = buildList {
+        val addr = get("address")
+        when (addr) {
+            is kotlinx.serialization.json.JsonArray -> {
+                addr.forEach { item ->
+                    (item as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank)?.let { add(it) }
+                }
+            }
+            is JsonPrimitive -> {
+                addr.contentOrNull?.takeIf(String::isNotBlank)?.let { add(it) }
+            }
+            else -> Unit
+        }
+    }
+    val parameters = buildList {
+        add("publickey" to publicKey)
+        if (addressList.isNotEmpty()) {
+            add("address" to addressList.joinToString(","))
+        }
+        val psk = firstPeer?.stringValue("pre_shared_key")?.ifBlank { null }
+            ?: stringValue("pre_shared_key")
+        if (!psk.isNullOrBlank()) {
+            add("presharedkey" to psk)
+        }
+        val keepalive = firstPeer?.intValue("persistent_keepalive_interval") ?: 0
+        if (keepalive > 0) {
+            add("keepalive" to keepalive.toString())
+        }
+        val mtu = intValue("mtu")
+        if (mtu > 0) {
+            add("mtu" to mtu.toString())
+        }
+        val workers = intValue("workers")
+        if (workers > 0) {
+            add("workers" to workers.toString())
+        }
+        val reservedList = (firstPeer?.get("reserved") as? kotlinx.serialization.json.JsonArray)?.mapNotNull {
+            (it as? JsonPrimitive)?.contentOrNull
+        }
+        if (!reservedList.isNullOrEmpty()) {
+            add("reserved" to reservedList.joinToString(","))
+        }
+    }
+    return buildOutboundShareUri(
+        scheme = "wireguard",
+        endpoint = OutboundShareEndpoint(peerHost, peerPort),
+        encodedUserInfo = encodeShareComponent(privateKey),
+        parameters = parameters,
         remarks = remarks,
     )
 }

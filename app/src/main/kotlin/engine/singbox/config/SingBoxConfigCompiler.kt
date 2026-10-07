@@ -526,12 +526,16 @@ internal fun compileOutbounds(root: JsonObject, appState: AppState): JsonArray {
             .toMutableList()
 
         requiredOutbounds.values.forEach { ob ->
-            retainedSingle += compileOutboundObject(ob)
+            if (ob.type != "wireguard") {
+                retainedSingle += compileOutboundObject(ob)
+            }
         }
         val standbyOutbounds = appState.outbounds
             .filter { it.groupId in enabledGroupIds && it.tag !in allSingleTags }
         standbyOutbounds.forEach { ob ->
-            retainedSingle += compileOutboundObject(ob)
+            if (ob.type != "wireguard") {
+                retainedSingle += compileOutboundObject(ob)
+            }
         }
         retainedSingle += buildJsonObject {
             put("type", "direct")
@@ -610,7 +614,11 @@ internal fun compileOutbounds(root: JsonObject, appState: AppState): JsonArray {
                 (outbound["tag"] as? JsonPrimitive)?.contentOrNull in claimedCustomSelectorTags
         }
         .toMutableList()
-    retained += managedOutbounds.map { (_, outbound) -> outbound }
+    retained += managedOutbounds
+        .filter { (_, outbound) ->
+            ((outbound["type"] as? JsonPrimitive)?.contentOrNull) != "wireguard"
+        }
+        .map { (_, outbound) -> outbound }
     val outboundCandidates = retained.mapNotNull { outbound ->
         val tag = (outbound["tag"] as? JsonPrimitive)
             ?.contentOrNull
@@ -830,8 +838,57 @@ private fun buildUrlTestOutbound(
     put("interrupt_exist_connections", selector.interruptExistConnections)
 }
 
+internal fun normalizeWireGuardEndpointJson(json: String, tag: String): JsonObject? {
+    val parsed = runCatching { parseSingBoxJson(json) }.getOrNull() ?: return null
+    return JsonObject(
+        buildMap {
+            putAll(parsed)
+            put("type", JsonPrimitive("wireguard"))
+            put("tag", JsonPrimitive(tag))
+            if (get("system") == null) {
+                put("system", JsonPrimitive(false))
+            }
+            val address = get("address")
+            if (address is JsonPrimitive) {
+                put("address", JsonArray(listOf(address)))
+            } else if (address == null) {
+                val ip = get("ip")
+                if (ip is JsonPrimitive) {
+                    put("address", JsonArray(listOf(ip)))
+                }
+            }
+            val peers = get("peers") as? JsonArray
+            if (peers.isNullOrEmpty()) {
+                val server = (get("server") as? JsonPrimitive)?.contentOrNull
+                val serverPort = (get("server_port") as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 51820
+                val publicKey = (get("public_key") as? JsonPrimitive)?.contentOrNull
+                if (!server.isNullOrBlank() && !publicKey.isNullOrBlank()) {
+                    val peer = buildJsonObject {
+                        put("address", server)
+                        put("port", serverPort)
+                        put("public_key", publicKey)
+                        (get("pre_shared_key") as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank)?.let {
+                            put("pre_shared_key", it)
+                        }
+                        val allowedIps = (get("allowed_ips") as? JsonArray)
+                            ?: JsonArray(listOf(JsonPrimitive("0.0.0.0/0"), JsonPrimitive("::/0")))
+                        put("allowed_ips", allowedIps)
+                        (get("persistent_keepalive_interval") as? JsonPrimitive)?.contentOrNull?.toIntOrNull()?.let {
+                            put("persistent_keepalive_interval", it)
+                        }
+                        (get("reserved") as? JsonArray)?.let {
+                            put("reserved", it)
+                        }
+                    }
+                    put("peers", JsonArray(listOf(peer)))
+                }
+            }
+        },
+    )
+}
+
 internal fun compileEndpoints(root: JsonObject, appState: AppState): JsonArray {
-    val managed = appState.endpoints
+    val managedFromEndpoints = appState.endpoints
         .asSequence()
         .filter { endpoint -> endpoint.type in app.SupportedSingBoxEndpointTypes }
         .mapNotNull { endpoint ->
@@ -847,6 +904,16 @@ internal fun compileEndpoints(root: JsonObject, appState: AppState): JsonArray {
                     )
                 }
         }
+    val enabledGroups = appState.outboundGroups
+        .filter { group -> group.enabled }
+        .mapTo(mutableSetOf()) { group -> group.id }
+    val managedFromOutbounds = appState.outbounds
+        .asSequence()
+        .filter { outbound -> outbound.type == "wireguard" && outbound.groupId in enabledGroups }
+        .mapNotNull { outbound ->
+            normalizeWireGuardEndpointJson(outbound.json, outbound.tag)
+        }
+    val managed = (managedFromEndpoints + managedFromOutbounds)
         .distinctBy { endpoint ->
             (endpoint["tag"] as? JsonPrimitive)?.contentOrNull
         }

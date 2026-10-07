@@ -4,6 +4,7 @@
 package features.outbound
 
 import engine.singbox.config.SingBoxJson
+import features.endpoint.WireGuardEndpointParser
 import features.importing.ImportFormat
 import features.importing.ImportIssue
 import features.importing.ImportIssueReason
@@ -59,6 +60,7 @@ private fun canonicalMihomoOutboundType(sourceType: String): String =
         "ss" -> "shadowsocks"
         "hy1" -> "hysteria"
         "hy2" -> "hysteria2"
+        "wg", "wireguard" -> "wireguard"
         else -> sourceType.lowercase()
     }
 
@@ -69,6 +71,7 @@ private fun canonicalProxyUrlOutboundType(scheme: String): String =
         "hy1" -> "hysteria"
         "hy2" -> "hysteria2"
         "naive", "naive+https", "naive+quic" -> "naive"
+        "wg", "wireguard" -> "wireguard"
         else -> scheme.lowercase()
     }
 
@@ -162,6 +165,9 @@ internal object OutboundImportPipeline {
             MihomoYamlOutboundParser.parseOutcomeOrNull(candidate)?.let { return it }
         }
         candidates.forEach { candidate ->
+            WireGuardConfigOutboundParser.parseOutcomeOrNull(candidate)?.let { return it }
+        }
+        candidates.forEach { candidate ->
             ProxyUrlOutboundParser.parseOutcomeOrNull(candidate)?.let { return it }
         }
         throw IllegalArgumentException("No supported proxy outbounds found")
@@ -200,6 +206,27 @@ private fun invalidRecognizedOutboundDocument(
         ),
     ),
 )
+
+private object WireGuardConfigOutboundParser {
+    fun parseOutcomeOrNull(content: String): ImportOutcome<ImportedSingBoxOutbound>? {
+        val parsed = WireGuardEndpointParser.parseConfigOutcomeOrNull(content) ?: return null
+        return ImportOutcome(
+            format = OutboundImportFormat.URL,
+            detectedCount = parsed.outcome.detectedCount,
+            accepted = parsed.outcome.accepted.mapIndexed { index, endpoint ->
+                ImportedSingBoxOutbound(
+                    sourceIndex = index,
+                    sourceTag = "",
+                    remarks = endpoint.remarks,
+                    type = "wireguard",
+                    json = endpoint.json,
+                )
+            },
+            issues = parsed.outcome.issues,
+            mutations = parsed.outcome.mutations,
+        )
+    }
+}
 
 private object MihomoYamlOutboundParser {
     private val loader = Load(LoadSettings.builder().build())
@@ -560,6 +587,34 @@ private object MihomoYamlOutboundParser {
                     putListable("mac", stringList("mac"))
                     putListable("kex_algorithm", stringList("kex-algorithm"))
                 }
+                "wireguard" -> {
+                    putNotBlank("private_key", string("private-key"))
+                    val addresses = buildList {
+                        string("ip").takeIf(String::isNotBlank)?.let { add(it) }
+                        string("ipv6").takeIf(String::isNotBlank)?.let { add(it) }
+                        addAll(stringList("ip"))
+                        addAll(stringList("address"))
+                    }.distinct()
+                    if (addresses.isNotEmpty()) {
+                        put("address", JsonArray(addresses.map(::JsonPrimitive)))
+                    }
+                    putPositive("mtu", int("mtu"))
+                    putPositive("workers", int("workers"))
+                    val peer = buildJsonObject {
+                        put("address", server)
+                        put("port", port)
+                        putNotBlank("public_key", string("public-key"))
+                        putNotBlank("pre_shared_key", string("preshared-key").ifBlank { string("psk") })
+                        val allowedIps = stringList("allowed-ips").ifEmpty { listOf("0.0.0.0/0", "::/0") }
+                        put("allowed_ips", JsonArray(allowedIps.map(::JsonPrimitive)))
+                        putPositive("persistent_keepalive_interval", int("keepalive"))
+                        val reserved = intList("reserved")
+                        if (reserved.isNotEmpty()) {
+                            put("reserved", JsonArray(reserved.map { JsonPrimitive(it as Number) }))
+                        }
+                    }
+                    put("peers", JsonArray(listOf(peer)))
+                }
             }
             if (containsKey("udp") && !bool("udp") &&
                 type in setOf("socks", "shadowsocks", "vmess", "vless", "trojan")
@@ -802,7 +857,7 @@ private object MihomoYamlOutboundParser {
                 "client-fingerprint",
                 "certificate",
             ).any { key -> string(key).isNotBlank() } ||
-            (type != "ssh" && string("private-key").isNotBlank()) ||
+            (type !in setOf("ssh", "wireguard") && string("private-key").isNotBlank()) ||
             bool("skip-cert-verify") ||
             bool("disable-sni") ||
             map("reality-opts").isNotEmpty() ||
@@ -912,6 +967,9 @@ private object ProxyUrlOutboundParser {
 
     private fun parseLink(link: String, index: Int): JsonObject? {
         val scheme = link.substringBefore("://").lowercase()
+        if (scheme == "wg" || scheme == "wireguard") {
+            return parseWireGuardUrl(link, index)
+        }
         if (scheme == "vmess" && '@' !in link.substringAfter("://").substringBefore('#')) {
             return parseLegacyVmess(link, index)
         }
@@ -1179,6 +1237,21 @@ private object ProxyUrlOutboundParser {
                 buildUrlTransport(query)?.let { put("transport", it) }
             }
         }
+    }
+
+    private fun parseWireGuardUrl(link: String, index: Int): JsonObject {
+        val parsed = WireGuardEndpointParser.parseUrlOutcomeOrNull(link)
+            ?: throw IllegalArgumentException("Invalid WireGuard URL")
+        val firstIssue = parsed.outcome.issues.firstOrNull()
+        if (firstIssue != null) {
+            throw IllegalArgumentException(firstIssue.message)
+        }
+        val endpoint = parsed.outcome.accepted.firstOrNull()
+            ?: throw IllegalArgumentException("No accepted WireGuard endpoint")
+        val endpointJson = SingBoxJson.parseToJsonElement(endpoint.json) as? JsonObject
+            ?: throw IllegalArgumentException("Invalid WireGuard JSON")
+        val remarks = endpoint.remarks.takeIf(String::isNotBlank) ?: "WireGuard-${index + 1}"
+        return JsonObject(endpointJson + ("tag" to JsonPrimitive(remarks)))
     }
 
     private fun parseLegacyVmess(link: String, index: Int): JsonObject {
@@ -1538,7 +1611,7 @@ private data class IndexedProxyLink(
 )
 
 private val RejectedOutboundUrlSchemes =
-    setOf("tor", "wg", "wireguard", "awg", "warp")
+    setOf("tor", "awg", "warp")
 
 private fun rejectedOutboundCandidate(
     reason: ImportIssueReason,
@@ -1707,6 +1780,7 @@ private fun defaultPort(scheme: String): Int = when (scheme) {
     "http" -> 80
     "https", "hysteria2", "hy2", "naive", "naive+https", "naive+quic" -> 443
     "ssh" -> 22
+    "wireguard", "wg" -> 51820
     else -> -1
 }
 
@@ -1866,6 +1940,19 @@ private fun Map<*, *>.stringList(name: String): List<String> = when (val value =
     is Iterable<*> -> value.mapNotNull { item -> item?.toString()?.takeIf(String::isNotBlank) }
     null -> emptyList()
     else -> listOf(value.toString()).filter(String::isNotBlank)
+}
+
+private fun Map<*, *>.intList(name: String): List<Int> = when (val value = get(name)) {
+    is Iterable<*> -> value.mapNotNull { item ->
+        when (item) {
+            is Number -> item.toInt()
+            is String -> item.toIntOrNull()
+            else -> null
+        }
+    }
+    is Number -> listOf(value.toInt())
+    is String -> value.toIntOrNull()?.let(::listOf).orEmpty()
+    else -> emptyList()
 }
 
 private fun Map<*, *>.headerValues(name: String): List<String> {

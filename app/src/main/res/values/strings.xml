@@ -598,6 +598,11 @@
     <string name="outbound_field_xhttp_mode">XHTTP mode</string>
     <string name="outbound_field_xhttp_padding_bytes">XHTTP padding bytes</string>
     <string name="outbound_field_zero_rtt_handshake">0-RTT handshake</string>
+    <string name="outbound_field_peer_public_key">Peer public key</string>
+    <string name="outbound_field_local_address">Local address</string>
+    <string name="outbound_field_mtu">MTU</string>
+    <string name="outbound_field_reserved">Reserved bytes</string>
+    <string name="outbound_field_workers">Workers</string>
     <string name="outbound_group">Group</string>
 
     <!-- Selectors -->
