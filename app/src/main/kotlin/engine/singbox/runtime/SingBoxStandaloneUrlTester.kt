@@ -12,6 +12,7 @@ import app.OutboundState
 import engine.singbox.config.APP_DIRECT_OUTBOUND
 import engine.singbox.config.encodeSingBoxJson
 import engine.singbox.config.inheritedGroupDetour
+import engine.singbox.config.normalizeWireGuardEndpointJson
 import engine.singbox.config.parseSingBoxJson
 import engine.singbox.config.shouldRetainRawGroupedOutbound
 import engine.vpn.toStringIterator
@@ -168,7 +169,12 @@ internal object SingBoxStandaloneUrlTester {
         groupDetours: Map<Int, String>,
         testUrl: String,
     ): String {
-        val compiledOutbounds = targets.mapNotNull { outbound ->
+        val wireguardTargets = targets.filter { it.type == "wireguard" }
+        val normalTargets = targets.filter { it.type != "wireguard" }
+        val compiledEndpoints = wireguardTargets.mapNotNull { outbound ->
+            normalizeWireGuardEndpointJson(outbound.json, outbound.tag)
+        }
+        val compiledOutbounds = normalTargets.mapNotNull { outbound ->
             val parsedJson = runCatching { parseSingBoxJson(outbound.json) }.getOrNull()
             if (parsedJson != null && outbound.shouldRetainRawGroupedOutbound(parsedJson)) {
                 JsonObject(
@@ -187,9 +193,7 @@ internal object SingBoxStandaloneUrlTester {
                 }
             }
         }
-        val targetTags = compiledOutbounds.mapNotNull {
-            ((it as? JsonObject)?.get("tag") as? JsonPrimitive)?.contentOrNull
-        }
+        val targetTags = targets.map { it.tag }
 
         val root = buildJsonObject {
             putJsonObject("log") {
@@ -206,6 +210,11 @@ internal object SingBoxStandaloneUrlTester {
                 put("strategy", "prefer_ipv4")
             }
             putJsonArray("inbounds") {}
+            if (compiledEndpoints.isNotEmpty()) {
+                putJsonArray("endpoints") {
+                    compiledEndpoints.forEach { add(it) }
+                }
+            }
             putJsonArray("outbounds") {
                 compiledOutbounds.forEach { add(it) }
                 if (APP_DIRECT_OUTBOUND !in targetTags) {

@@ -61,7 +61,7 @@ internal fun isInvalidOutbound(
     // with method "none"). Check the endpoint separately and let the core decode options.
     if (OutboundEditorRegistry.descriptors.any { it.type == document.type }) {
         val realm = document.type == "hysteria2" && root["realm"] is JsonObject
-        if (!realm) {
+        if (!realm && document.type != "wireguard") {
             require(document.text("server").isNotBlank())
             val hopping = document.type in setOf("hysteria", "hysteria2") &&
                 document.text("server_ports").isNotBlank()
@@ -71,7 +71,11 @@ internal fun isInvalidOutbound(
             }
         }
     }
-    val configuration = buildJsonObject { put("outbounds", JsonArray(listOf(root))) }
+    val configuration = if (document.type == "wireguard") {
+        buildJsonObject { put("endpoints", JsonArray(listOf(root))) }
+    } else {
+        buildJsonObject { put("outbounds", JsonArray(listOf(root))) }
+    }
     SingBoxDeprecatedConfigValidator.validate(configuration)
     formatter.format(configuration.toString())
     false

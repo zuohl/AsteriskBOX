@@ -134,3 +134,17 @@ internal fun LazyListScope.snellOutboundEditor(state: OutboundEditorContentState
 internal fun LazyListScope.sshOutboundEditor(state: OutboundEditorContentState) {
     outboundEditorSections(state)
 }
+
+internal fun wireguardOutboundFields() = listOf(
+    outboundField("private_key", "Private key", required = true),
+    outboundField("peer_public_key", "Peer public key", required = true),
+    outboundField("pre_shared_key", "Pre-shared key"),
+    outboundField("local_address", "Local address", OutboundFieldKind.TEXT_LIST, required = true),
+    outboundField("mtu", "MTU", OutboundFieldKind.INTEGER),
+    outboundField("reserved", "Reserved bytes"),
+    outboundField("workers", "Workers", OutboundFieldKind.INTEGER),
+)
+
+internal fun LazyListScope.wireguardOutboundEditor(state: OutboundEditorContentState) {
+    outboundEditorSections(state)
+}

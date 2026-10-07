@@ -590,6 +590,11 @@
     <string name="outbound_field_xhttp_mode">XHTTP 模式</string>
     <string name="outbound_field_xhttp_padding_bytes">XHTTP 填充字节</string>
     <string name="outbound_field_zero_rtt_handshake">0-RTT 握手</string>
+    <string name="outbound_field_peer_public_key">对端公钥</string>
+    <string name="outbound_field_local_address">本地地址 (CIDR)</string>
+    <string name="outbound_field_mtu">MTU</string>
+    <string name="outbound_field_reserved">保留字段 (Reserved)</string>
+    <string name="outbound_field_workers">工作线程数</string>
     <string name="outbound_group">分组</string>
 
     <!-- Selectors -->
