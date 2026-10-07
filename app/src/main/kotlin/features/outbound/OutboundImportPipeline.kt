@@ -857,7 +857,7 @@ private object MihomoYamlOutboundParser {
                 "client-fingerprint",
                 "certificate",
             ).any { key -> string(key).isNotBlank() } ||
-            (type != "ssh" && string("private-key").isNotBlank()) ||
+            (type !in setOf("ssh", "wireguard") && string("private-key").isNotBlank()) ||
             bool("skip-cert-verify") ||
             bool("disable-sni") ||
             map("reality-opts").isNotEmpty() ||
@@ -1780,6 +1780,7 @@ private fun defaultPort(scheme: String): Int = when (scheme) {
     "http" -> 80
     "https", "hysteria2", "hy2", "naive", "naive+https", "naive+quic" -> 443
     "ssh" -> 22
+    "wireguard", "wg" -> 51820
     else -> -1
 }
 
