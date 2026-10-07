@@ -1272,9 +1272,9 @@ private fun delayColor(
         SingBoxProxyDelayStatus.Measured -> when {
             delay == null -> MaterialTheme.colorScheme.onSurfaceVariant
             delay < 0 -> if (darkTheme) Color(0xFFF12522) else Color(0xFFE94634)
-            delay < 300 -> if (darkTheme) Color(0xFF6BD58A) else Color(0xFF128A3C)
+            delay < 400 -> if (darkTheme) Color(0xFF6BD58A) else Color(0xFF128A3C)
             delay < 600 -> if (darkTheme) Color(0xFFFFC857) else Color(0xFFD18A00)
-            delay < 900 -> if (darkTheme) Color(0xFFFF9B63) else Color(0xFFE06400)
+            delay < 800 -> if (darkTheme) Color(0xFFFF9B63) else Color(0xFFE06400)
             else -> if (darkTheme) Color(0xFFF12522) else Color(0xFFE94634)
         }
     }

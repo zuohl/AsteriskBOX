@@ -1740,9 +1740,9 @@ private fun outboundPingColor(latencyMillis: Long): Color {
     val darkTheme = isInDarkTheme()
     return when {
         latencyMillis < 0L -> if (darkTheme) Color(0xFFF12522) else Color(0xFFE94634)
-        latencyMillis < 100L -> if (darkTheme) Color(0xFF6BD58A) else Color(0xFF128A3C)
-        latencyMillis < 200L -> if (darkTheme) Color(0xFFFFC857) else Color(0xFFD18A00)
-        latencyMillis < 300L -> if (darkTheme) Color(0xFFFF9B63) else Color(0xFFE06400)
+        latencyMillis < 400L -> if (darkTheme) Color(0xFF6BD58A) else Color(0xFF128A3C)
+        latencyMillis < 600L -> if (darkTheme) Color(0xFFFFC857) else Color(0xFFD18A00)
+        latencyMillis < 800L -> if (darkTheme) Color(0xFFFF9B63) else Color(0xFFE06400)
         else -> if (darkTheme) Color(0xFFF12522) else Color(0xFFE94634)
     }
 }
