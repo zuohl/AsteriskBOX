@@ -75,7 +75,17 @@ internal class RealDelayPinger(
         return if (appState.proxyRunning) {
             val result = singBoxRuntime.testProxyDelay(appState, outbound.tag)
             val delay = result.getOrNull()?.delays?.get(outbound.tag)
-            if (delay != null && delay > 0) delay.toLong() else FailedPingMillis
+            if (delay != null && delay > 0) {
+                delay.toLong()
+            } else {
+                val detours = appState.outboundGroups.associate { it.id to it.detour }
+                val results = SingBoxStandaloneUrlTester.testOutbounds(
+                    context = context,
+                    outbounds = listOf(outbound),
+                    groupDetours = detours,
+                )
+                results[outbound.id] ?: FailedPingMillis
+            }
         } else {
             val detours = appState.outboundGroups.associate { it.id to it.detour }
             val results = SingBoxStandaloneUrlTester.testOutbounds(

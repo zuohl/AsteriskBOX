@@ -395,6 +395,7 @@ private fun SettingsContent(
                     enableIpv6 = appState.enableIpv6,
                     enableIpv6Prefer = appState.enableIpv6Prefer,
                     isLightweightMode = appState.isLightweightMode,
+                    autoStartProxyOnAppLaunch = appState.autoStartProxyOnAppLaunch,
                     onOpenConfigOverrideScript = { navigator.push(Route.ConfigOverrideScript) },
                     runModeOptions = runModeOptions,
                     selectedRunModeIndex = selectedRunModeIndex,
@@ -409,6 +410,9 @@ private fun SettingsContent(
                     },
                     onIsLightweightModeChange = { enabled ->
                         updateAppState { state -> state.copy(isLightweightMode = enabled) }
+                    },
+                    onAutoStartProxyOnAppLaunchChange = { enabled ->
+                        updateAppState { state -> state.copy(autoStartProxyOnAppLaunch = enabled) }
                     },
                     onRunModeChange = { index ->
                         val targetRunMode = runModeItems.getOrNull(index)?.first ?: RunModeVpnService

@@ -1208,6 +1208,8 @@
     <string name="settings_ipv6_prefer_summary">Prefer IPv6 addresses when connecting</string>
     <string name="settings_lightweight_mode">Lightweight Exit Mode</string>
     <string name="settings_lightweight_mode_summary">Kill UI process when exiting from home page or background to save memory (cold start on next launch)</string>
+    <string name="settings_auto_start_proxy_on_app_launch">Auto-start proxy on app launch</string>
+    <string name="settings_auto_start_proxy_on_app_launch_summary">Automatically start proxy service when the application is launched</string>
 
     <string name="settings_ipv6_summary">Enable IPv6 support</string>
 

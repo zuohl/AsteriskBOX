@@ -207,13 +207,17 @@ internal object SingBoxStandaloneUrlTester {
             putJsonArray("inbounds") {}
             putJsonArray("outbounds") {
                 compiledOutbounds.forEach { add(it) }
-                addJsonObject {
-                    put("type", "direct")
-                    put("tag", APP_DIRECT_OUTBOUND)
+                if (APP_DIRECT_OUTBOUND !in targetTags) {
+                    addJsonObject {
+                        put("type", "direct")
+                        put("tag", APP_DIRECT_OUTBOUND)
+                    }
                 }
-                addJsonObject {
-                    put("type", "direct")
-                    put("tag", "direct")
+                if ("direct" !in targetTags && APP_DIRECT_OUTBOUND != "direct") {
+                    addJsonObject {
+                        put("type", "direct")
+                        put("tag", "direct")
+                    }
                 }
                 addJsonObject {
                     put("type", "urltest")

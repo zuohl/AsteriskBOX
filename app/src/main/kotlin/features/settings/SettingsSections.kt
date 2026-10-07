@@ -197,6 +197,7 @@ internal fun SettingsAdvancedSection(
     enableIpv6: Boolean,
     enableIpv6Prefer: Boolean,
     isLightweightMode: Boolean,
+    autoStartProxyOnAppLaunch: Boolean,
     onOpenConfigOverrideScript: () -> Unit,
     runModeOptions: List<String>,
     selectedRunModeIndex: Int,
@@ -204,6 +205,7 @@ internal fun SettingsAdvancedSection(
     onEnableIpv6Change: (Boolean) -> Unit,
     onEnableIpv6PreferChange: (Boolean) -> Unit,
     onIsLightweightModeChange: (Boolean) -> Unit,
+    onAutoStartProxyOnAppLaunchChange: (Boolean) -> Unit,
     onRunModeChange: (Int) -> Unit,
 ) {
     SmallTitle(text = stringResource(R.string.settings_advanced))
@@ -215,6 +217,14 @@ internal fun SettingsAdvancedSection(
             checked = isLightweightMode,
             onCheckedChange = onIsLightweightModeChange,
             accent = IconAccent.MaskCyan,
+        )
+        SwitchPreference(
+            title = stringResource(R.string.settings_auto_start_proxy_on_app_launch),
+            icon = Icons.Rounded.PlayArrow,
+            summary = stringResource(R.string.settings_auto_start_proxy_on_app_launch_summary),
+            checked = autoStartProxyOnAppLaunch,
+            onCheckedChange = onAutoStartProxyOnAppLaunchChange,
+            accent = IconAccent.MaskGreen,
         )
         SwitchPreference(
             title = stringResource(R.string.settings_broadcast_control),

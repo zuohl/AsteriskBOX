@@ -102,8 +102,8 @@ internal fun OutboundListItem.effectiveDelaySortKey(
     val effective = runtimeDelay ?: pingLatency
     return when {
         effective != null && effective > 0 && effective != FailedPingMillis -> effective
-        effective == FailedPingMillis || runtimeNode?.delay == -1 -> Long.MAX_VALUE - 1
-        else -> Long.MAX_VALUE
+        effective == FailedPingMillis || runtimeNode?.delay == -1 -> Long.MAX_VALUE
+        else -> Long.MAX_VALUE - 1L
     }
 }
 

@@ -79,6 +79,7 @@ data class AppState(
 
     val proxyRunning: Boolean = false,
     val isLightweightMode: Boolean = false,
+    val autoStartProxyOnAppLaunch: Boolean = false,
 
     val enableConfigOverrideScript: Boolean = false,
     val configOverrideScript: String = "const main = (config) => {\n  return config\n}",

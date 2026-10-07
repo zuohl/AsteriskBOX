@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -142,6 +143,18 @@ fun AppContent(
 ) {
     val mainDestinationState = rememberMainDestinationState()
     val serviceControl = rememberHomeServiceControl()
+    val stateStore = LocalAppStateStore.current
+    var autoStarted by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        if (!autoStarted) {
+            autoStarted = true
+            val stateSnapshot = stateStore.state.value
+            if (stateSnapshot.autoStartProxyOnAppLaunch && !stateSnapshot.proxyRunning && !serviceControl.busy) {
+                serviceControl.toggleService()
+            }
+        }
+    }
 
     val backStack = remember { mutableStateListOf<NavKey>().apply { add(Route.Main) } }
     val navigator = remember { Navigator(backStack) }
