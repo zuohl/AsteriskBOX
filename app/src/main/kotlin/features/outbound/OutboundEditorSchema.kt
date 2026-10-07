@@ -922,12 +922,11 @@ internal data class OutboundEditorDocument(
     private fun normalizeForExport(root: JsonObject): JsonObject {
         val transport = root["transport"] as? JsonObject ?: return root
         if ((transport["type"] as? JsonPrimitive)?.contentOrNull != "xhttp") return root
-        val extraText = (transport["extra"] as? JsonPrimitive)?.contentOrNull
+        val extraText = (transport["extra"] as? JsonPrimitive)?.contentOrNull?.trim()
         val mode = (transport["mode"] as? JsonPrimitive)?.contentOrNull?.trim()
         val updatedTransport = buildJsonObject {
-            transport.filterKeys { it != "extra" }.forEach { (k, v) ->
-                put(k, v)
-            }
+            transport.filterKeys { it in OutboundXhttpExtraConverter.KNOWN_XHTTP_BASE_FIELDS && it != "extra" }
+                .forEach { (k, v) -> put(k, v) }
             if (mode.isNullOrBlank()) {
                 put("mode", "auto")
             }
@@ -955,18 +954,19 @@ internal data class OutboundEditorDocument(
             val transport = root["transport"] as? JsonObject
             if (transport != null && (transport["type"] as? JsonPrimitive)?.contentOrNull == "xhttp") {
                 val extraString = OutboundXhttpExtraConverter.extractExtraFromTransport(transport)
-                if (!extraString.isNullOrBlank()) {
-                    val updatedTransport = buildJsonObject {
-                        transport.forEach { (k, v) -> put(k, v) }
+                val updatedTransport = buildJsonObject {
+                    transport.filterKeys { it in OutboundXhttpExtraConverter.KNOWN_XHTTP_BASE_FIELDS }
+                        .forEach { (k, v) -> put(k, v) }
+                    if (!extraString.isNullOrBlank()) {
                         put("extra", extraString)
                     }
-                    val updatedRoot = buildJsonObject {
-                        root.forEach { (k, v) ->
-                            if (k == "transport") put("transport", updatedTransport) else put(k, v)
-                        }
-                    }
-                    return OutboundEditorDocument(updatedRoot)
                 }
+                val updatedRoot = buildJsonObject {
+                    root.forEach { (k, v) ->
+                        if (k == "transport") put("transport", updatedTransport) else put(k, v)
+                    }
+                }
+                return OutboundEditorDocument(updatedRoot)
             }
             return OutboundEditorDocument(root)
         }

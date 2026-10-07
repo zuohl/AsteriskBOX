@@ -31,6 +31,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.milliseconds
+import ui.feedback.AndroidToastTipNotifier
 
 internal class SingBoxRuntimeRepository(
     private val appScope: CoroutineScope,
@@ -42,6 +43,7 @@ internal class SingBoxRuntimeRepository(
     private val trafficHistoryLock = Any()
     private val sessionLock = Any()
     private val delayTestRunGate = SingBoxDelayTestRunGate()
+    private val proxyDelayCache = SingBoxProxyDelayCache(context)
     @Volatile
     private var session: SingBoxCommandClient? = null
     private var sessionTarget: SingBoxCommandTarget? = null
@@ -92,6 +94,7 @@ internal class SingBoxRuntimeRepository(
         if (previous != null) {
             appScope.launch(Dispatchers.IO) { previous.disconnect() }
         }
+        proxyDelayCache.flush()
         latestConnections = SingBoxConnectionsState()
         if (resetSnapshots) {
             synchronized(trafficHistoryLock) { trafficHistory.clear() }
@@ -151,7 +154,7 @@ internal class SingBoxRuntimeRepository(
         reloadConfiguration(appState)
     }
 
-    private suspend fun reloadConfiguration(appState: AppState) {
+    internal suspend fun reloadConfiguration(appState: AppState) {
         if (!appState.proxyRunning) return
         val active = requireActiveSession(appState)
         val activeGeneration = synchronized(sessionLock) {
@@ -174,6 +177,25 @@ internal class SingBoxRuntimeRepository(
             } else {
                 error("ROOT runtime configuration changes require a supervised restart")
             }
+        }
+    }
+
+    internal suspend fun applyConfigurationChange(
+        appState: AppState,
+        tipNotifier: AndroidToastTipNotifier? = null,
+    ) {
+        if (!appState.proxyRunning) return
+        if (appState.runMode == RunModeVpnService) {
+            val result = runCatching {
+                reloadConfiguration(appState)
+            }
+            if (result.isSuccess) {
+                tipNotifier?.show(appContext.getString(app.R.string.proxy_service_reloaded))
+            } else {
+                tipNotifier?.show(appContext.getString(app.R.string.proxy_service_reload_requires_restart))
+            }
+        } else {
+            tipNotifier?.show(appContext.getString(app.R.string.proxy_service_reload_requires_restart))
         }
     }
 
@@ -365,8 +387,10 @@ internal class SingBoxRuntimeRepository(
             }
 
             override fun onProxies(proxies: SingBoxProxiesState) {
+                proxyDelayCache.record(proxies)
+                val enriched = proxyDelayCache.enrich(proxies)
                 updateIfCurrent(listenerGeneration) { current ->
-                    current.withProxySnapshot(proxies)
+                    current.withProxySnapshot(enriched)
                 }
             }
 

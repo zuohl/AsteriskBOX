@@ -37,7 +37,6 @@ private fun JsonObject.encodeVlessShareUrl(remarks: String): String {
         "multiplex",
     )
     require(stringValue("network").isBlank()) { "VLESS network cannot be shared" }
-    require(!get("multiplex").isMeaningfulShareValue()) { "VLESS multiplex cannot be shared" }
     val uuid = stringValue("uuid")
     require(uuid.isNotBlank()) { "VLESS UUID is required" }
     val transport = readV2RayShareTransport()
@@ -247,21 +246,60 @@ private data class V2RayShareTransport(
 
 private fun JsonObject.readV2RayShareTransport(): V2RayShareTransport {
     val transport = objectValue("transport") ?: return V2RayShareTransport(type = "tcp", parameters = emptyList())
+    val transportType = transport.stringValue("type").lowercase()
+    val extraAllowedFields = if (transportType == "xhttp") {
+        setOf(
+            "extra",
+            "no_sse_header",
+            "sc_max_each_post_bytes",
+            "sc_min_posts_interval_ms",
+            "sc_max_buffered_posts",
+            "sc_stream_up_server_secs",
+            "server_max_header_bytes",
+            "x_padding_obfs_mode",
+            "x_padding_key",
+            "x_padding_header",
+            "x_padding_placement",
+            "x_padding_method",
+            "uplink_http_method",
+            "session_placement",
+            "session_key",
+            "session_id_table",
+            "session_id_length",
+            "seq_placement",
+            "seq_key",
+            "uplink_data_placement",
+            "uplink_data_key",
+            "uplink_chunk_size",
+            "max_concurrency",
+            "max_connections",
+            "c_max_reuse_times",
+            "h_max_request_times",
+            "h_max_reusable_secs",
+            "h_keep_alive_period",
+            "download",
+            "xmux",
+        )
+    } else {
+        emptySet()
+    }
     transport.requireOnlyNestedShareFields(
-        "type",
-        "host",
-        "path",
-        "method",
-        "headers",
-        "max_early_data",
-        "early_data_header_name",
-        "service_name",
-        "idle_timeout",
-        "ping_timeout",
-        "permit_without_stream",
-        "mode",
-        "x_padding_bytes",
-        "no_grpc_header",
+        *(setOf(
+            "type",
+            "host",
+            "path",
+            "method",
+            "headers",
+            "max_early_data",
+            "early_data_header_name",
+            "service_name",
+            "idle_timeout",
+            "ping_timeout",
+            "permit_without_stream",
+            "mode",
+            "x_padding_bytes",
+            "no_grpc_header",
+        ) + extraAllowedFields).toTypedArray(),
     )
     val type = transport.stringValue("type").lowercase()
     if (type.isBlank() || type in setOf("tcp", "raw")) {
@@ -348,6 +386,14 @@ private fun JsonObject.readV2RayShareTransport(): V2RayShareTransport {
             val host = transport.stringValue("host")
             val path = transport.stringValue("path")
             val mode = transport.stringValue("mode")
+            val padding = transport.stringValue("x_padding_bytes")
+            val noGrpc = transport.booleanValue("no_grpc_header")
+            val extraJson = OutboundXhttpExtraConverter.extractExtraFromTransport(transport)
+            val convertedExtra = if (!extraJson.isNullOrBlank()) {
+                OutboundXhttpExtraConverter.singBoxToXray(extraJson).takeIf(String::isNotBlank) ?: extraJson
+            } else {
+                null
+            }
             V2RayShareTransport(
                 type = "xhttp",
                 parameters = buildList {
@@ -355,6 +401,9 @@ private fun JsonObject.readV2RayShareTransport(): V2RayShareTransport {
                     host.takeIf(String::isNotBlank)?.let { add("host" to it) }
                     path.takeIf(String::isNotBlank)?.let { add("path" to it) }
                     mode.takeIf(String::isNotBlank)?.let { add("mode" to it) }
+                    padding.takeIf(String::isNotBlank)?.let { add("x_padding_bytes" to it) }
+                    if (noGrpc) add("no_grpc_header" to "1")
+                    convertedExtra?.let { add("extra" to it) }
                 },
                 legacyHost = host,
                 legacyPath = path,

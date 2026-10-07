@@ -145,6 +145,98 @@ internal object OutboundXhttpExtraConverter {
         }
     }
 
+    fun singBoxToXray(singBoxExtra: String): String {
+        if (singBoxExtra.isBlank()) return ""
+        return try {
+            val singBox = JSONObject(singBoxExtra)
+            val xray = JSONObject()
+
+            val reverseFieldMap = FIELD_MAPPINGS.associate { it.second to it.first }
+            val reverseXmuxMap = XMUX_MAPPINGS.associate { it.second to it.first }
+
+            val it = singBox.keys()
+            val singBoxXmux = singBox.optJSONObject("xmux")
+            val singBoxDownload = singBox.optJSONObject("download")
+
+            while (it.hasNext()) {
+                val key = it.next()
+                if (key == "xmux" || key == "download") continue
+                val xrayKey = reverseFieldMap[key] ?: snakeToCamel(key)
+                xray.put(xrayKey, singBox.get(key))
+            }
+
+            if (singBoxXmux != null) {
+                val xrayXmux = JSONObject()
+                val xmuxIt = singBoxXmux.keys()
+                while (xmuxIt.hasNext()) {
+                    val xKey = xmuxIt.next()
+                    val xrayKey = reverseXmuxMap[xKey] ?: snakeToCamel(xKey)
+                    xrayXmux.put(xrayKey, singBoxXmux.get(xKey))
+                }
+                if (xrayXmux.length() > 0) {
+                    xray.put("xmux", xrayXmux)
+                }
+            }
+
+            if (singBoxDownload != null) {
+                val xrayDown = JSONObject()
+                val xhttpSettings = JSONObject()
+                val downIt = singBoxDownload.keys()
+                while (downIt.hasNext()) {
+                    val dKey = downIt.next()
+                    when (dKey) {
+                        "server" -> xrayDown.put("address", singBoxDownload.get(dKey))
+                        "server_port" -> xrayDown.put("port", singBoxDownload.get(dKey))
+                        "tls" -> {
+                            val tlsObj = singBoxDownload.optJSONObject("tls")
+                            if (tlsObj != null) {
+                                val realityObj = tlsObj.optJSONObject("reality")
+                                if (realityObj != null && realityObj.optBoolean("enabled", false)) {
+                                    xrayDown.put("security", "reality")
+                                    val realitySettings = JSONObject()
+                                    if (tlsObj.has("server_name")) realitySettings.put("serverName", tlsObj.get("server_name"))
+                                    if (realityObj.has("public_key")) realitySettings.put("publicKey", realityObj.get("public_key"))
+                                    if (realityObj.has("short_id")) realitySettings.put("shortId", realityObj.get("short_id"))
+                                    tlsObj.optJSONObject("utls")?.optString("fingerprint")?.takeIf(String::isNotBlank)?.let { fp ->
+                                        realitySettings.put("fingerprint", fp)
+                                    }
+                                    xrayDown.put("realitySettings", realitySettings)
+                                } else if (tlsObj.optBoolean("enabled", false)) {
+                                    xrayDown.put("security", "tls")
+                                    val tlsSettings = JSONObject()
+                                    if (tlsObj.has("server_name")) tlsSettings.put("serverName", tlsObj.get("server_name"))
+                                    if (tlsObj.has("alpn")) tlsSettings.put("alpn", tlsObj.get("alpn"))
+                                    if (tlsObj.has("insecure")) tlsSettings.put("allowInsecure", tlsObj.get("insecure"))
+                                    tlsObj.optJSONObject("utls")?.optString("fingerprint")?.takeIf(String::isNotBlank)?.let { fp ->
+                                        tlsSettings.put("fingerprint", fp)
+                                    }
+                                    xrayDown.put("tlsSettings", tlsSettings)
+                                }
+                            }
+                        }
+                        "mode", "host", "path" -> {
+                            xhttpSettings.put(dKey, singBoxDownload.get(dKey))
+                        }
+                        else -> {
+                            val xrayKey = reverseFieldMap[dKey] ?: snakeToCamel(dKey)
+                            xhttpSettings.put(xrayKey, singBoxDownload.get(dKey))
+                        }
+                    }
+                }
+                if (xhttpSettings.length() > 0) {
+                    xrayDown.put("xhttpSettings", xhttpSettings)
+                }
+                if (xrayDown.length() > 0) {
+                    xray.put("downloadSettings", xrayDown)
+                }
+            }
+
+            xray.toString()
+        } catch (_: Exception) {
+            singBoxExtra
+        }
+    }
+
     fun extractExtraFromTransport(transport: JsonObject): String? {
         val extraMap = transport.filterKeys { it !in KNOWN_XHTTP_BASE_FIELDS }
         if (extraMap.isEmpty()) return null
@@ -205,6 +297,13 @@ internal object OutboundXhttpExtraConverter {
 
     private fun camelToSnake(name: String): String {
         return name.replace(Regex("([a-z0-9])([A-Z])"), "$1_$2").lowercase()
+    }
+
+    private fun snakeToCamel(name: String): String {
+        return name.split('_').mapIndexed { index, part ->
+            if (index == 0) part.lowercase()
+            else part.lowercase().replaceFirstChar { it.uppercase() }
+        }.joinToString("")
     }
 
     private fun convertXmux(from: JSONObject, to: JSONObject) {

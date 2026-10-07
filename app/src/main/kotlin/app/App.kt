@@ -202,6 +202,7 @@ fun App(
     SingBoxRuntimeSynchronizer(
         stateStore = stateStore,
         singBoxRuntime = application.singBoxRuntime,
+        tipNotifier = tipNotifier,
     )
     ResourceFileSynchronizer(
         resourceFileUseCase = resourceFileUseCase,

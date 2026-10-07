@@ -150,7 +150,7 @@ internal fun formatHomeRuntimeBytes(bytes: Long?): String {
 private const val HomeNetworkSampleLimit = 60
 internal const val HomeUnavailableValue = "—"
 
-internal enum class HomeServiceOperation { Idle, Starting, Stopping }
+internal enum class HomeServiceOperation { Idle, Starting, Stopping, Restarting }
 
 // Retain only operation state; UI callbacks must not retain an Activity.
 internal class HomeServiceOperationState {

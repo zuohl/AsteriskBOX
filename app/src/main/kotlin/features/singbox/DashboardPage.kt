@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -642,6 +643,7 @@ private fun shouldStackHomeServiceRuntimeSummary(): Boolean =
 private fun HomeServiceRuntimeSummary() {
     val appState by LocalAppStateStore.current.collectAppState()
     val services = LocalAppServices.current
+    val serviceControl = LocalHomeServiceControl.current
     val uptimeMillis by produceState<Long?>(null, appState.proxyRunning, appState.runMode) {
         value = null
         if (!appState.proxyRunning) return@produceState
@@ -655,13 +657,30 @@ private fun HomeServiceRuntimeSummary() {
     val uptime = formatHomeServiceUptime(uptimeMillis)
     if (appState.proxyRunning && uptime != null) {
         val description = stringResource(R.string.home_service_uptime, uptime)
-        Text(
-            text = uptime,
-            modifier = Modifier.semantics { contentDescription = description },
-            style = MaterialTheme.typography.bodyMedium,
-            fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = uptime,
+                modifier = Modifier.semantics { contentDescription = description },
+                style = MaterialTheme.typography.bodyMedium,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+            IconButton(
+                onClick = serviceControl.restartService,
+                enabled = !serviceControl.busy,
+                modifier = Modifier.size(28.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Refresh,
+                    contentDescription = stringResource(R.string.proxy_service_restart_action),
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
     }
 }

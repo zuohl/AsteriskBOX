@@ -84,12 +84,17 @@ import androidx.compose.ui.unit.sp
 import app.AppServices
 import app.LocalAppServices
 import app.LocalAppStateStore
+import app.LocalHomeServiceControl
 import app.LocalIsWideScreen
+import app.LocalNavigator
 import app.LocalUpdateAppState
 import app.R
 import app.collectAppState
 import app.isManagedSingBoxTag
 import app.managedOutboundGroupSelectorTag
+import app.managedTagIdentityOrNull
+import app.ManagedTagKind
+import app.navigation.Route
 import app.selectableManagedOutbounds
 import app.withSelectorSelection
 import app.modes.SingBoxProxyLayoutAuto
@@ -143,6 +148,7 @@ fun SingBoxProxyPage(
     padding: PaddingValues,
 ) {
     val isWideScreen = LocalIsWideScreen.current
+    val navigator = LocalNavigator.current
     val appState by LocalAppStateStore.current.collectAppState()
     val updateAppState = LocalUpdateAppState.current
     val services = LocalAppServices.current
@@ -190,6 +196,17 @@ fun SingBoxProxyPage(
     }
     val managedGroupNames = appState.outboundGroups.associate { group ->
         managedOutboundGroupSelectorTag(group.id, group.name) to group.name
+    }
+    val outboundById = remember(appState.outbounds) {
+        appState.outbounds.associateBy { it.id }
+    }
+    val outboundByTagOrRemarks = remember(appState.outbounds) {
+        buildMap {
+            appState.outbounds.forEach { outbound ->
+                put(outbound.tag, outbound)
+                put(outbound.remarks, outbound)
+            }
+        }
     }
     val visibleProxies = remember(
         proxies,
@@ -373,6 +390,7 @@ fun SingBoxProxyPage(
                                         state.copy(singBoxProxySort = sort)
                                     }
                                 },
+                                onOpenOutbounds = { navigator.push(Route.OutboundList) },
                             )
                         }
                     },
@@ -514,6 +532,25 @@ fun SingBoxProxyPage(
                                             } else {
                                                 null
                                             }
+                                        val matchedOutbound = outboundByTagOrRemarks[node.name]
+                                            ?: managedTagIdentityOrNull(node.name)?.let { identity ->
+                                                if (identity.kind == ManagedTagKind.OUTBOUND && identity.id != null) {
+                                                    outboundById[identity.id]
+                                                } else {
+                                                    null
+                                                }
+                                            }
+                                        val onEdit: (() -> Unit)? = matchedOutbound?.let { outbound ->
+                                            {
+                                                navigator.push(
+                                                    Route.OutboundEdit(
+                                                        outboundId = outbound.id,
+                                                        groupId = outbound.groupId,
+                                                        type = outbound.type,
+                                                    )
+                                                )
+                                            }
+                                        }
                                         SingBoxProxyNodeCard(
                                             modifier = Modifier
                                                 .animateItem()
@@ -541,6 +578,7 @@ fun SingBoxProxyPage(
                                             testing = testingTarget == node.name,
                                             onSelect = onSelect,
                                             onDelayTest = { testProxy(node) },
+                                            onEdit = onEdit,
                                         )
                                     }
                                 }
@@ -693,6 +731,8 @@ private fun SingBoxProxyOptionsMenu(
     sort: Int,
     onLayoutChange: (Int) -> Unit,
     onSortChange: (Int) -> Unit,
+    onOpenOutbounds: () -> Unit,
+    onRestartService: (() -> Unit)? = null,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     var level by rememberSaveable { mutableStateOf(ProxyOptionsLevel.Main) }
@@ -773,6 +813,25 @@ private fun SingBoxProxyOptionsMenu(
                         leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Sort, contentDescription = null) },
                         trailingIcon = { Icon(Icons.Rounded.ChevronRight, contentDescription = null) },
                     )
+                    HorizontalDivider()
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.settings_outbound_management)) },
+                        onClick = {
+                            dismissMenu()
+                            onOpenOutbounds()
+                        },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Rounded.AltRoute, contentDescription = null) },
+                    )
+                    if (onRestartService != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.proxy_service_restart_action)) },
+                            onClick = {
+                                dismissMenu()
+                                onRestartService()
+                            },
+                            leadingIcon = { Icon(Icons.Rounded.Refresh, contentDescription = null) },
+                        )
+                    }
                 }
 
                 ProxyOptionsLevel.Layout -> {
@@ -876,6 +935,7 @@ private fun SingBoxProxyNodeCard(
     testing: Boolean,
     onSelect: (() -> Unit)?,
     onDelayTest: () -> Unit,
+    onEdit: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val content: @Composable () -> Unit = {
@@ -917,6 +977,7 @@ private fun SingBoxProxyNodeCard(
                 protocol = node.type,
                 delay = node.delay,
                 delayStatus = delayStatus,
+                delayUpdatedAtEpochSeconds = node.delayUpdatedAtEpochSeconds,
                 selected = selected,
                 testing = testing,
                 enabled = delayTestEnabled,
@@ -932,6 +993,7 @@ private fun SingBoxProxyNodeCard(
         selected = selected,
         enabled = selectionEnabled,
         onClick = onSelect,
+        onLongClick = onEdit,
         modifier = cardModifier,
     ) {
         content()
@@ -943,12 +1005,15 @@ private fun ProtocolDelayLine(
     protocol: String,
     delay: Int?,
     delayStatus: SingBoxProxyDelayStatus,
+    delayUpdatedAtEpochSeconds: Long?,
     selected: Boolean,
     testing: Boolean,
     enabled: Boolean,
     compact: Boolean,
     onClick: () -> Unit,
 ) {
+    val isStale = delayUpdatedAtEpochSeconds != null &&
+        (System.currentTimeMillis() / 1000L - delayUpdatedAtEpochSeconds > StaleDelayThresholdSeconds)
     val delayText = when (delayStatus) {
         SingBoxProxyDelayStatus.NotTested ->
             stringResource(R.string.sing_box_proxies_delay_not_tested)
@@ -1010,7 +1075,7 @@ private fun ProtocolDelayLine(
                             MaterialTheme.typography.labelMedium
                         },
                         fontWeight = FontWeight.Medium,
-                        color = delayColor(delayStatus, delay),
+                        color = delayColor(delayStatus, delay, isStale),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.End,
@@ -1128,9 +1193,10 @@ private fun SingBoxProxyLoadingCard() {
 private fun delayColor(
     delayStatus: SingBoxProxyDelayStatus,
     delay: Int?,
+    isStale: Boolean = false,
 ): Color {
     val darkTheme = isInDarkTheme()
-    return when (delayStatus) {
+    val baseColor = when (delayStatus) {
         SingBoxProxyDelayStatus.NotTested, SingBoxProxyDelayStatus.Testing -> MaterialTheme.colorScheme.onSurfaceVariant
         SingBoxProxyDelayStatus.Failed -> if (darkTheme) Color(0xFFF12522) else Color(0xFFE94634)
         SingBoxProxyDelayStatus.Measured -> when {
@@ -1142,9 +1208,16 @@ private fun delayColor(
             else -> if (darkTheme) Color(0xFFF12522) else Color(0xFFE94634)
         }
     }
+    return if (isStale && delayStatus == SingBoxProxyDelayStatus.Measured) {
+        baseColor.copy(alpha = 0.55f)
+    } else {
+        baseColor
+    }
 }
 
 private val SingBoxProxyNodeCardHeight = 112.dp
 private val SingBoxProxyNodeCardPadding = PaddingValues(start = 10.dp, top = 14.dp, end = 10.dp, bottom = 10.dp)
 private val SingBoxProxyNodeGridSpacing = 12.dp
 private val SingBoxFloatingToolbarBottomSpacing = 16.dp
+private const val StaleDelayThresholdSeconds = 3600L // 1 hour
+

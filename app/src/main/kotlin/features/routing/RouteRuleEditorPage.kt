@@ -53,7 +53,8 @@ internal fun RouteRuleEditorPage(
     val updateAppState = LocalUpdateAppState.current
     val navigator = LocalNavigator.current
     val context = LocalContext.current
-    val tipNotifier = LocalAppServices.current.tipNotifier
+    val services = LocalAppServices.current
+    val tipNotifier = services.tipNotifier
     val scope = rememberCoroutineScope()
     val isWideScreen = LocalIsWideScreen.current
     val stored = appState.routeRules.firstOrNull { rule -> rule.id == ruleId }
