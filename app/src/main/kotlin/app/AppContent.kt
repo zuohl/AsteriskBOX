@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -142,6 +143,18 @@ fun AppContent(
 ) {
     val mainDestinationState = rememberMainDestinationState()
     val serviceControl = rememberHomeServiceControl()
+    val stateStore = LocalAppStateStore.current
+    var autoStarted by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        if (!autoStarted) {
+            autoStarted = true
+            val stateSnapshot = stateStore.state.value
+            if (stateSnapshot.autoStartProxyOnAppLaunch && !serviceControl.busy) {
+                serviceControl.startService()
+            }
+        }
+    }
 
     val backStack = remember { mutableStateListOf<NavKey>().apply { add(Route.Main) } }
     val navigator = remember { Navigator(backStack) }
@@ -526,6 +539,8 @@ internal class HomeServiceControl(private val operationState: HomeServiceOperati
     val serviceOperationInProgress: Boolean get() = operation != HomeServiceOperation.Idle
     val busy: Boolean get() = serviceOperationInProgress || modeOperationInProgress
     var toggleService: () -> Unit = {}
+    var startService: () -> Unit = {}
+    var stopService: () -> Unit = {}
     var restartService: () -> Unit = {}
 }
 
@@ -545,7 +560,12 @@ private fun rememberHomeServiceControl(): HomeServiceControl {
     val serviceStoppedMessage = stringResource(R.string.proxy_service_stopped)
     val serviceRestartedMessage = stringResource(R.string.proxy_service_restarted)
 
-    suspend fun handleProxyServiceResult(result: ProxyServiceResult, wasRunning: Boolean, isRestart: Boolean = false) {
+    suspend fun handleProxyServiceResult(
+        result: ProxyServiceResult,
+        wasRunning: Boolean,
+        isRestart: Boolean = false,
+        silentIfAlreadyRunning: Boolean = false,
+    ) {
         when (result) {
             is ProxyServiceResult.Success -> {
                 updateAppState { state ->
@@ -554,6 +574,9 @@ private fun rememberHomeServiceControl(): HomeServiceControl {
                         localProxyPort = result.appState?.localProxyPort ?: state.localProxyPort,
                         singBoxControlPort = result.appState?.singBoxControlPort ?: state.singBoxControlPort,
                     )
+                }
+                if (silentIfAlreadyRunning && result.alreadyRunning) {
+                    return
                 }
                 val serviceMessage = when {
                     isRestart && result.proxyRunning -> serviceRestartedMessage
@@ -569,6 +592,41 @@ private fun rememberHomeServiceControl(): HomeServiceControl {
                     result.error,
                     if (wasRunning) stopFailedMessage else startFailedMessage,
                 )
+            }
+        }
+    }
+
+    control.startService = start@{
+        if (control.busy) return@start
+        val stateSnapshot = stateStore.state.value
+        if (stateSnapshot.proxyRunning) return@start
+        control.operation = HomeServiceOperation.Starting
+        services.appScope.launch {
+            try {
+                handleProxyServiceResult(
+                    result = services.proxyServiceUseCase.start(stateSnapshot),
+                    wasRunning = false,
+                    silentIfAlreadyRunning = true,
+                )
+            } finally {
+                control.operation = HomeServiceOperation.Idle
+            }
+        }
+    }
+
+    control.stopService = stop@{
+        if (control.busy) return@stop
+        val stateSnapshot = stateStore.state.value
+        if (!stateSnapshot.proxyRunning) return@stop
+        control.operation = HomeServiceOperation.Stopping
+        services.appScope.launch {
+            try {
+                handleProxyServiceResult(
+                    result = services.proxyServiceUseCase.stop(stateSnapshot.runMode),
+                    wasRunning = true,
+                )
+            } finally {
+                control.operation = HomeServiceOperation.Idle
             }
         }
     }

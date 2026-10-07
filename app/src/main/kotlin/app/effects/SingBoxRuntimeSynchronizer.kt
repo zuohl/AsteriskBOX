@@ -6,6 +6,8 @@ package app.effects
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import app.AppState
+import app.hasSingleNodeKernelChanged
+import app.selectedSingleOutboundOrNull
 import data.AndroidAppStateStore
 import engine.singbox.runtime.SingBoxRuntimeRepository
 import kotlinx.coroutines.Job
@@ -43,6 +45,12 @@ internal fun SingBoxRuntimeSynchronizer(
 }
 
 private fun AppState.hasKernelConfigurationChanged(other: AppState): Boolean {
+    val currentSingle = selectedSingleOutboundOrNull()
+    val nextSingle = other.selectedSingleOutboundOrNull()
+    if (currentSingle != null && nextSingle != null && currentSingle.tag == nextSingle.tag) {
+        return hasSingleNodeKernelChanged(other, currentSingle)
+    }
+
     return outbounds != other.outbounds ||
         outboundGroups != other.outboundGroups ||
         endpoints != other.endpoints ||

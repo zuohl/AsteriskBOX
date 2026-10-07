@@ -6,7 +6,9 @@ package features.outbound
 import app.OutboundState
 import app.modes.OutboundListSortLatency
 import app.modes.OutboundListSortName
+import app.modes.OutboundListSortRealLatency
 import app.modes.OutboundListSortType
+import engine.singbox.runtime.SingBoxProxiesState
 import features.singbox.displaySingBoxProtocolName
 
 internal data class OutboundListItem(
@@ -64,6 +66,7 @@ internal class OutboundListIndex internal constructor(
         query: String,
         sort: Int,
         pingState: OutboundPingRuntimeState,
+        proxiesState: SingBoxProxiesState? = null,
     ): List<OutboundListItem> {
         val visible = byGroup[groupId].orEmpty().filter { item ->
             query.isBlank() || item.searchText.contains(query.lowercase())
@@ -73,9 +76,10 @@ internal class OutboundListIndex internal constructor(
                 compareBy(String.CASE_INSENSITIVE_ORDER, OutboundListItem::remarks),
             )
 
-            OutboundListSortLatency -> visible.sortedWith(
-                compareBy<OutboundListItem> { item -> item.pingLatencyMillis(pingState).toOutboundPingSortKey() }
-                    .thenBy(String.CASE_INSENSITIVE_ORDER, OutboundListItem::remarks),
+            OutboundListSortRealLatency, OutboundListSortLatency -> visible.sortedWith(
+                compareBy<OutboundListItem> { item ->
+                    item.effectiveDelaySortKey(proxiesState, pingState)
+                }.thenBy(String.CASE_INSENSITIVE_ORDER, OutboundListItem::remarks),
             )
 
             OutboundListSortType -> visible.sortedWith(
@@ -85,6 +89,21 @@ internal class OutboundListIndex internal constructor(
 
             else -> visible
         }
+    }
+}
+
+internal fun OutboundListItem.effectiveDelaySortKey(
+    proxiesState: SingBoxProxiesState?,
+    pingState: OutboundPingRuntimeState,
+): Long {
+    val runtimeNode = proxiesState?.nodeByName?.get(outbound.tag)
+    val runtimeDelay = runtimeNode?.delay?.takeIf { it > 0 }?.toLong()
+    val pingLatency = pingLatencyMillis(pingState)
+    val effective = runtimeDelay ?: pingLatency
+    return when {
+        effective != null && effective > 0 && effective != FailedPingMillis -> effective
+        effective == FailedPingMillis || runtimeNode?.delay == -1 -> Long.MAX_VALUE
+        else -> Long.MAX_VALUE - 1L
     }
 }
 

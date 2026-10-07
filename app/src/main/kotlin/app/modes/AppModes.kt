@@ -55,3 +55,4 @@ const val OutboundListSortDefault = 0
 const val OutboundListSortName = 1
 const val OutboundListSortLatency = 2
 const val OutboundListSortType = 3
+const val OutboundListSortRealLatency = 4

@@ -9,10 +9,14 @@ import ui.components.AsteriskDropdownMenuItem
 import android.content.Context
 import android.net.Uri
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -96,9 +100,11 @@ import app.modes.OutboundListLayoutSingle
 import app.modes.OutboundListSortDefault
 import app.modes.OutboundListSortLatency
 import app.modes.OutboundListSortName
+import app.modes.OutboundListSortRealLatency
 import app.modes.OutboundListSortType
 import app.navigation.Route
 import app.navigation.MainDestination
+import engine.singbox.config.APP_ALL_NODES_TEST_SELECTOR
 import engine.singbox.config.validateSingBoxRuntimeConfiguration
 import features.importing.ImportOperation
 import features.importing.ImportResultDialog
@@ -137,8 +143,22 @@ import ui.layout.pageContentPaddingWithCutout
 import ui.layout.pageListPadding
 import ui.theme.AsteriskMotion
 import ui.theme.AsteriskShapeTokens
+import app.AppState
+import app.SingBoxSelectorState
+import app.LocalHomeServiceControl
+import app.ManagedGlobalSelectorTag
+import app.ManagedDirectOutboundTag
+import app.managedOutboundGroupSelectorTag
+import app.withSelectorSelection
+import app.SingBoxSelectorTypeSelector
+import app.SingBoxSelectorTypeUrlTest
+import ui.components.AsteriskModalBottomSheet
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import ui.icons.AsteriskIcons as Icons
+import engine.singbox.runtime.SingBoxRuntimeState
 
 private enum class OutboundImportMenuLevel {
     MAIN,
@@ -223,8 +243,15 @@ internal fun OutboundListPage(
     val outboundIndex = remember(appState.outbounds) {
         services.outboundListProjectionCache.build(appState.outbounds)
     }
-    val groups = appState.outboundGroups
+    val groups = remember(appState.outboundGroups) {
+        appState.outboundGroups.filter { it.enabled }
+    }
     val pagerState = rememberPagerState(pageCount = { groups.size.coerceAtLeast(1) })
+    LaunchedEffect(groups.size) {
+        if (groups.isNotEmpty() && pagerState.currentPage >= groups.size) {
+            pagerState.scrollToPage(groups.size - 1)
+        }
+    }
     var importMenuExpanded by remember { mutableStateOf(false) }
     var importMenuLevel by remember { mutableStateOf(OutboundImportMenuLevel.MAIN) }
     val manualImportMenuScrollState = rememberScrollState()
@@ -234,6 +261,40 @@ internal fun OutboundListPage(
         ).dp
     }
     var query by rememberSaveable { mutableStateOf("") }
+    val homeServiceControl = LocalHomeServiceControl.current
+    val activeTarget = appState.selectorSelections[ManagedGlobalSelectorTag]?.trim().orEmpty()
+    val runtimeState by remember(services.singBoxRuntime) {
+        services.singBoxRuntime.state
+    }.collectAsState()
+    val isCustomSelector = appState.selectors.any { it.tag == activeTarget }
+    val isGroupSelector = activeTarget.startsWith("outbound_group_")
+    val isSelectorMode = isCustomSelector || isGroupSelector
+    val activeSelector = if (isCustomSelector) appState.selectors.firstOrNull { it.tag == activeTarget } else null
+    val activeGroup = if (isGroupSelector) appState.outboundGroups.firstOrNull { managedOutboundGroupSelectorTag(it.id, it.name) == activeTarget } else null
+    val selectedSingleOutbound = if (!isSelectorMode && activeTarget.isNotEmpty() && activeTarget != ManagedDirectOutboundTag) {
+        appState.outbounds.firstOrNull { it.tag == activeTarget }
+    } else null
+
+    val effectiveActiveNodeTag = when {
+        selectedSingleOutbound != null -> selectedSingleOutbound.tag
+        isSelectorMode -> {
+            val runtimeGroup = runtimeState.proxies.groups.firstOrNull { it.name == activeTarget }
+            val runtimeNow = runtimeGroup?.now?.takeIf(String::isNotBlank)
+            val persistedSelection = appState.selectorSelections[activeTarget]?.takeIf(String::isNotBlank)
+            val defaultCandidate = if (isCustomSelector) {
+                activeSelector?.outbounds?.firstOrNull()
+            } else {
+                activeGroup?.let { g -> appState.outbounds.firstOrNull { it.groupId == g.id }?.tag }
+            }
+            runtimeNow ?: persistedSelection ?: defaultCandidate.orEmpty()
+        }
+        else -> ""
+    }
+    val activeNodeRemarks = appState.outbounds.firstOrNull { it.tag == effectiveActiveNodeTag }?.remarks
+        ?: effectiveActiveNodeTag.takeIf(String::isNotBlank)
+    var showGlobalSelectorSheet by remember { mutableStateOf(false) }
+    var locateTargetTag by remember { mutableStateOf<String?>(null) }
+    var locateTrigger by remember { mutableStateOf(0L) }
     var pendingDelete by remember { mutableStateOf<OutboundState?>(null) }
     var deletingOutboundId by remember { mutableStateOf<Int?>(null) }
     var pendingBatchDelete by remember { mutableStateOf<OutboundBatchDeletion?>(null) }
@@ -265,6 +326,7 @@ internal fun OutboundListPage(
         query = query,
         sort = appState.outboundListSort,
         pingState = pingState,
+        proxiesState = runtimeState.proxies,
     ).size
     val columns = resolveOutboundListColumns(appState.outboundListLayout, isWideScreen)
     val importFailedMessage = stringResource(R.string.outbound_import_failed)
@@ -650,6 +712,51 @@ internal fun OutboundListPage(
                                 }
                             }
                         }
+                        val currentActiveTag = if (isSelectorMode) effectiveActiveNodeTag else activeTarget
+                        val activeOutbound = appState.outbounds.firstOrNull { it.tag == currentActiveTag }
+                        IconButton(
+                            onClick = {
+                                if (activeOutbound != null) {
+                                    val targetPageIndex = groups.indexOfFirst { it.id == activeOutbound.groupId }
+                                    scope.launch {
+                                        if (targetPageIndex >= 0 && targetPageIndex != pagerState.currentPage) {
+                                            pagerState.animateScrollToPage(targetPageIndex)
+                                        }
+                                        locateTargetTag = activeOutbound.tag
+                                        locateTrigger = System.currentTimeMillis()
+                                    }
+                                } else {
+                                    scope.launch {
+                                        services.tipNotifier.show(context.getString(R.string.outbound_locate_not_found))
+                                    }
+                                }
+                            },
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.MyLocation,
+                                contentDescription = stringResource(R.string.outbound_locate_active),
+                            )
+                        }
+                        val isTestingDelay = (runtimeState.delayTestingTarget != null) ||
+                            selectedOutbounds.any { it.id in pingState.runningIds }
+                        IconButton(
+                            onClick = {
+                                pingOutbounds(targets = selectedOutbounds)
+                            },
+                            enabled = selectedOutbounds.isNotEmpty() && !isTestingDelay,
+                        ) {
+                            if (isTestingDelay) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Rounded.Speed,
+                                    contentDescription = stringResource(R.string.outbound_ping),
+                                )
+                            }
+                        }
                         OutboundOptionsMenu(
                             onInteractionCountChange = onChildInteractionChange,
                             layout = appState.outboundListLayout,
@@ -710,22 +817,80 @@ internal fun OutboundListPage(
                     },
                 )
                 AsteriskTopBarControls {
-                    if (groups.isNotEmpty()) {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(groups, key = OutboundGroupState::id) { group ->
-                                val index = groups.indexOfFirst { it.id == group.id }
-                                val selected = pagerState.currentPage == index
-                                AsteriskFilterChip(
-                                    selected = selected,
-                                    onClick = {
-                                        launchOperation { pagerState.animateScrollToPage(index) }
-                                    },
-                                    label = buildString {
-                                        append(group.displayName())
-                                        append(" · ")
-                                        append(outboundIndex.count(group.id))
-                                    },
+                    val isServiceRunning = appState.proxyRunning
+                    val (globalTitle, globalSubtitle, globalIcon) = remember(
+                        activeTarget,
+                        effectiveActiveNodeTag,
+                        activeNodeRemarks,
+                        appState.outbounds,
+                        appState.selectors,
+                        appState.outboundGroups,
+                    ) {
+                        when {
+                            activeTarget == ManagedDirectOutboundTag -> Triple(
+                                "直连 (Direct)",
+                                "绕过代理直接访问互联网",
+                                Icons.Rounded.Route,
+                            )
+                            isCustomSelector -> {
+                                val sel = appState.selectors.first { it.tag == activeTarget }
+                                val typeName = if (sel.type == SingBoxSelectorTypeUrlTest) "自动优选" else "策略组"
+                                Triple(
+                                    sel.remarks.ifBlank { sel.tag },
+                                    if (activeNodeRemarks != null) "当前节点: $activeNodeRemarks" else "策略组调度 · $typeName",
+                                    if (sel.type == SingBoxSelectorTypeUrlTest) Icons.Rounded.Speed else Icons.Rounded.Tune,
                                 )
+                            }
+                            isGroupSelector -> {
+                                val grp = appState.outboundGroups.firstOrNull { managedOutboundGroupSelectorTag(it.id, it.name) == activeTarget }
+                                Triple(
+                                    grp?.name ?: activeTarget,
+                                    if (activeNodeRemarks != null) "当前节点: $activeNodeRemarks" else "分组策略调度",
+                                    Icons.Rounded.Folder,
+                                )
+                            }
+                            selectedSingleOutbound != null -> {
+                                Triple(
+                                    selectedSingleOutbound.remarks.ifBlank { selectedSingleOutbound.tag },
+                                    "单节点直连 (${selectedSingleOutbound.type}) · 极简配置",
+                                    Icons.Rounded.Dns,
+                                )
+                            }
+                            else -> Triple(
+                                if (activeTarget.isNotBlank()) activeTarget else "全局出站",
+                                "点击切换出站策略或单节点",
+                                Icons.Rounded.Language,
+                            )
+                        }
+                    }
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        GlobalOutboundStatusCard(
+                            title = globalTitle,
+                            subtitle = globalSubtitle,
+                            icon = globalIcon,
+                            isRunning = isServiceRunning,
+                            onClick = { showGlobalSelectorSheet = true },
+                        )
+                        if (groups.isNotEmpty()) {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(groups, key = OutboundGroupState::id) { group ->
+                                    val index = groups.indexOfFirst { it.id == group.id }
+                                    val selected = pagerState.currentPage == index
+                                    AsteriskFilterChip(
+                                        selected = selected,
+                                        onClick = {
+                                            launchOperation { pagerState.animateScrollToPage(index) }
+                                        },
+                                        label = buildString {
+                                            append(group.displayName())
+                                            append(" · ")
+                                            append(outboundIndex.count(group.id))
+                                        },
+                                    )
+                                }
                             }
                         }
                     }
@@ -768,6 +933,7 @@ internal fun OutboundListPage(
                 query = query,
                 sort = appState.outboundListSort,
                 pingState = pingState,
+                proxiesState = runtimeState.proxies,
             )
             val reorderEnabled =
                 appState.outboundListSort == OutboundListSortDefault && query.isBlank()
@@ -812,11 +978,63 @@ internal fun OutboundListPage(
                 dragScrollThresholdBottomPadding = dragScrollThresholdBottomPadding,
                 hasQuery = query.isNotBlank(),
                 columns = columns,
+                activeTarget = activeTarget,
                 reorderEnabled = reorderEnabled,
                 pingState = pingState,
+                runtimeState = runtimeState,
+                isSelectorMode = isSelectorMode,
+                effectiveActiveNodeTag = effectiveActiveNodeTag,
                 onMove = preview.onMove,
                 onDragStarted = preview.onDragStarted,
                 onDragStopped = preview.onDragStopped,
+                onSelect = { outbound ->
+                    if (isSelectorMode) {
+                        val activeGroupTag = activeTarget
+                        val wasSelected = effectiveActiveNodeTag == outbound.tag
+                        if (!wasSelected) {
+                            updateAppState { state ->
+                                state.withSelectorSelection(activeGroupTag, outbound.tag)
+                            }
+                            if (appState.proxyRunning) {
+                                scope.launch {
+                                    services.singBoxRuntime.selectProxy(appState, activeGroupTag, outbound.tag)
+                                        .onFailure {
+                                            services.tipNotifier.show(it.message ?: "切换失败")
+                                        }
+                                }
+                            }
+                        }
+                    } else {
+                        val wasSelected = activeTarget == outbound.tag
+                        updateAppState { state ->
+                            state.withSelectorSelection(ManagedGlobalSelectorTag, outbound.tag)
+                        }
+                        if (!appState.proxyRunning) {
+                            if (!homeServiceControl.busy) {
+                                homeServiceControl.startService()
+                            }
+                        } else if (!wasSelected) {
+                            if (!homeServiceControl.busy) {
+                                homeServiceControl.restartService()
+                            }
+                        }
+                    }
+                },
+                onSingleConnect = { outbound ->
+                    val wasSelected = activeTarget == outbound.tag
+                    updateAppState { state ->
+                        state.withSelectorSelection(ManagedGlobalSelectorTag, outbound.tag)
+                    }
+                    if (!appState.proxyRunning) {
+                        if (!homeServiceControl.busy) {
+                            homeServiceControl.startService()
+                        }
+                    } else if (!wasSelected) {
+                        if (!homeServiceControl.busy) {
+                            homeServiceControl.restartService()
+                        }
+                    }
+                },
                 onEdit = { outbound ->
                     navigator.push(
                         Route.OutboundEdit(
@@ -857,9 +1075,21 @@ internal fun OutboundListPage(
                     }
                 },
                 onPing = { outbound ->
-                    pingOutbounds(targets = listOf(outbound))
+                    val inKernel = appState.proxyRunning && runtimeState.proxies.nodeByName.containsKey(outbound.tag)
+                    if (inKernel) {
+                        scope.launch {
+                            services.singBoxRuntime.testProxyDelay(appState, outbound.tag)
+                                .onFailure {
+                                    services.tipNotifier.show(it.message ?: "测速失败")
+                                }
+                        }
+                    } else {
+                        pingOutbounds(targets = listOf(outbound))
+                    }
                 },
                 onDelete = { pendingDelete = it },
+                locateTargetTag = locateTargetTag,
+                locateTrigger = locateTrigger,
             )
         }
     }
@@ -954,6 +1184,41 @@ internal fun OutboundListPage(
             onDismissRequest = { importResultPresentation = null },
         )
     }
+
+    val enabledSelectorGroups = remember(appState.outboundGroups) {
+        appState.outboundGroups.filter { it.enabled }
+    }
+    val enabledSelectorGroupIds = remember(enabledSelectorGroups) {
+        enabledSelectorGroups.mapTo(mutableSetOf()) { it.id }
+    }
+    val enabledSelectorOutbounds = remember(appState.outbounds, enabledSelectorGroupIds) {
+        appState.outbounds.filter { it.groupId in enabledSelectorGroupIds }
+    }
+
+    GlobalSelectorSheet(
+        show = showGlobalSelectorSheet,
+        onDismissRequest = { showGlobalSelectorSheet = false },
+        activeTarget = activeTarget,
+        selectors = appState.selectors,
+        groups = enabledSelectorGroups,
+        outbounds = enabledSelectorOutbounds,
+        onSelectTarget = { tag ->
+            val wasSelected = activeTarget == tag
+            updateAppState { state ->
+                state.withSelectorSelection(ManagedGlobalSelectorTag, tag)
+            }
+            showGlobalSelectorSheet = false
+            if (appState.proxyRunning && !wasSelected) {
+                if (!homeServiceControl.busy) {
+                    homeServiceControl.restartService()
+                }
+            }
+        },
+        onAddSelector = {
+            showGlobalSelectorSheet = false
+            navigator.push(Route.SelectorEdit(0))
+        },
+    )
 }
 
 @Composable
@@ -963,18 +1228,34 @@ private fun OutboundPage(
     dragScrollThresholdBottomPadding: androidx.compose.ui.unit.Dp,
     hasQuery: Boolean,
     columns: Int,
+    activeTarget: String,
     reorderEnabled: Boolean,
     pingState: OutboundPingRuntimeState,
+    runtimeState: SingBoxRuntimeState,
+    isSelectorMode: Boolean,
+    effectiveActiveNodeTag: String,
     onMove: (fromIndex: Int, toIndex: Int) -> Unit,
     onDragStarted: () -> Unit,
     onDragStopped: () -> Unit,
+    onSelect: (OutboundState) -> Unit,
+    onSingleConnect: (OutboundState) -> Unit,
     onEdit: (OutboundState) -> Unit,
     onShare: (OutboundState, OutboundShareAction, OutboundShareUrlResult) -> Unit,
     onPing: (OutboundState) -> Unit,
     onDelete: (OutboundState) -> Unit,
+    locateTargetTag: String? = null,
+    locateTrigger: Long = 0L,
     onInteractionCountChange: (Int) -> Unit = {},
 ) {
     val gridState = rememberLazyGridState()
+    LaunchedEffect(locateTrigger) {
+        if (locateTrigger > 0L && !locateTargetTag.isNullOrBlank()) {
+            val targetIndex = outbounds.indexOfFirst { it.outbound.tag == locateTargetTag }
+            if (targetIndex >= 0) {
+                gridState.animateScrollToItem(targetIndex)
+            }
+        }
+    }
     val reorderableState = rememberAsteriskReorderableLazyGridState(
         lazyGridState = gridState,
         itemCount = outbounds.size,
@@ -1044,12 +1325,21 @@ private fun OutboundPage(
                     modifier = Modifier.fillMaxWidth(),
                     animateItemModifier = Modifier.animateItem(),
                 ) { isDragging ->
+                    val isNodeSelected = if (isSelectorMode) {
+                        outbound.tag == effectiveActiveNodeTag
+                    } else {
+                        outbound.tag == activeTarget
+                    }
                     OutboundCard(
                         onInteractionCountChange = onInteractionCountChange,
                         item = item,
                         compact = columns > 1,
                         pingState = pingState,
+                        runtimeState = runtimeState,
                         isDragging = isDragging && reorderEnabled,
+                        isSelected = isNodeSelected,
+                        onSelect = { onSelect(outbound) },
+                        onSingleConnect = { onSingleConnect(outbound) },
                         onEdit = { onEdit(outbound) },
                         onShare = { action, result -> onShare(outbound, action, result) },
                         onPing = { onPing(outbound) },
@@ -1075,7 +1365,11 @@ private fun OutboundCard(
     item: OutboundListItem,
     compact: Boolean,
     pingState: OutboundPingRuntimeState,
+    runtimeState: SingBoxRuntimeState,
     isDragging: Boolean,
+    isSelected: Boolean,
+    onSelect: () -> Unit,
+    onSingleConnect: () -> Unit,
     onEdit: () -> Unit,
     onShare: (OutboundShareAction, OutboundShareUrlResult) -> Unit,
     onPing: () -> Unit,
@@ -1085,15 +1379,23 @@ private fun OutboundCard(
 ) {
     TrackOutboundInteraction(isDragging, onInteractionCountChange)
     val outbound = item.outbound
-    val pinging = outbound.id in pingState.runningIds
+    val runtimeNode = runtimeState.proxies.nodeByName[outbound.tag]
+    val fallbackLatency = item.pingLatencyMillis(pingState)
+    val realLatencyMillis = runtimeNode?.delay?.takeIf { it > 0 }?.toLong() ?: fallbackLatency
+    val isTesting = (runtimeState.delayTestingTarget != null &&
+        (runtimeState.delayTestingTarget == outbound.tag ||
+            runtimeState.proxies.groups.any { it.name == runtimeState.delayTestingTarget && outbound.tag in it.all })) ||
+        (outbound.id in pingState.runningIds)
+    val isFailed = (runtimeNode != null && runtimeNode.name in runtimeState.delayFailureBaselines) ||
+        (fallbackLatency == FailedPingMillis)
     val shareUrlResult = remember(outbound.json, outbound.remarks) {
         encodeOutboundShareUrl(outbound.json, outbound.remarks)
     }
     val containerColor by animateColorAsState(
-        targetValue = if (isDragging) {
-            MaterialTheme.colorScheme.surfaceContainerHigh
-        } else {
-            MaterialTheme.colorScheme.surfaceContainer
+        targetValue = when {
+            isDragging -> MaterialTheme.colorScheme.surfaceContainerHigh
+            isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+            else -> MaterialTheme.colorScheme.surfaceContainer
         },
         animationSpec = AsteriskMotion.effects(),
         label = "outbound-card-color",
@@ -1109,7 +1411,7 @@ private fun OutboundCard(
         label = "outbound-drag-shadow",
     )
     AsteriskExpressiveCard(
-        onClick = onEdit,
+        onClick = onSelect,
         modifier = modifier
             .fillMaxWidth()
             .height(OutboundCardHeight)
@@ -1124,6 +1426,7 @@ private fun OutboundCard(
                 cornerRadius = AsteriskShapeTokens.PageCardRadius,
             ),
         containerColor = containerColor,
+        border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
     ) {
         Column(
             modifier = Modifier
@@ -1136,20 +1439,34 @@ private fun OutboundCard(
                 verticalAlignment = Alignment.Top,
             ) {
                 Column(modifier = Modifier.weight(1f).padding(top = 2.dp)) {
-                    Text(
-                        text = outbound.remarks.ifBlank { outbound.type },
-                        style = if (compact) {
-                            MaterialTheme.typography.titleSmall.copy(
-                                fontSize = 13.sp,
-                                lineHeight = 17.sp,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = outbound.remarks.ifBlank { outbound.type },
+                            style = if (compact) {
+                                MaterialTheme.typography.titleSmall.copy(
+                                    fontSize = 13.sp,
+                                    lineHeight = 17.sp,
+                                )
+                            } else {
+                                MaterialTheme.typography.titleMedium
+                            },
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                            maxLines = if (compact) 2 else 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Rounded.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp),
                             )
-                        } else {
-                            MaterialTheme.typography.titleMedium
-                        },
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = if (compact) 2 else 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                        }
+                    }
                     item.endpointSummary?.takeUnless { compact }?.let { summary ->
                         Text(
                             text = summary,
@@ -1163,8 +1480,9 @@ private fun OutboundCard(
                 }
                 OutboundCardMenu(
                     onInteractionCountChange = onInteractionCountChange,
-                    pingEnabled = item.pingHost != null && !pinging,
+                    pingEnabled = !isTesting,
                     shareUrlResult = shareUrlResult,
+                    onSingleConnect = onSingleConnect,
                     onEdit = onEdit,
                     onShare = onShare,
                     onPing = onPing,
@@ -1188,7 +1506,21 @@ private fun OutboundCard(
                         MaterialTheme.typography.labelSmall
                     },
                 )
-                OutboundPingStatus(item.pingLatencyMillis(pingState), pinging)
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable(
+                            enabled = !isTesting,
+                            onClick = onPing,
+                        )
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    OutboundPingStatus(
+                        latencyMillis = if (isFailed) FailedPingMillis else realLatencyMillis,
+                        pinging = isTesting,
+                    )
+                }
             }
         }
     }
@@ -1198,6 +1530,7 @@ private fun OutboundCard(
 private fun OutboundCardMenu(
     pingEnabled: Boolean,
     shareUrlResult: OutboundShareUrlResult,
+    onSingleConnect: () -> Unit,
     onEdit: () -> Unit,
     onShare: (OutboundShareAction, OutboundShareUrlResult) -> Unit,
     onPing: () -> Unit,
@@ -1247,6 +1580,15 @@ private fun OutboundCardMenu(
                 Column(modifier = Modifier.fillMaxWidth()) {
                     when (currentLevel) {
                         OutboundCardMenuLevel.MAIN -> {
+                            OutboundMenuItem(
+                                text = stringResource(R.string.outbound_action_single_connect),
+                                icon = Icons.Rounded.PlayArrow,
+                                onClick = {
+                                    dismissMenu()
+                                    onSingleConnect()
+                                },
+                            )
+                            HorizontalDivider()
                             OutboundMenuItem(
                                 text = stringResource(R.string.outbound_ping),
                                 icon = Icons.Rounded.Speed,
@@ -1331,13 +1673,31 @@ private fun OutboundPingStatus(
         val description = stringResource(R.string.outbound_ping_running)
         CircularProgressIndicator(
             modifier = Modifier
-                .size(18.dp)
+                .size(16.dp)
                 .semantics { contentDescription = description },
             strokeWidth = 2.dp,
         )
         return
     }
-    latencyMillis ?: return
+    if (latencyMillis == null) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Speed,
+                contentDescription = stringResource(R.string.outbound_ping),
+                modifier = Modifier.size(12.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            )
+            Text(
+                text = "-- ms",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            )
+        }
+        return
+    }
     Text(
         text = if (latencyMillis >= 0L) {
             stringResource(R.string.outbound_ping_latency, latencyMillis)
@@ -1356,9 +1716,9 @@ private fun outboundPingColor(latencyMillis: Long): Color {
     val darkTheme = isInDarkTheme()
     return when {
         latencyMillis < 0L -> if (darkTheme) Color(0xFFF12522) else Color(0xFFE94634)
-        latencyMillis < 100L -> if (darkTheme) Color(0xFF6BD58A) else Color(0xFF128A3C)
-        latencyMillis < 200L -> if (darkTheme) Color(0xFFFFC857) else Color(0xFFD18A00)
-        latencyMillis < 300L -> if (darkTheme) Color(0xFFFF9B63) else Color(0xFFE06400)
+        latencyMillis < 400L -> if (darkTheme) Color(0xFF6BD58A) else Color(0xFF128A3C)
+        latencyMillis < 600L -> if (darkTheme) Color(0xFFFFC857) else Color(0xFFD18A00)
+        latencyMillis < 800L -> if (darkTheme) Color(0xFFFF9B63) else Color(0xFFE06400)
         else -> if (darkTheme) Color(0xFFF12522) else Color(0xFFE94634)
     }
 }
@@ -1394,7 +1754,7 @@ private fun OutboundOptionsMenu(
     val sortLabel = stringResource(
         when (sort) {
             OutboundListSortName -> R.string.outbound_sort_remarks
-            OutboundListSortLatency -> R.string.outbound_sort_latency
+            OutboundListSortLatency, OutboundListSortRealLatency -> R.string.sing_box_proxies_option_sort_delay
             OutboundListSortType -> R.string.outbound_sort_type
             else -> R.string.outbound_sort_original
         },
@@ -1589,14 +1949,14 @@ private fun OutboundOptionsMenu(
                                     Icons.AutoMirrored.Rounded.Sort,
                                 ),
                                 Triple(
+                                    OutboundListSortLatency,
+                                    R.string.sing_box_proxies_option_sort_delay,
+                                    Icons.Rounded.Speed,
+                                ),
+                                Triple(
                                     OutboundListSortName,
                                     R.string.outbound_sort_remarks,
                                     Icons.Rounded.SortByAlpha,
-                                ),
-                                Triple(
-                                    OutboundListSortLatency,
-                                    R.string.outbound_sort_latency,
-                                    Icons.Rounded.Speed,
                                 ),
                                 Triple(
                                     OutboundListSortType,
@@ -1604,9 +1964,10 @@ private fun OutboundOptionsMenu(
                                     Icons.Rounded.Tune,
                                 ),
                             ).forEach { (value, label, _) ->
+                                val isSelected = sort == value || (value == OutboundListSortLatency && sort == OutboundListSortRealLatency)
                                 AsteriskDropdownMenuItem(
                                     text = stringResource(label),
-                                    selected = sort == value,
+                                    selected = isSelected,
                                     onClick = {
                                         dismissMenu()
                                         onSortChange(value)
@@ -1682,5 +2043,331 @@ private fun TrackOutboundInteraction(active: Boolean, onCountChange: (Int) -> Un
     DisposableEffect(active) {
         if (active) callback(1)
         onDispose { if (active) callback(-1) }
+    }
+}
+
+@Composable
+private fun GlobalOutboundStatusCard(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    isRunning: Boolean,
+    onClick: () -> Unit,
+) {
+    AsteriskExpressiveCard(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = if (isRunning) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        },
+        border = if (isRunning) BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) else null,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.weight(1f),
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (isRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp),
+                )
+                Column {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = if (isRunning) "已连接" else "未连接",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (isRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GlobalSelectorSheet(
+    show: Boolean,
+    onDismissRequest: () -> Unit,
+    activeTarget: String,
+    selectors: List<SingBoxSelectorState>,
+    groups: List<OutboundGroupState>,
+    outbounds: List<OutboundState>,
+    onSelectTarget: (String) -> Unit,
+    onAddSelector: () -> Unit,
+) {
+    AsteriskModalBottomSheet(
+        show = show,
+        onDismissRequest = onDismissRequest,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "出站策略选择",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                TextButton(
+                    onClick = onAddSelector,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                ) {
+                    Icon(
+                        Icons.Rounded.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        stringResource(R.string.selector_add),
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+            }
+
+            // 直连 Direct
+            SelectorChoiceItem(
+                title = "直连 (Direct)",
+                subtitle = "绕过代理直接访问互联网",
+                icon = Icons.Rounded.Route,
+                selected = activeTarget == ManagedDirectOutboundTag,
+                onClick = { onSelectTarget(ManagedDirectOutboundTag) },
+            )
+
+            // 自定义策略组
+            if (selectors.isNotEmpty()) {
+                Text(
+                    text = "自定义策略组",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                selectors.forEach { selector ->
+                    val isUrlTest = selector.type == SingBoxSelectorTypeUrlTest
+                    SelectorChoiceItem(
+                        title = selector.remarks.ifBlank { selector.tag },
+                        subtitle = if (isUrlTest) "自动优选 (${selector.outbounds.size} 个节点)" else "手动策略组 (${selector.outbounds.size} 个节点)",
+                        icon = if (isUrlTest) Icons.Rounded.Speed else Icons.Rounded.Tune,
+                        selected = activeTarget == selector.tag,
+                        onClick = { onSelectTarget(selector.tag) },
+                    )
+                }
+            }
+
+            // 分组策略组
+            if (groups.isNotEmpty()) {
+                Text(
+                    text = "分组策略",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                groups.forEach { group ->
+                    val tag = managedOutboundGroupSelectorTag(group.id, group.name)
+                    SelectorChoiceItem(
+                        title = group.name,
+                        subtitle = "该分组节点集合策略",
+                        icon = Icons.Rounded.Folder,
+                        selected = activeTarget == tag,
+                        onClick = { onSelectTarget(tag) },
+                    )
+                }
+            }
+
+            // 单节点直连
+            if (outbounds.isNotEmpty()) {
+                val activeNode = outbounds.firstOrNull { it.tag == activeTarget }
+                Text(
+                    text = stringResource(R.string.selector_section_single),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                Text(
+                    text = stringResource(R.string.selector_section_single_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                if (activeNode != null) {
+                    SelectorChoiceItem(
+                        title = activeNode.remarks.ifBlank { activeNode.tag },
+                        subtitle = "当前正在以单节点极简模式直连 (${activeNode.type.displaySingBoxProtocolName()})",
+                        icon = Icons.Rounded.Dns,
+                        selected = true,
+                        onClick = { onSelectTarget(activeNode.tag) },
+                    )
+                }
+
+                var showNodePicker by rememberSaveable { mutableStateOf(false) }
+                AsteriskExpressiveCard(
+                    onClick = { showNodePicker = !showNodePicker },
+                    modifier = Modifier.fillMaxWidth(),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Dns,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Text(
+                                text = if (showNodePicker) "收起节点列表" else "选择节点切换为单节点直连 (${outbounds.size} 个可用)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+                        Icon(
+                            imageVector = if (showNodePicker) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+
+                AnimatedVisibility(visible = showNodePicker) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        val outboundsByGroup = remember(outbounds) { outbounds.groupBy { it.groupId } }
+                        groups.forEach { group ->
+                            val groupNodes = outboundsByGroup[group.id].orEmpty()
+                            if (groupNodes.isNotEmpty()) {
+                                Text(
+                                    text = group.name,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.padding(start = 4.dp, top = 6.dp),
+                                )
+                                groupNodes.forEach { node ->
+                                    val isCurrent = activeTarget == node.tag
+                                    SelectorChoiceItem(
+                                        title = node.remarks.ifBlank { node.tag },
+                                        subtitle = "${node.type.displaySingBoxProtocolName()} · 单节点极简启动",
+                                        icon = Icons.Rounded.Dns,
+                                        selected = isCurrent,
+                                        onClick = { onSelectTarget(node.tag) },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun SelectorChoiceItem(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    AsteriskExpressiveCard(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)
+        } else {
+            MaterialTheme.colorScheme.surfaceContainer
+        },
+        border = if (selected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f),
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp),
+                )
+                Column {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            RadioButton(
+                selected = selected,
+                onClick = onClick,
+            )
+        }
     }
 }

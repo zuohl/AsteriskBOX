@@ -219,19 +219,23 @@ internal class SingBoxRuntimeRepository(
     suspend fun testGroupDelay(
         appState: AppState,
         groupName: String,
+        onProgress: ((nodeName: String, delay: Int) -> Unit)? = null,
     ): Result<SingBoxDelayResult> = runDelayTest(
         appState = appState,
         target = groupName,
         buildPlan = { proxies -> buildSingBoxDelayTestPlan(proxies, groupName) },
+        onFreshDelay = onProgress,
     )
 
     suspend fun testProxyDelay(
         appState: AppState,
         proxyName: String,
+        onProgress: ((nodeName: String, delay: Int) -> Unit)? = null,
     ): Result<SingBoxDelayResult> = runDelayTest(
         appState = appState,
         target = proxyName,
         buildPlan = { proxies -> buildSingBoxProxyDelayTestPlan(proxies, proxyName) },
+        onFreshDelay = onProgress,
     )
 
     suspend fun refreshMemoryNow(appState: AppState): Long? {
@@ -464,6 +468,7 @@ internal class SingBoxRuntimeRepository(
         appState: AppState,
         target: String,
         buildPlan: (SingBoxProxiesState) -> SingBoxDelayTestPlan,
+        onFreshDelay: ((nodeName: String, delay: Int) -> Unit)? = null,
     ): Result<SingBoxDelayResult> = runDelayTestCatching {
         val lease = delayTestRunGate.acquire()
         try {
@@ -516,6 +521,7 @@ internal class SingBoxRuntimeRepository(
                     knownFailures = knownFailures,
                     idleTimeoutMillis = DelayTestNoProgressTimeoutMillis,
                     hardTimeoutMillis = plan.deadlineMillis(),
+                    onFreshDelay = onFreshDelay,
                 )
                 val result = plan.finish(
                     delays = completed.freshDelays,

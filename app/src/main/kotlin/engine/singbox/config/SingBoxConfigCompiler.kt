@@ -62,6 +62,7 @@ import kotlinx.serialization.json.putJsonObject
 import java.io.File
 
 internal const val APP_GLOBAL_SELECTOR = ManagedGlobalSelectorTag
+internal const val APP_ALL_NODES_TEST_SELECTOR = "__all_nodes_test__"
 internal const val APP_LOCAL_INBOUND = ManagedLocalInboundTag
 internal const val APP_TUN_INBOUND = ManagedTunInboundTag
 internal const val APP_DIRECT_OUTBOUND = ManagedDirectOutboundTag
@@ -453,6 +454,126 @@ internal fun compileOutbounds(root: JsonObject, appState: AppState): JsonArray {
         .filter { group -> group.enabled }
     val enabledGroupIds = enabledGroups.mapTo(mutableSetOf()) { group -> group.id }
     val groupDetours = enabledGroups.associate { group -> group.id to group.detour }
+    val activeTarget = appState.selectorSelections[APP_GLOBAL_SELECTOR]?.trim().orEmpty()
+    val isCustomSelector = appState.selectors.any { it.tag == activeTarget }
+    val isGroupSelector = activeTarget.startsWith("outbound_group_")
+    val selectedSingleOutbound = appState.outbounds.firstOrNull { it.tag == activeTarget }
+    val isSingleOutbound = selectedSingleOutbound != null &&
+        activeTarget != APP_DIRECT_OUTBOUND &&
+        activeTarget != APP_GLOBAL_SELECTOR &&
+        !isCustomSelector &&
+        !isGroupSelector
+
+    if (isSingleOutbound) {
+        val outboundsByTag = appState.outbounds.associateBy { it.tag }
+        val routeReferencedTags = buildSet {
+            appState.routeRules
+                .filter { it.enabled && it.action != SingBoxRouteRuleActionReject }
+                .mapNotNull { it.outbound.trim().takeIf(String::isNotEmpty) }
+                .forEach(::add)
+            appState.routeFinal.trim().takeIf(String::isNotEmpty)?.let(::add)
+        }
+
+        val requiredOutbounds = linkedMapOf<String, OutboundState>()
+        val queue = ArrayDeque<String>()
+        queue.add(selectedSingleOutbound.tag)
+        queue.addAll(routeReferencedTags)
+
+        while (queue.isNotEmpty()) {
+            val tag = queue.removeFirst()
+            val outbound = outboundsByTag[tag] ?: continue
+            if (requiredOutbounds.put(tag, outbound) == null) {
+                val parsed = runCatching { parseSingBoxJson(outbound.json) }.getOrNull()
+                val explicitDetour = (parsed?.get("detour") as? JsonPrimitive)?.contentOrNull?.trim()
+                val detourTag = if (!explicitDetour.isNullOrBlank()) {
+                    explicitDetour
+                } else if (parsed != null) {
+                    outbound.inheritedGroupDetour(groupDetours[outbound.groupId].orEmpty(), parsed)
+                } else null
+                if (!detourTag.isNullOrBlank() && detourTag !in requiredOutbounds && detourTag in outboundsByTag) {
+                    queue.add(detourTag)
+                }
+            }
+        }
+
+        fun compileOutboundObject(singleOutbound: OutboundState): JsonObject {
+            val parsedJson = runCatching { parseSingBoxJson(singleOutbound.json) }.getOrNull()
+            return if (parsedJson != null && singleOutbound.shouldRetainRawGroupedOutbound(parsedJson)) {
+                JsonObject(
+                    buildMap {
+                        putAll(parsedJson)
+                        put("type", JsonPrimitive(singleOutbound.type))
+                        put("tag", JsonPrimitive(singleOutbound.tag))
+                        singleOutbound.inheritedGroupDetour(groupDetours[singleOutbound.groupId].orEmpty(), parsedJson)
+                            ?.let { detour -> put("detour", JsonPrimitive(detour)) }
+                    },
+                )
+            } else {
+                buildJsonObject {
+                    put("type", singleOutbound.type)
+                    put("tag", singleOutbound.tag)
+                }
+            }
+        }
+
+        val allSingleTags = requiredOutbounds.keys
+        val retainedSingle = (root["outbounds"] as? JsonArray)
+            .orEmptyObjects()
+            .filterNot { outbound ->
+                outbound.hasAppTag() ||
+                    (outbound["tag"] as? JsonPrimitive)?.contentOrNull in allSingleTags
+            }
+            .toMutableList()
+
+        requiredOutbounds.values.forEach { ob ->
+            retainedSingle += compileOutboundObject(ob)
+        }
+        val standbyOutbounds = appState.outbounds
+            .filter { it.groupId in enabledGroupIds && it.tag !in allSingleTags }
+        standbyOutbounds.forEach { ob ->
+            retainedSingle += compileOutboundObject(ob)
+        }
+        retainedSingle += buildJsonObject {
+            put("type", "direct")
+            put("tag", APP_DIRECT_OUTBOUND)
+        }
+        retainedSingle += buildJsonObject {
+            put("type", "selector")
+            put("tag", APP_GLOBAL_SELECTOR)
+            putJsonArray("outbounds") {
+                add(activeTarget)
+                (allSingleTags - activeTarget).forEach(::add)
+                add(APP_DIRECT_OUTBOUND)
+            }
+            put("default", activeTarget)
+            put("interrupt_exist_connections", true)
+        }
+        retainedSingle += buildJsonObject {
+            put("type", "selector")
+            put("tag", APP_ALL_NODES_TEST_SELECTOR)
+            putJsonArray("outbounds") {
+                (allSingleTags + standbyOutbounds.map { it.tag }).distinct().forEach(::add)
+            }
+            put("interrupt_exist_connections", false)
+        }
+        val allAvailableTags = (allSingleTags + standbyOutbounds.map { it.tag }).distinct().toSet()
+        enabledGroups.forEach { group ->
+            val members = appState.outbounds
+                .filter { it.groupId == group.id && it.tag in allAvailableTags }
+                .map { it.tag }
+            if (members.isNotEmpty()) {
+                val groupTag = managedOutboundGroupSelectorTag(group.id, group.name)
+                retainedSingle += buildSelectorOutbound(
+                    tag = groupTag,
+                    members = members,
+                    default = members.first(),
+                    interruptExistConnections = false,
+                )
+            }
+        }
+        return JsonArray(retainedSingle.map { (it as? JsonObject)?.let(::sanitizeOutboundXhttpUtls) ?: it })
+    }
+
     val managedOutbounds = appState.outbounds
         .asSequence()
         .filter { outbound -> outbound.groupId in enabledGroupIds }
@@ -647,10 +768,18 @@ internal fun compileOutbounds(root: JsonObject, appState: AppState): JsonArray {
         )
         put("interrupt_exist_connections", true)
     }
+    retained += buildJsonObject {
+        put("type", "selector")
+        put("tag", APP_ALL_NODES_TEST_SELECTOR)
+        putJsonArray("outbounds") {
+            managedTags.forEach(::add)
+        }
+        put("interrupt_exist_connections", false)
+    }
     return JsonArray(retained.map { (it as? JsonObject)?.let(::sanitizeOutboundXhttpUtls) ?: it })
 }
 
-private fun OutboundState.shouldRetainRawGroupedOutbound(parsed: JsonObject): Boolean {
+internal fun OutboundState.shouldRetainRawGroupedOutbound(parsed: JsonObject): Boolean {
     if (
         type != SingBoxSelectorTypeSelector &&
         type != SingBoxSelectorTypeUrlTest
@@ -784,7 +913,7 @@ internal fun compileRoute(
         .orEmptyObjects()
     val managedRules = appState.routeRules
         .filter { it.enabled && !it.hasLegacyRouteModeMatcher() }
-        .map(::compileManagedRouteRule)
+        .map { compileManagedRouteRule(it, availableOutboundTags) }
     val injectedRules = buildList {
         addAll(SingBoxSniffCompiler.compile(appState))
         if (dnsEnabled) {
@@ -883,14 +1012,20 @@ internal fun SingBoxRouteRuleState.hasLegacyRouteModeMatcher(): Boolean =
         clashMode.isNotBlank()
     }
 
-internal fun compileManagedRouteRule(rule: SingBoxRouteRuleState): JsonObject {
+internal fun compileManagedRouteRule(
+    rule: SingBoxRouteRuleState,
+    availableOutboundTags: Set<String> = emptySet(),
+): JsonObject {
     require(!rule.hasLegacyRouteModeMatcher()) { "Rule mode is managed by the application" }
     return JsonObject(
-        compileManagedRouteMatch(rule) + compileManagedRouteAction(rule),
+        compileManagedRouteMatch(rule) + compileManagedRouteAction(rule, availableOutboundTags),
     )
 }
 
-private fun compileManagedRouteAction(rule: SingBoxRouteRuleState): JsonObject =
+private fun compileManagedRouteAction(
+    rule: SingBoxRouteRuleState,
+    availableOutboundTags: Set<String> = emptySet(),
+): JsonObject =
     buildJsonObject {
         if (rule.action == SingBoxRouteRuleActionReject) {
             val method = rule.rejectMethod.takeIf { it in RouteRejectMethods } ?: "default"
@@ -899,7 +1034,13 @@ private fun compileManagedRouteAction(rule: SingBoxRouteRuleState): JsonObject =
             if (rule.rejectNoDrop && method != "drop") put("no_drop", true)
         } else {
             put("action", "route")
-            put("outbound", rule.outbound.trim().ifBlank { APP_GLOBAL_SELECTOR })
+            val target = rule.outbound.trim().ifBlank { APP_GLOBAL_SELECTOR }
+            val resolvedTarget = if (availableOutboundTags.isEmpty() || target in availableOutboundTags) {
+                target
+            } else {
+                APP_GLOBAL_SELECTOR
+            }
+            put("outbound", resolvedTarget)
         }
     }
 
