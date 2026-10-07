@@ -740,36 +740,7 @@ internal fun OutboundListPage(
                             selectedOutbounds.any { it.id in pingState.runningIds }
                         IconButton(
                             onClick = {
-                                if (appState.proxyRunning) {
-                                    val groupToTest = when {
-                                        runtimeState.proxies.groups.any { it.name == APP_ALL_NODES_TEST_SELECTOR } -> APP_ALL_NODES_TEST_SELECTOR
-                                        isSelectorMode -> activeTarget
-                                        runtimeState.proxies.groups.isNotEmpty() -> runtimeState.proxies.groups.first().name
-                                        else -> ""
-                                    }
-                                    val kernelGroup = runtimeState.proxies.groups.firstOrNull { it.name == groupToTest }
-                                    val kernelNodeNames = kernelGroup?.all?.toSet().orEmpty()
-                                    if (groupToTest.isNotEmpty() && kernelNodeNames.isNotEmpty()) {
-                                        scope.launch {
-                                            services.singBoxRuntime.testGroupDelay(appState, groupToTest)
-                                                .onSuccess {
-                                                    services.tipNotifier.show(context.getString(R.string.sing_box_proxies_delay_done))
-                                                }
-                                                .onFailure {
-                                                    services.tipNotifier.show(it.message ?: context.getString(R.string.sing_box_proxies_delay_failed))
-                                                }
-                                        }
-                                        val remainingTargets = selectedOutbounds.filter { it.tag !in kernelNodeNames }
-                                        if (remainingTargets.isNotEmpty()) {
-                                            pingOutbounds(targets = remainingTargets)
-                                        }
-                                    } else {
-                                        pingOutbounds(targets = selectedOutbounds)
-                                    }
-                                } else {
-                                    // 未启动代理情况下直接执行真实独立测速
-                                    pingOutbounds(targets = selectedOutbounds)
-                                }
+                                pingOutbounds(targets = selectedOutbounds)
                             },
                             enabled = selectedOutbounds.isNotEmpty() && !isTestingDelay,
                         ) {

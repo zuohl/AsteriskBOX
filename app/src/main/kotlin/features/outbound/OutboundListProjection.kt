@@ -76,16 +76,10 @@ internal class OutboundListIndex internal constructor(
                 compareBy(String.CASE_INSENSITIVE_ORDER, OutboundListItem::remarks),
             )
 
-            OutboundListSortRealLatency -> visible.sortedWith(
+            OutboundListSortRealLatency, OutboundListSortLatency -> visible.sortedWith(
                 compareBy<OutboundListItem> { item ->
-                    val delay = proxiesState?.nodeByName?.get(item.outbound.tag)?.delay
-                    if (delay != null && delay > 0) delay.toLong() else Long.MAX_VALUE
+                    item.effectiveDelaySortKey(proxiesState, pingState)
                 }.thenBy(String.CASE_INSENSITIVE_ORDER, OutboundListItem::remarks),
-            )
-
-            OutboundListSortLatency -> visible.sortedWith(
-                compareBy<OutboundListItem> { item -> item.pingLatencyMillis(pingState).toOutboundPingSortKey() }
-                    .thenBy(String.CASE_INSENSITIVE_ORDER, OutboundListItem::remarks),
             )
 
             OutboundListSortType -> visible.sortedWith(
@@ -95,6 +89,21 @@ internal class OutboundListIndex internal constructor(
 
             else -> visible
         }
+    }
+}
+
+internal fun OutboundListItem.effectiveDelaySortKey(
+    proxiesState: SingBoxProxiesState?,
+    pingState: OutboundPingRuntimeState,
+): Long {
+    val runtimeNode = proxiesState?.nodeByName?.get(outbound.tag)
+    val runtimeDelay = runtimeNode?.delay?.takeIf { it > 0 }?.toLong()
+    val pingLatency = pingLatencyMillis(pingState)
+    val effective = runtimeDelay ?: pingLatency
+    return when {
+        effective != null && effective > 0 && effective != FailedPingMillis -> effective
+        effective == FailedPingMillis || runtimeNode?.delay == -1 -> Long.MAX_VALUE - 1
+        else -> Long.MAX_VALUE
     }
 }
 

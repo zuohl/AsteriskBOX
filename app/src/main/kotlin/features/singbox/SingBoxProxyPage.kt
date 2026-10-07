@@ -220,6 +220,13 @@ fun SingBoxProxyPage(
             managedOutboundGroupSelectorTag(group.id, group.name)
         }
     }
+    val disabledGroupTags = remember(appState.outboundGroups) {
+        appState.outboundGroups
+            .filterNot { it.enabled }
+            .mapTo(mutableSetOf()) { group ->
+                managedOutboundGroupSelectorTag(group.id, group.name)
+            }
+    }
     val visibleProxies = remember(
         proxies,
         managedGroupNames,
@@ -228,11 +235,14 @@ fun SingBoxProxyPage(
         unavailableLabel,
         enabledGroupIds,
         enabledGroupTags,
+        disabledGroupTags,
         outboundByTagOrRemarks,
+        outboundById,
     ) {
         val prioritized = prioritizeGlobalSingBoxProxyGroup(proxies)
         val filteredGroups = prioritized.groups.filter { group ->
             if (group.name == APP_ALL_NODES_TEST_SELECTOR) return@filter false
+            if (group.name in disabledGroupTags) return@filter false
             val identity = managedTagIdentityOrNull(group.name)
             if (identity?.kind == ManagedTagKind.OUTBOUND_GROUP) {
                 return@filter identity.id in enabledGroupIds
@@ -242,12 +252,32 @@ fun SingBoxProxyPage(
             }
             true
         }
+
+        fun isMemberVisible(name: String): Boolean {
+            if (name == APP_ALL_NODES_TEST_SELECTOR) return false
+            if (name in disabledGroupTags) return false
+            val groupIdentity = managedTagIdentityOrNull(name)
+            if (groupIdentity?.kind == ManagedTagKind.OUTBOUND_GROUP) {
+                return groupIdentity.id in enabledGroupIds
+            }
+            if (name.startsWith("outbound_group_")) {
+                return name in enabledGroupTags
+            }
+            val outbound = outboundByTagOrRemarks[name]
+                ?: groupIdentity?.let { identity ->
+                    if (identity.kind == ManagedTagKind.OUTBOUND && identity.id != null) {
+                        outboundById[identity.id]
+                    } else null
+                }
+            if (outbound != null) {
+                return outbound.groupId in enabledGroupIds
+            }
+            return true
+        }
+
         prioritized.copy(
             groups = filteredGroups.map { group ->
-                val filteredAll = group.all.filter { nodeName ->
-                    val outbound = outboundByTagOrRemarks[nodeName]
-                    outbound == null || outbound.groupId in enabledGroupIds
-                }
+                val filteredAll = group.all.filter { nodeName -> isMemberVisible(nodeName) }
                 group.copy(
                     all = filteredAll,
                     displayName = managedGroupNames[group.name]

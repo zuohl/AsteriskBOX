@@ -93,27 +93,33 @@ internal class RealDelayPinger(
     ): Map<Int, Long> {
         val appState = getAppState()
         return if (appState.proxyRunning) {
-            // 代理运行中：通过主内核测试
-            val groupResult = singBoxRuntime.testGroupDelay(appState, APP_ALL_NODES_TEST_SELECTOR)
-            if (groupResult.isSuccess) {
-                val groupDelays = groupResult.getOrNull()?.delays.orEmpty()
-                outbounds.associate { ob ->
-                    val delay = groupDelays[ob.tag]?.takeIf { it > 0 }?.toLong() ?: FailedPingMillis
-                    onProgress(ob.id, delay)
-                    ob.id to delay
+            // 代理运行中：仅测试传入的目标节点，不波及未选择的分组
+            val targetGroupId = outbounds.map { it.groupId }.distinct().singleOrNull()
+            val targetGroup = if (targetGroupId != null) {
+                appState.outboundGroups.firstOrNull { it.id == targetGroupId }
+            } else null
+            val targetGroupTag = targetGroup?.let { app.managedOutboundGroupSelectorTag(it.id, it.name) }
+            val groupSelector = targetGroupTag?.takeIf { tag ->
+                singBoxRuntime.state.value.proxies.groups.any { it.name == tag }
+            }
+
+            if (groupSelector != null) {
+                // 如果当前测速的节点全都在同一个管理分组，且内核中有该分组的选择器，则仅测试该分组
+                val groupResult = singBoxRuntime.testGroupDelay(appState, groupSelector)
+                if (groupResult.isSuccess) {
+                    val groupDelays = groupResult.getOrNull()?.delays.orEmpty()
+                    outbounds.associate { ob ->
+                        val delay = groupDelays[ob.tag]?.takeIf { it > 0 }?.toLong() ?: FailedPingMillis
+                        onProgress(ob.id, delay)
+                        ob.id to delay
+                    }
+                } else {
+                    // 若整组测试失败，并发测试传入的单个节点
+                    testNodesConcurrently(appState, outbounds, onProgress)
                 }
             } else {
-                // 回退为单节点并发测速
-                coroutineScope {
-                    outbounds.map { ob ->
-                        async {
-                            val res = singBoxRuntime.testProxyDelay(appState, ob.tag)
-                            val delay = res.getOrNull()?.delays?.get(ob.tag)?.takeIf { it > 0 }?.toLong() ?: FailedPingMillis
-                            onProgress(ob.id, delay)
-                            ob.id to delay
-                        }
-                    }.awaitAll().toMap()
-                }
+                // 单节点模式或自定义集合，严格只针对传入的节点在主内核中并发测试
+                testNodesConcurrently(appState, outbounds, onProgress)
             }
         } else {
             // 代理未运行：通过独立无 TUN 实例进行真实 URLTest
@@ -125,6 +131,21 @@ internal class RealDelayPinger(
                 onProgress = onProgress,
             )
         }
+    }
+
+    private suspend fun testNodesConcurrently(
+        appState: AppState,
+        outbounds: List<OutboundState>,
+        onProgress: (outboundId: Int, latencyMillis: Long) -> Unit,
+    ): Map<Int, Long> = coroutineScope {
+        outbounds.map { ob ->
+            async {
+                val res = singBoxRuntime.testProxyDelay(appState, ob.tag)
+                val delay = res.getOrNull()?.delays?.get(ob.tag)?.takeIf { it > 0 }?.toLong() ?: FailedPingMillis
+                onProgress(ob.id, delay)
+                ob.id to delay
+            }
+        }.awaitAll().toMap()
     }
 }
 
