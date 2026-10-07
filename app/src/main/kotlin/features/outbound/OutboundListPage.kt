@@ -1771,8 +1771,7 @@ private fun OutboundOptionsMenu(
     val sortLabel = stringResource(
         when (sort) {
             OutboundListSortName -> R.string.outbound_sort_remarks
-            OutboundListSortRealLatency -> R.string.outbound_sort_real_latency
-            OutboundListSortLatency -> R.string.outbound_sort_latency
+            OutboundListSortLatency, OutboundListSortRealLatency -> R.string.sing_box_proxies_option_sort_delay
             OutboundListSortType -> R.string.outbound_sort_type
             else -> R.string.outbound_sort_original
         },
@@ -1967,14 +1966,9 @@ private fun OutboundOptionsMenu(
                                     Icons.AutoMirrored.Rounded.Sort,
                                 ),
                                 Triple(
-                                    OutboundListSortRealLatency,
-                                    R.string.outbound_sort_real_latency,
-                                    Icons.Rounded.Speed,
-                                ),
-                                Triple(
                                     OutboundListSortLatency,
-                                    R.string.outbound_sort_latency,
-                                    Icons.Rounded.Timer,
+                                    R.string.sing_box_proxies_option_sort_delay,
+                                    Icons.Rounded.Speed,
                                 ),
                                 Triple(
                                     OutboundListSortName,
@@ -1987,9 +1981,10 @@ private fun OutboundOptionsMenu(
                                     Icons.Rounded.Tune,
                                 ),
                             ).forEach { (value, label, _) ->
+                                val isSelected = sort == value || (value == OutboundListSortLatency && sort == OutboundListSortRealLatency)
                                 AsteriskDropdownMenuItem(
                                     text = stringResource(label),
-                                    selected = sort == value,
+                                    selected = isSelected,
                                     onClick = {
                                         dismissMenu()
                                         onSortChange(value)
