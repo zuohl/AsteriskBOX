@@ -105,7 +105,9 @@ internal class OutboundPingRuntimeRepository(
             var cancelled = false
 
             try {
-                pinger.pingBatch(plan.targets) { outboundId, latencyMillis ->
+                val reportedIds = mutableSetOf<Int>()
+                val resultMap = pinger.pingBatch(plan.targets) { outboundId, latencyMillis ->
+                    reportedIds += outboundId
                     val identity = plan.identities[outboundId]
                     if (identity != null) {
                         recordCompletion(
@@ -115,6 +117,20 @@ internal class OutboundPingRuntimeRepository(
                                 latencyMillis = latencyMillis,
                             )
                         )
+                    }
+                }
+                plan.targets.forEach { target ->
+                    if (target.id !in reportedIds) {
+                        val identity = plan.identities[target.id]
+                        if (identity != null) {
+                            recordCompletion(
+                                Completion(
+                                    identity = identity,
+                                    batchId = plan.batchId,
+                                    latencyMillis = resultMap[target.id] ?: -1L,
+                                )
+                            )
+                        }
                     }
                 }
             } catch (error: CancellationException) {

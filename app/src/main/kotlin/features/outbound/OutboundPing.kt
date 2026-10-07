@@ -128,12 +128,24 @@ internal class RealDelayPinger(
                     }
                     resultsMap
                 } else {
-                    // 若整组测试失败，并发测试传入的单个节点
-                    testNodesConcurrently(appState, outbounds, onProgress)
+                    // 若整组测试失败，fallback 到独立实例进行真实 URLTest
+                    val detours = appState.outboundGroups.associate { it.id to it.detour }
+                    SingBoxStandaloneUrlTester.testOutbounds(
+                        context = context,
+                        outbounds = outbounds,
+                        groupDetours = detours,
+                        onProgress = onProgress,
+                    )
                 }
             } else {
-                // 单节点模式或自定义集合，严格只针对传入的节点在主内核中并发测试
-                testNodesConcurrently(appState, outbounds, onProgress)
+                // 单节点极简模式或无对应分组选择器：直接通过独立实例进行真实 URLTest
+                val detours = appState.outboundGroups.associate { it.id to it.detour }
+                SingBoxStandaloneUrlTester.testOutbounds(
+                    context = context,
+                    outbounds = outbounds,
+                    groupDetours = detours,
+                    onProgress = onProgress,
+                )
             }
         } else {
             // 代理未运行：通过独立无 TUN 实例进行真实 URLTest
@@ -145,21 +157,6 @@ internal class RealDelayPinger(
                 onProgress = onProgress,
             )
         }
-    }
-
-    private suspend fun testNodesConcurrently(
-        appState: AppState,
-        outbounds: List<OutboundState>,
-        onProgress: (outboundId: Int, latencyMillis: Long) -> Unit,
-    ): Map<Int, Long> = coroutineScope {
-        outbounds.map { ob ->
-            async {
-                val res = singBoxRuntime.testProxyDelay(appState, ob.tag)
-                val delay = res.getOrNull()?.delays?.get(ob.tag)?.takeIf { it > 0 }?.toLong() ?: FailedPingMillis
-                onProgress(ob.id, delay)
-                ob.id to delay
-            }
-        }.awaitAll().toMap()
     }
 }
 
