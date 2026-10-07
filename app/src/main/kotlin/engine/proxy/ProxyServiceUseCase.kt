@@ -29,10 +29,30 @@ internal class ProxyServiceUseCase(
             return error.toProxyServiceFailure(RootRequestedAction.Toggle)
         }
         return when (val decision = decideRootSafeToggle(LocalRootOwner, live)) {
-            RootToggleDecision.OrdinaryStart -> start(state)
+            RootToggleDecision.OrdinaryStart -> startDirect(state)
             RootToggleDecision.StopOwn -> stop(state.runMode)
             is RootToggleDecision.Blocked -> decision.result.toProxyServiceFailure(RootRequestedAction.Toggle)
         }
+    }
+
+    suspend fun start(state: AppState): ProxyServiceResult {
+        val live = try {
+            proxyEngine.status(state.runMode, state)
+        } catch (error: Throwable) {
+            return error.toProxyServiceFailure(RootRequestedAction.OrdinaryStart)
+        }
+        if (live.running) {
+            return ProxyServiceResult.Success(
+                proxyRunning = true,
+                appState = live.appState,
+                alreadyRunning = true,
+            )
+        }
+        classifyForeignRootConflict(
+            LocalRootOwner,
+            live,
+        )?.let { conflict -> return conflict.toProxyServiceFailure(RootRequestedAction.OrdinaryStart) }
+        return startDirect(state)
     }
 
     suspend fun restart(state: AppState): ProxyServiceResult {
@@ -53,7 +73,7 @@ internal class ProxyServiceUseCase(
         )
     }
 
-    private suspend fun start(state: AppState): ProxyServiceResult {
+    private suspend fun startDirect(state: AppState): ProxyServiceResult {
         return runCatching {
             proxyEngine.start(ProxyEngineStartRequest(state))
         }.fold(
@@ -126,6 +146,7 @@ internal sealed interface ProxyServiceResult {
     data class Success(
         val proxyRunning: Boolean,
         val appState: AppState? = null,
+        val alreadyRunning: Boolean = false,
     ) : ProxyServiceResult
 
     data class Failed(val error: Throwable) : ProxyServiceResult

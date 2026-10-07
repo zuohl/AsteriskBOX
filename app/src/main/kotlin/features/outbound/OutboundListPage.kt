@@ -724,12 +724,6 @@ internal fun OutboundListPage(
                                         }
                                         locateTargetTag = activeOutbound.tag
                                         locateTrigger = System.currentTimeMillis()
-                                        services.tipNotifier.show(
-                                            context.getString(
-                                                R.string.outbound_locate_success,
-                                                activeOutbound.remarks.ifBlank { activeOutbound.tag },
-                                            ),
-                                        )
                                     }
                                 } else {
                                     scope.launch {
@@ -1004,16 +998,9 @@ internal fun OutboundListPage(
                             if (appState.proxyRunning) {
                                 scope.launch {
                                     services.singBoxRuntime.selectProxy(appState, activeGroupTag, outbound.tag)
-                                        .onSuccess {
-                                            services.tipNotifier.show("已切换至 ${outbound.remarks.ifBlank { outbound.tag }}")
-                                        }
                                         .onFailure {
                                             services.tipNotifier.show(it.message ?: "切换失败")
                                         }
-                                }
-                            } else {
-                                scope.launch {
-                                    services.tipNotifier.show("已选择 ${outbound.remarks.ifBlank { outbound.tag }}")
                                 }
                             }
                         }
@@ -1024,7 +1011,7 @@ internal fun OutboundListPage(
                         }
                         if (!appState.proxyRunning) {
                             if (!homeServiceControl.busy) {
-                                homeServiceControl.toggleService()
+                                homeServiceControl.startService()
                             }
                         } else if (!wasSelected) {
                             if (!homeServiceControl.busy) {
@@ -1040,20 +1027,12 @@ internal fun OutboundListPage(
                     }
                     if (!appState.proxyRunning) {
                         if (!homeServiceControl.busy) {
-                            homeServiceControl.toggleService()
+                            homeServiceControl.startService()
                         }
                     } else if (!wasSelected) {
                         if (!homeServiceControl.busy) {
                             homeServiceControl.restartService()
                         }
-                    }
-                    scope.launch {
-                        services.tipNotifier.show(
-                            context.getString(
-                                R.string.outbound_single_connect_success,
-                                outbound.remarks.ifBlank { outbound.tag },
-                            ),
-                        )
                     }
                 },
                 onEdit = { outbound ->
@@ -1100,9 +1079,6 @@ internal fun OutboundListPage(
                     if (inKernel) {
                         scope.launch {
                             services.singBoxRuntime.testProxyDelay(appState, outbound.tag)
-                                .onSuccess {
-                                    services.tipNotifier.show("测速完成: ${outbound.remarks.ifBlank { outbound.tag }}")
-                                }
                                 .onFailure {
                                     services.tipNotifier.show(it.message ?: "测速失败")
                                 }
