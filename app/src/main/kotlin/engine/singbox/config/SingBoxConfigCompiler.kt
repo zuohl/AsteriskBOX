@@ -556,6 +556,21 @@ internal fun compileOutbounds(root: JsonObject, appState: AppState): JsonArray {
             }
             put("interrupt_exist_connections", false)
         }
+        val allAvailableTags = (allSingleTags + standbyOutbounds.map { it.tag }).distinct().toSet()
+        enabledGroups.forEach { group ->
+            val members = appState.outbounds
+                .filter { it.groupId == group.id && it.tag in allAvailableTags }
+                .map { it.tag }
+            if (members.isNotEmpty()) {
+                val groupTag = managedOutboundGroupSelectorTag(group.id, group.name)
+                retainedSingle += buildSelectorOutbound(
+                    tag = groupTag,
+                    members = members,
+                    default = members.first(),
+                    interruptExistConnections = false,
+                )
+            }
+        }
         return JsonArray(retainedSingle.map { (it as? JsonObject)?.let(::sanitizeOutboundXhttpUtls) ?: it })
     }
 

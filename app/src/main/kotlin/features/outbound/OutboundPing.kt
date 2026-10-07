@@ -101,6 +101,8 @@ internal class RealDelayPinger(
             val targetGroupTag = targetGroup?.let { app.managedOutboundGroupSelectorTag(it.id, it.name) }
             val groupSelector = targetGroupTag?.takeIf { tag ->
                 singBoxRuntime.state.value.proxies.groups.any { it.name == tag }
+            } ?: APP_ALL_NODES_TEST_SELECTOR.takeIf { selector ->
+                singBoxRuntime.state.value.proxies.groups.any { it.name == selector }
             }
 
             if (groupSelector != null) {

@@ -199,7 +199,7 @@ internal object SingBoxStandaloneUrlTester {
                     addJsonObject {
                         put("tag", "dns-direct")
                         put("address", "223.5.5.5")
-                        put("detour", "direct")
+                        put("detour", APP_DIRECT_OUTBOUND)
                     }
                 }
                 put("strategy", "prefer_ipv4")
@@ -210,6 +210,10 @@ internal object SingBoxStandaloneUrlTester {
                 addJsonObject {
                     put("type", "direct")
                     put("tag", APP_DIRECT_OUTBOUND)
+                }
+                addJsonObject {
+                    put("type", "direct")
+                    put("tag", "direct")
                 }
                 addJsonObject {
                     put("type", "urltest")
