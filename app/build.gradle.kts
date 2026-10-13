@@ -20,7 +20,11 @@ val isBuildingAppBundle = gradle.startParameter.taskNames.any { requestedTask ->
 
 android {
     namespace = "app"
-    compileSdk = ProjectConfig.TARGET_SDK
+    compileSdk {
+        version = release(ProjectConfig.TARGET_SDK) {
+            minorApiLevel = ProjectConfig.TARGET_SDK_MINOR
+        }
+    }
 
     // Built-in Kotlin inherits this JVM target.
     compileOptions {
@@ -130,6 +134,7 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.dexlib2)
     implementation(dependencies.project(":asteriskd"))
+    implementation(dependencies.project(":enhance"))
     implementation(dependencies.project(":bpfmatcher"))
     implementation(dependencies.project(":bpf2socks"))
     implementation(dependencies.project(":hevtun"))

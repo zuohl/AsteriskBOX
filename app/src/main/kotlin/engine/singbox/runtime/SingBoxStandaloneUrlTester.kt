@@ -292,6 +292,7 @@ private class StandalonePlatformInterface(
     override fun lookupSFTPServer(): String = error("sftp not supported")
     override fun lookupUser(username: String?): PlatformUser = error("user lookup not supported")
     override fun usePlatformAutoRedirect(): Boolean = false
+    override fun createAutoRedirectListener(inet6: Boolean): Int = error("auto redirect listener not supported")
     override fun createAutoRedirect(options: ByteArray?, handler: AutoRedirectHandler?): AutoRedirectSession =
         error("auto redirect not supported")
 

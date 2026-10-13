@@ -1,8 +1,6 @@
 // Copyright 2026, AsteriskBOX contributors
 // SPDX-License-Identifier: GPL-3.0
 
-@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-
 package ui.components
 
 import androidx.compose.animation.AnimatedContent
@@ -36,6 +34,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import ui.theme.AsteriskMotion
+import ui.theme.AsteriskShapeTokens
 
 internal fun <T, K> ruleEditorAnimatedListContentKey(
     items: List<T>,
@@ -208,6 +207,7 @@ internal fun RuleEditorTextField(
 ) {
     val focusManager = LocalFocusManager.current
     OutlinedTextField(
+        shape = AsteriskShapeTokens.InnerContainer,
         value = value,
         onValueChange = { proposed -> onValueChange(sanitizeInput(proposed)) },
         modifier = modifier.fillMaxWidth(),

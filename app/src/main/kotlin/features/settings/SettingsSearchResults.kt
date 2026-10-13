@@ -60,6 +60,11 @@ internal fun settingsTopLevelSearchItems(
     return listOfNotNull(
         SettingsSearchItem(
             SettingsSectionId.Apps,
+            stringResource(R.string.settings_hide_recent_tasks),
+            stringResource(R.string.settings_hide_recent_tasks_summary),
+        ),
+        SettingsSearchItem(
+            SettingsSectionId.Apps,
             stringResource(R.string.settings_color_mode),
             value = optionValue(colorModeOptions, colorMode),
             optionText = colorModeOptions,
@@ -188,6 +193,11 @@ internal fun settingsTopLevelSearchItems(
                 stringResource(R.string.settings_root_ebpf_bypass_direct_cidrs_summary)
             },
         ),
+        if (showEbpfOptions) SettingsSearchItem(
+            SettingsSectionId.Tproxy,
+            stringResource(R.string.settings_root_ebpf_bypass_private_addresses),
+            stringResource(R.string.settings_root_ebpf_bypass_private_addresses_summary),
+        ) else null,
         SettingsSearchItem(
             SettingsSectionId.Tproxy,
             stringResource(R.string.settings_root_ipv6_disabler),

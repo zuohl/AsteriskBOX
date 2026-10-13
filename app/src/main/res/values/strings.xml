@@ -182,6 +182,29 @@
     <string name="monitor_traffic_trend">5-minute trend</string>
 
     <!-- Monitoring - Network -->
+    <string name="monitor_network_colo_ams">Amsterdam</string>
+    <string name="monitor_network_colo_cdg">Paris</string>
+    <string name="monitor_network_colo_dfw">Dallas</string>
+    <string name="monitor_network_colo_ewr">Newark</string>
+    <string name="monitor_network_colo_fra">Frankfurt</string>
+    <string name="monitor_network_colo_hkg">Hong Kong</string>
+    <string name="monitor_network_colo_iad">Ashburn</string>
+    <string name="monitor_network_colo_icn">Seoul</string>
+    <string name="monitor_network_colo_khh">Kaohsiung</string>
+    <string name="monitor_network_colo_kix">Osaka</string>
+    <string name="monitor_network_colo_lax">Los Angeles</string>
+    <string name="monitor_network_colo_lhr">London</string>
+    <string name="monitor_network_colo_mel">Melbourne</string>
+    <string name="monitor_network_colo_named">%1$s (%2$s)</string>
+    <string name="monitor_network_colo_nrt">Tokyo</string>
+    <string name="monitor_network_colo_ord">Chicago</string>
+    <string name="monitor_network_colo_sea">Seattle</string>
+    <string name="monitor_network_colo_sfo">San Francisco</string>
+    <string name="monitor_network_colo_sin">Singapore</string>
+    <string name="monitor_network_colo_sjc">San Jose</string>
+    <string name="monitor_network_colo_syd">Sydney</string>
+    <string name="monitor_network_colo_tpe">Taipei</string>
+    <string name="monitor_network_colo_unknown">%1$s data center</string>
     <string name="monitor_network_dns">DNS server</string>
     <string name="monitor_network_error_request">The request failed</string>
     <string name="monitor_network_error_response">The service returned an invalid address</string>
@@ -201,8 +224,6 @@
     <string name="monitor_network_probe_cloudflare">Cloudflare Exit</string>
     <string name="monitor_network_probe_warp">WARP</string>
     <string name="monitor_network_public">Public addresses</string>
-    <string name="monitor_network_public_ipv4">Public IPv4</string>
-    <string name="monitor_network_public_ipv6">Public IPv6</string>
     <string name="monitor_network_request_duration_value">Request duration %1$d ms</string>
     <string name="monitor_network_title">Network status</string>
 
@@ -1118,6 +1139,8 @@
     <string name="error_tun_root_required">ROOT access is required for TUN mode</string>
     <string name="error_tun_start_failed">Failed to start TUN mode: %1$s</string>
     <string name="root_foreign_owner_conflict">The ROOT proxy service is being used by %1$s. Stop it in %1$s and try again.</string>
+    <string name="settings_app_list_enhancement">Application list enhancement</string>
+    <string name="settings_app_list_enhancement_summary">Route system DNS by the application list and isolate caches</string>
     <string name="settings_ebpf_data_plane">Data plane</string>
     <string name="settings_ebpf_dns_disabled">Local DNS is disabled; off is in effect.</string>
     <string name="settings_ebpf_dns_mode">DNS mode</string>
@@ -1130,11 +1153,33 @@
     <string name="settings_root_boot_script_summary">Generate service.d startup script</string>
     <string name="settings_root_ebpf_bypass_direct_cidrs">Bypass direct addresses</string>
     <string name="settings_root_ebpf_bypass_direct_cidrs_summary">Uses China address lists by default; adjust them in Resource Management</string>
+    <string name="settings_root_ebpf_bypass_private_addresses">Bypass private addresses</string>
+    <string name="settings_root_ebpf_bypass_private_addresses_summary">Exclude private addresses from the proxy core</string>
     <string name="settings_root_ebpf_matcher">Use eBPF matcher</string>
     <string name="settings_root_ebpf_matcher_summary">Improve performance for large app lists and support address filtering</string>
     <string name="settings_root_ipv6_disabler">Disable system IPv6</string>
     <string name="settings_root_ipv6_disabler_summary">Prevent WebRTC IPv6 address leaks</string>
     <string name="settings_root_required">No ROOT access detected!</string>
+
+    <!-- Enhancement module -->
+    <string name="enhancement_module_acknowledge">OK</string>
+    <string name="enhancement_module_apk_install_failed">The ROOT tool could not install this APK directly. If APK files are unsupported, export this app APK, change .apk to .zip, install it with your ROOT manager, and reboot</string>
+    <string name="enhancement_module_failed">Module operation failed. Check your ROOT manager and ensure Zygisk Next is installed and enabled, then retry</string>
+    <string name="enhancement_module_incompatible">The running enhancement module does not support this runtime</string>
+    <string name="enhancement_module_install_close">Close</string>
+    <string name="enhancement_module_install_output_waiting">Waiting for installer output…</string>
+    <string name="enhancement_module_install_title">Install enhancement module</string>
+    <string name="enhancement_module_installing">Installing enhancement module…</string>
+    <string name="enhancement_module_invalid_module">Could not read valid enhancement module runtime information</string>
+    <string name="enhancement_module_invalid_package">This app package does not contain valid enhancement metadata and native libraries for this device</string>
+    <string name="enhancement_module_manager_unsupported">No supported Magisk, KernelSU, or APatch installation CLI was found</string>
+    <string name="enhancement_module_missing">No usable enhancement module was detected. Install or reinstall it, then reboot</string>
+    <string name="enhancement_module_reboot">Enhancement module installed or updated; restart the device</string>
+    <string name="enhancement_module_root_denied">ROOT permission was denied. Grant access and retry</string>
+    <string name="enhancement_module_timeout">Module operation timed out. Check your ROOT manager and retry</string>
+    <string name="enhancement_module_title">Enhancement module</string>
+    <string name="enhancement_module_update">Update enhancement module</string>
+    <string name="enhancement_module_update_available">A module update is available from this app. Update it and reboot before using application list enhancement</string>
 
     <!-- TUN -->
     <string name="settings_tun">TUN settings</string>
@@ -1510,6 +1555,10 @@
     <string name="theme_color_sakura">Sakura pink</string>
     <string name="theme_color_violet">Violet</string>
     <string name="theme_color_yellow">Warm yellow</string>
+
+    <!-- General preferences -->
+    <string name="settings_hide_recent_tasks">Hide from recent tasks</string>
+    <string name="settings_hide_recent_tasks_summary">Hide the app from the recent tasks list</string>
 
     <!-- Logs -->
     <string name="core_logs_title">Core logs</string>

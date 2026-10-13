@@ -51,6 +51,7 @@ internal class AppSettingsPreferences(
             colorMode = preferences.getInt(KeyColorMode, defaults.colorMode),
             languageMode = preferences.getInt(KeyLanguageMode, defaults.languageMode),
             seedIndex = preferences.getInt(KeySeedIndex, defaults.seedIndex),
+            hideRecentTasks = preferences.getBoolean(KeyHideRecentTasks, defaults.hideRecentTasks),
             outboundListLayout = preferences.getInt(
                 KeyOutboundListLayout,
                 defaults.outboundListLayout,
@@ -231,6 +232,7 @@ internal class AppSettingsPreferences(
                 KeyTransparentProxyPort,
                 defaults.transparentProxyPort,
             ) ?: defaults.transparentProxyPort,
+            enableAppListEnhancement = preferences.getBoolean(KeyEnableAppListEnhancement, defaults.enableAppListEnhancement),
             enableRootBootScript = preferences.getBoolean(
                 KeyEnableRootBootScript,
                 defaults.enableRootBootScript,
@@ -244,6 +246,10 @@ internal class AppSettingsPreferences(
                 defaults.enableRootEbpfDirectCidrBypass,
             ),
             ebpfLocalDataPlane = preferences.getString(KeyEbpfLocalDataPlane, defaults.ebpfLocalDataPlane) ?: defaults.ebpfLocalDataPlane,
+            enableRootEbpfPrivateAddressBypass = preferences.getBoolean(
+                KeyEnableRootEbpfPrivateAddressBypass,
+                defaults.enableRootEbpfPrivateAddressBypass,
+            ),
             ebpfSharedDataPlane = preferences.getString(KeyEbpfSharedDataPlane, defaults.ebpfSharedDataPlane) ?: defaults.ebpfSharedDataPlane,
             ebpfLocalDnsMode = preferences.getString(KeyEbpfLocalDnsMode, defaults.ebpfLocalDnsMode) ?: defaults.ebpfLocalDnsMode,
             ebpfSharedDnsMode = preferences.getString(KeyEbpfSharedDnsMode, defaults.ebpfSharedDnsMode) ?: defaults.ebpfSharedDnsMode,
@@ -409,6 +415,7 @@ private const val ObsoleteSettingsPayloadKey = "settings"
 internal const val KeyColorMode = "color_mode"
 internal const val KeyLanguageMode = "language_mode"
 internal const val KeySeedIndex = "seed_index"
+internal const val KeyHideRecentTasks = "hide_recent_tasks"
 private const val KeySubscriptionHwid = "subscription_hwid"
 internal const val KeyOutboundListLayout = "outbound_list_layout"
 internal const val KeyOutboundListSort = "outbound_list_sort"
@@ -473,8 +480,10 @@ internal const val KeyStoreFakeIp = "store_fake_ip"
 internal const val KeyStoreDns = "store_dns"
 internal const val KeyTransparentProxyPort = "transparent_proxy_port"
 internal const val KeyEnableRootBootScript = "enable_root_boot_script"
+internal const val KeyEnableAppListEnhancement = "enable_app_list_enhancement"
 internal const val KeyEnableRootEbpfRules = "enable_root_ebpf_rules"
 internal const val KeyEnableRootEbpfDirectCidrBypass = "enable_root_ebpf_direct_cidr_bypass"
+internal const val KeyEnableRootEbpfPrivateAddressBypass = "enable_root_ebpf_private_address_bypass"
 internal const val KeyEbpfLocalDataPlane = "ebpf_local_data_plane"
 internal const val KeyEbpfSharedDataPlane = "ebpf_shared_data_plane"
 internal const val KeyEbpfLocalDnsMode = "ebpf_local_dns_mode"

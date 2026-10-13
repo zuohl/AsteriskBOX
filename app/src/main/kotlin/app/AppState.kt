@@ -34,6 +34,7 @@ data class AppState(
     val colorMode: Int = ColorModeSystem,
     val languageMode: Int = LanguageModeSystem,
     val seedIndex: Int = 0,
+    val hideRecentTasks: Boolean = false,
 
     val outboundGroups: List<OutboundGroupState> = emptyList(),
     val nextOutboundGroupId: Int = 1,
@@ -123,8 +124,10 @@ data class AppState(
 
     val transparentProxyPort: String = RootModeEngine.DefaultTproxyPort.toString(),
     val enableRootBootScript: Boolean = false,
+    val enableAppListEnhancement: Boolean = false,
     val enableRootEbpfRules: Boolean = false,
     val enableRootEbpfDirectCidrBypass: Boolean = false,
+    val enableRootEbpfPrivateAddressBypass: Boolean = false,
     val ebpfLocalDataPlane: String = DefaultEbpfLocalDataPlane,
     val ebpfSharedDataPlane: String = DefaultEbpfSharedDataPlane,
     val ebpfLocalDnsMode: String = DefaultEbpfDnsMode,

@@ -14,7 +14,6 @@ import app.SingBoxDnsServerState
 import app.SingBoxRouteRuleState
 import app.SingBoxSelectorTypeSelector
 import kotlinx.serialization.EncodeDefault
-import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -48,12 +47,12 @@ internal data class AppBackupData(
     val proxyAppListSelectedApps: List<String> = emptyList(),
 )
 
-@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 internal data class AppBackupSettings(
     val colorMode: Int = BackupDefaults.colorMode,
     val languageMode: Int = BackupDefaults.languageMode,
     val seedIndex: Int = BackupDefaults.seedIndex,
+    val hideRecentTasks: Boolean = BackupDefaults.hideRecentTasks,
     val outboundListLayout: Int = BackupDefaults.outboundListLayout,
     val outboundListSort: Int = BackupDefaults.outboundListSort,
     val selectorSelections: Map<String, String> = BackupDefaults.selectorSelections,
@@ -115,6 +114,7 @@ internal data class AppBackupSettings(
     val ebpfLocalDnsMode: String = BackupDefaults.ebpfLocalDnsMode,
     val ebpfSharedDnsMode: String = BackupDefaults.ebpfSharedDnsMode,
     val enableRootEbpfDirectCidrBypass: Boolean = BackupDefaults.enableRootEbpfDirectCidrBypass,
+    val enableRootEbpfPrivateAddressBypass: Boolean = BackupDefaults.enableRootEbpfPrivateAddressBypass,
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     @SerialName("ebpfBypassRuleSetTags")
     val legacyEbpfBypassRuleSetTags: List<String> = emptyList(),

@@ -9,6 +9,8 @@ import app.modes.RunModeEbpf
 import app.modes.RunModeTun
 import app.modes.RunModeTun2Socks
 import app.modes.RunModeVpnService
+import features.enhancement.EnhancementModulePreference
+import app.modes.supportsAppListEnhancement
 import app.modes.isRootRunMode
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -38,6 +40,8 @@ internal fun settingsCoreLogLevelLabels(): List<String> =
 
 @Composable
 internal fun SettingsAppSection(
+    hideRecentTasks: Boolean,
+    onHideRecentTasksChange: (Boolean) -> Unit,
     languageOptions: List<String>,
     languageMode: Int,
     colorModeOptions: List<String>,
@@ -67,6 +71,16 @@ internal fun SettingsAppSection(
         onColorModeChange = onColorModeChange,
         onSeedIndexChange = onSeedIndexChange,
     )
+    SettingsSectionCard {
+        SwitchPreference(
+            title = stringResource(R.string.settings_hide_recent_tasks),
+            icon = Icons.Rounded.Apps,
+            summary = stringResource(R.string.settings_hide_recent_tasks_summary),
+            checked = hideRecentTasks,
+            onCheckedChange = onHideRecentTasksChange,
+            accent = IconAccent.MaskGrey,
+        )
+    }
 }
 
 @Composable
@@ -288,6 +302,7 @@ internal fun SettingsProxyModeSections(
     enableRootBootScript: Boolean,
     enableRootEbpfRules: Boolean,
     enableRootEbpfDirectCidrBypass: Boolean,
+    enableRootEbpfPrivateAddressBypass: Boolean,
     tunBypassRuleSetsSummary: String,
     enableIpv6: Boolean,
     enableRootIpv6Disabler: Boolean,
@@ -304,6 +319,7 @@ internal fun SettingsProxyModeSections(
     onEnableRootBootScriptChange: (Boolean) -> Unit,
     onEnableRootEbpfRulesChange: (Boolean) -> Unit,
     onEnableRootEbpfDirectCidrBypassChange: (Boolean) -> Unit,
+    onEnableRootEbpfPrivateAddressBypassChange: (Boolean) -> Unit,
     onOpenTunBypassRuleSets: () -> Unit,
     onEnableRootIpv6DisablerChange: (Boolean) -> Unit,
     onOpenExternalInterfaces: () -> Unit,
@@ -458,6 +474,23 @@ internal fun SettingsProxyModeSections(
                             )
                         }
                     }
+                }
+                AnimatedVisibility(
+                    visible = runMode == RunModeEbpf,
+                    enter = AsteriskMotion.contentEnter(),
+                    exit = AsteriskMotion.contentExit(),
+                ) {
+                    SwitchPreference(
+                        title = stringResource(R.string.settings_root_ebpf_bypass_private_addresses),
+                        icon = Icons.Rounded.Route,
+                        summary = stringResource(R.string.settings_root_ebpf_bypass_private_addresses_summary),
+                        checked = enableRootEbpfPrivateAddressBypass,
+                        onCheckedChange = onEnableRootEbpfPrivateAddressBypassChange,
+                        accent = IconAccent.MaskGreen,
+                    )
+                }
+                if (runMode.supportsAppListEnhancement()) {
+                    EnhancementModulePreference()
                 }
                 AnimatedVisibility(
                     visible = !enableIpv6,
