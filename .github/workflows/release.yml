@@ -212,25 +212,33 @@ jobs:
           REQUESTED_KERNEL_TAG: ${{ github.event.inputs.sing_box_tag }}
         run: |
           mkdir -p app/libs
-          if [ ! -f "app/libs/libbox.aar" ]; then
-            if [ -n "$REQUESTED_KERNEL_TAG" ]; then
-              KERNEL_URL="https://github.com/zuohl/sing-box/releases/download/${REQUESTED_KERNEL_TAG}/libbox.aar"
-              echo "Fetching trimmed libbox.aar from specified kernel release: $REQUESTED_KERNEL_TAG..."
-            else
-              KERNEL_URL="https://github.com/zuohl/sing-box/releases/latest/download/libbox.aar"
-              echo "Fetching trimmed libbox.aar from latest kernel release..."
-            fi
+          target_kernel_ver="$(sed -n 's/^[[:space:]]*const val ANDROID_LIB_BOX_LITE_VERSION = "\(.*\)".*/\1/p' buildSrc/src/main/kotlin/BuildConfig.kt | head -n 1)"
 
-            if ! curl -sSL -f -o app/libs/libbox.aar "$KERNEL_URL"; then
-              echo "Warning: Failed to fetch from $KERNEL_URL, falling back to v1.15.0-lite..."
-              curl -sSL -f -o app/libs/libbox.aar https://github.com/zuohl/sing-box/releases/download/v1.15.0-lite/libbox.aar || {
-                echo "Warning: Failed to fetch fallback libbox.aar, falling back to default ivy dependency."
+          if [ -n "$REQUESTED_KERNEL_TAG" ]; then
+            kernel_url="https://github.com/zuohl/sing-box/releases/download/${REQUESTED_KERNEL_TAG}/libbox.aar"
+            echo "Fetching trimmed libbox.aar from specified kernel release: $REQUESTED_KERNEL_TAG..."
+            if ! curl -sSL -f -o app/libs/libbox.aar "$kernel_url"; then
+              echo "::warning::Failed to fetch from $kernel_url, falling back to official release $target_kernel_ver..."
+              rm -f app/libs/libbox.aar
+            fi
+          else
+            # Try fetching matched trimmed kernel from zuohl/sing-box first
+            trimmed_url="https://github.com/zuohl/sing-box/releases/download/${target_kernel_ver}/libbox.aar"
+            echo "Attempting to fetch matching trimmed libbox.aar (${target_kernel_ver})..."
+            if ! curl -sSL -f -o app/libs/libbox.aar "$trimmed_url"; then
+              echo "Notice: Matching trimmed kernel not found. Falling back to official release $target_kernel_ver..."
+              official_url="https://github.com/Asterisk4Magisk/AndroidLibBoxLite/releases/download/${target_kernel_ver}/libbox.aar"
+              if ! curl -sSL -f -o app/libs/libbox.aar "$official_url"; then
+                echo "Warning: Failed to fetch official libbox.aar via curl, letting Gradle ivy repository resolve it."
                 rm -f app/libs/libbox.aar
-              }
+              fi
             fi
           fi
+
           if [ -f "app/libs/libbox.aar" ]; then
-            echo "Successfully prepared trimmed libbox.aar ($(ls -lh app/libs/libbox.aar | awk '{print $5}'))"
+            echo "Successfully prepared libbox.aar ($(ls -lh app/libs/libbox.aar | awk '{print $5}'))"
+          else
+            echo "Using default dependency from Ivy repository."
           fi
 
       - name: Build release APKs
