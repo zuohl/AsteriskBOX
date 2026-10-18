@@ -6,6 +6,8 @@ package engine.singbox.runtime
 import engine.root.dns.withRootDnsMutation
 import android.content.Context
 import app.AppState
+import app.DefaultConnectionTestUrl
+import app.isValidConnectionTestUrl
 import app.modes.RunModeVpnService
 import engine.proxy.ProxyEngineStartRequest
 import engine.singbox.singBoxControlConfig
@@ -110,6 +112,8 @@ internal class SingBoxRuntimeRepository(
                     traffic = current.traffic.copy(connected = false),
                     proxiesRefreshing = false,
                     delayTestingTarget = null,
+                    delayTestingCompleted = 0,
+                    delayTestingTotal = 0,
                     delayTestingBaselines = emptyMap(),
                     lastError = "",
                 )
@@ -274,6 +278,8 @@ internal class SingBoxRuntimeRepository(
                     traffic = current.traffic.copy(connected = false),
                     proxiesRefreshing = true,
                     delayTestingTarget = null,
+                    delayTestingCompleted = 0,
+                    delayTestingTotal = 0,
                     delayTestingBaselines = emptyMap(),
                     lastError = "",
                 )
@@ -364,6 +370,8 @@ internal class SingBoxRuntimeRepository(
                         traffic = current.traffic.copy(connected = false),
                         proxiesRefreshing = false,
                         delayTestingTarget = null,
+                        delayTestingCompleted = 0,
+                        delayTestingTotal = 0,
                         delayTestingBaselines = emptyMap(),
                         lastError = message,
                     )
@@ -500,6 +508,7 @@ internal class SingBoxRuntimeRepository(
                         target = target,
                         baselines = baselineTimes,
                         targetNames = plan.targetNames,
+                        totalCount = plan.leafTargetNames.size,
                     )
                 },
             ) {
@@ -507,18 +516,44 @@ internal class SingBoxRuntimeRepository(
             }
             try {
                 delay(DelayTestTimestampBoundaryWaitMillis.milliseconds)
-                val submissions = submitSingBoxDelayCommands(
-                    commandGroupNames = plan.commandGroupNames,
-                    submit = { groupName ->
+                // One measurement per leaf outbound with the user's custom
+                // URL test options (link/timeout/unified delay/handshake),
+                // husi style; the submission pool bounds concurrency and
+                // runs the blocking daemon calls on Dispatchers.IO. Each
+                // completed submission bumps the visible progress counter
+                // (under the session lock, so concurrent workers can't race).
+                val submissions = submitSingBoxDelayCommandsAsync(
+                    submissionNames = plan.leafTargetNames,
+                    concurrency = appState.connectionTestConcurrent,
+                    onCompleted = {
+                        updateDelayTestIfGenerationCurrent(runGeneration) { current ->
+                            if (current.delayTestingTarget == target) {
+                                current.copy(
+                                    delayTestingCompleted = current.delayTestingCompleted + 1,
+                                )
+                            } else {
+                                current
+                            }
+                        }
+                    },
+                    submit = { leafName ->
                         synchronized(sessionLock) {
                             check(generation == runGeneration && session === active) {
                                 "sing-box API session changed during delay test"
                             }
-                            active.urlTest(groupName)
                         }
+                        active.urlTestWithOptions(
+                            outboundTag = leafName,
+                            link = appState.connectionTestUrl.trim()
+                                .takeIf(::isValidConnectionTestUrl)
+                                ?: DefaultConnectionTestUrl,
+                            timeoutMillis = appState.connectionTestTimeoutMillis,
+                            unifiedDelay = appState.connectionTestUnifiedDelay,
+                            ignoreHandshakeTime = appState.connectionTestIgnoreHandshakeTime,
+                        )
                     },
                 )
-                if (submissions.successfulGroupNames.isEmpty()) {
+                if (submissions.successfulNames.isEmpty()) {
                     val failure = SingBoxDelayResult(failedTargets = plan.targetNames)
                     updateDelayTestIfGenerationCurrent(runGeneration) { current ->
                         current.finishingDelayTest(target, failure)
@@ -532,7 +567,10 @@ internal class SingBoxRuntimeRepository(
                     baselineTimes = baselineTimes,
                     knownFailures = knownFailures,
                     idleTimeoutMillis = DelayTestNoProgressTimeoutMillis,
-                    hardTimeoutMillis = plan.deadlineMillis(),
+                    hardTimeoutMillis = plan.deadlineMillis(
+                        connectionTestTimeoutMillis = appState.connectionTestTimeoutMillis,
+                        concurrency = appState.connectionTestConcurrent,
+                    ),
                     onFreshDelay = onFreshDelay,
                 )
                 val result = plan.finish(
@@ -554,6 +592,8 @@ internal class SingBoxRuntimeRepository(
                     if (current.delayTestingTarget == target) {
                         current.copy(
                             delayTestingTarget = null,
+                            delayTestingCompleted = 0,
+                            delayTestingTotal = 0,
                             delayTestingBaselines = emptyMap(),
                         )
                     } else {
@@ -659,8 +699,11 @@ internal fun SingBoxRuntimeState.startingDelayTest(
     target: String,
     baselines: Map<String, Long>,
     targetNames: Set<String>,
+    totalCount: Int,
 ): SingBoxRuntimeState = copy(
     delayTestingTarget = target,
+    delayTestingCompleted = 0,
+    delayTestingTotal = totalCount.coerceAtLeast(0),
     delayTestingBaselines = baselines,
     delayFailureBaselines = delayFailureBaselines - targetNames,
 )
@@ -672,6 +715,8 @@ internal fun SingBoxRuntimeState.finishingDelayTest(
     if (delayTestingTarget != target) return this
     return copy(
         delayTestingTarget = null,
+        delayTestingCompleted = 0,
+        delayTestingTotal = 0,
         delayTestingBaselines = emptyMap(),
         delayFailureBaselines = mergeSingBoxDelayFailures(
             currentFailureBaselines = delayFailureBaselines,

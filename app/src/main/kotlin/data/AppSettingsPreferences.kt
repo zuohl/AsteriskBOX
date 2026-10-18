@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import app.AppState
+import app.withNormalizedConnectionTestSettings
 import app.ServiceControlSchedule
 import app.ServiceControlKeyguard
 import app.ServiceControlSettings
@@ -52,6 +53,8 @@ internal class AppSettingsPreferences(
             languageMode = preferences.getInt(KeyLanguageMode, defaults.languageMode),
             seedIndex = preferences.getInt(KeySeedIndex, defaults.seedIndex),
             hideRecentTasks = preferences.getBoolean(KeyHideRecentTasks, defaults.hideRecentTasks),
+            allowScreenshots = preferences.getBoolean(KeyAllowScreenshots, defaults.allowScreenshots),
+            hideLauncherIcon = preferences.getBoolean(KeyHideLauncherIcon, defaults.hideLauncherIcon),
             outboundListLayout = preferences.getInt(
                 KeyOutboundListLayout,
                 defaults.outboundListLayout,
@@ -296,7 +299,27 @@ internal class AppSettingsPreferences(
                 KeyProxyAppListMode,
                 defaults.proxyAppListMode,
             ),
-        )
+            connectionTestUrl = preferences.getString(
+                KeyConnectionTestUrl,
+                defaults.connectionTestUrl,
+            ) ?: defaults.connectionTestUrl,
+            connectionTestConcurrent = preferences.getInt(
+                KeyConnectionTestConcurrent,
+                defaults.connectionTestConcurrent,
+            ),
+            connectionTestTimeoutMillis = preferences.getInt(
+                KeyConnectionTestTimeoutMillis,
+                defaults.connectionTestTimeoutMillis,
+            ),
+            connectionTestUnifiedDelay = preferences.getBoolean(
+                KeyConnectionTestUnifiedDelay,
+                defaults.connectionTestUnifiedDelay,
+            ),
+            connectionTestIgnoreHandshakeTime = preferences.getBoolean(
+                KeyConnectionTestIgnoreHandshakeTime,
+                defaults.connectionTestIgnoreHandshakeTime,
+            ),
+        ).withNormalizedConnectionTestSettings()
     }
 
     fun save(state: AppState) {
@@ -416,6 +439,8 @@ internal const val KeyColorMode = "color_mode"
 internal const val KeyLanguageMode = "language_mode"
 internal const val KeySeedIndex = "seed_index"
 internal const val KeyHideRecentTasks = "hide_recent_tasks"
+internal const val KeyAllowScreenshots = "allow_screenshots"
+internal const val KeyHideLauncherIcon = "hide_launcher_icon"
 private const val KeySubscriptionHwid = "subscription_hwid"
 internal const val KeyOutboundListLayout = "outbound_list_layout"
 internal const val KeyOutboundListSort = "outbound_list_sort"
@@ -518,6 +543,14 @@ internal const val KeyPrivateAddressCidrs = "private_address_cidrs"
 internal const val KeyProxyAppListMode = "proxy_app_list_mode"
 internal const val KeyIsLightweightMode = "is_lightweight_mode"
 internal const val KeyAutoStartProxyOnAppLaunch = "auto_start_proxy_on_app_launch"
+
+// Global connection-test preference keys. Values shared with the husi
+// `connectionTest*` settings (DataStore.kt:220-225).
+internal const val KeyConnectionTestUrl = "connection_test_url"
+internal const val KeyConnectionTestConcurrent = "connection_test_concurrent"
+internal const val KeyConnectionTestTimeoutMillis = "connection_test_timeout_millis"
+internal const val KeyConnectionTestUnifiedDelay = "connection_test_unified_delay"
+internal const val KeyConnectionTestIgnoreHandshakeTime = "connection_test_ignore_handshake_time"
 
 private val SubscriptionHwidLock = Any()
 

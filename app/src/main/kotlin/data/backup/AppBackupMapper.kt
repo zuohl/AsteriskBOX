@@ -7,6 +7,7 @@ import engine.singbox.config.DnsConfigurationMatchFields
 import engine.singbox.config.dnsConfigurationEntryTag
 
 import app.AppState
+import app.withNormalizedConnectionTestSettings
 import features.resources.withInitializedBundledRuleSets
 import app.ServiceControlSchedule
 import app.ServiceControlKeyguard
@@ -73,6 +74,8 @@ private fun AppState.toBackupSettings(): AppBackupSettings =
         languageMode = languageMode,
         seedIndex = seedIndex,
         hideRecentTasks = hideRecentTasks,
+        allowScreenshots = allowScreenshots,
+        hideLauncherIcon = hideLauncherIcon,
         outboundListLayout = outboundListLayout,
         outboundListSort = outboundListSort,
         selectorSelections = selectorSelections,
@@ -144,6 +147,11 @@ private fun AppState.toBackupSettings(): AppBackupSettings =
         serviceControl = serviceControl.toBackup(),
         privateAddressCidrs = privateAddressCidrs,
         proxyAppListMode = proxyAppListMode,
+        connectionTestUrl = connectionTestUrl,
+        connectionTestConcurrent = connectionTestConcurrent,
+        connectionTestTimeoutMillis = connectionTestTimeoutMillis,
+        connectionTestUnifiedDelay = connectionTestUnifiedDelay,
+        connectionTestIgnoreHandshakeTime = connectionTestIgnoreHandshakeTime,
     )
 
 private fun ServiceControlSettings.toBackup(): AppBackupServiceControl =
@@ -280,6 +288,8 @@ private fun AppBackupData.toAppState(): AppState {
         languageMode = settings.languageMode,
         seedIndex = settings.seedIndex,
         hideRecentTasks = settings.hideRecentTasks,
+        allowScreenshots = settings.allowScreenshots,
+        hideLauncherIcon = settings.hideLauncherIcon,
         outboundGroups = restoredOutboundGroups,
         nextOutboundGroupId = nextId(
             defaults.nextOutboundGroupId,
@@ -381,8 +391,15 @@ private fun AppBackupData.toAppState(): AppState {
         serviceControl = normalizeServiceControlSettings(settings.serviceControl.toState()),
         privateAddressCidrs = settings.privateAddressCidrs,
         proxyAppListMode = settings.proxyAppListMode,
+        connectionTestUrl = settings.connectionTestUrl,
+        connectionTestConcurrent = settings.connectionTestConcurrent,
+        connectionTestTimeoutMillis = settings.connectionTestTimeoutMillis,
+        connectionTestUnifiedDelay = settings.connectionTestUnifiedDelay,
+        connectionTestIgnoreHandshakeTime = settings.connectionTestIgnoreHandshakeTime,
         proxyAppListSelectedApps = proxyAppListSelectedApps,
-    ).withInitializedBundledRuleSets().withCanonicalManagedTagReferences()
+    ).withInitializedBundledRuleSets()
+        .withCanonicalManagedTagReferences()
+        .withNormalizedConnectionTestSettings()
 }
 
 private fun AppBackupOutboundGroup.toState(): OutboundGroupState =

@@ -276,9 +276,10 @@
     <string name="sing_box_proxies_delay_not_tested">Not tested</string>
     <string name="sing_box_proxies_delay_status_failed">Failed</string>
     <string name="sing_box_proxies_delay_testing">Testing</string>
+    <string name="sing_box_proxies_delay_testing_progress">%1$d/%2$d</string>
     <string name="sing_box_proxies_group_test">Test group</string>
-    <string name="sing_box_proxies_locate_selected">Locate current proxy</string>
     <string name="sing_box_proxies_loading">Loading proxies…</string>
+    <string name="sing_box_proxies_locate_selected">Locate current proxy</string>
     <string name="sing_box_proxies_option_layout">Layout</string>
     <string name="sing_box_proxies_option_layout_auto">Automatic</string>
     <string name="sing_box_proxies_option_layout_double">Double</string>
@@ -295,6 +296,18 @@
     <string name="sing_box_proxies_service_stopped_summary">Start the service from Home to view proxy selectors.</string>
     <string name="sing_box_proxies_service_stopped_title">Proxy service is not running</string>
     <string name="sing_box_proxies_title">Proxies</string>
+
+    <!-- Connection test -->
+    <string name="connection_test_concurrent">Test concurrency</string>
+    <string name="connection_test_ignore_handshake_time">Ignore handshake time</string>
+    <string name="connection_test_ignore_handshake_time_summary">Start the timer after the TCP/TLS handshake completes</string>
+    <string name="connection_test_settings_summary">Tune how the sing-box URL test measures delay</string>
+    <string name="connection_test_settings_title">Connection test</string>
+    <string name="connection_test_timeout">Test timeout (ms)</string>
+    <string name="connection_test_unified_delay">Unified delay</string>
+    <string name="connection_test_unified_delay_summary">Measure the second request on a kept session, hiding the one-off handshake cost</string>
+    <string name="connection_test_url">Test URL</string>
+    <string name="connection_test_url_invalid">Enter a valid HTTP or HTTPS URL</string>
 
     <!-- Outbound groups -->
     <string name="outbound_group_add">Add group</string>
@@ -322,16 +335,16 @@
     <string name="outbound_group_name_duplicate">%1$s(%2$d)</string>
     <string name="outbound_group_name_placeholder">Leave blank to auto-assign on first sync</string>
     <string name="outbound_group_required">Select a group</string>
-    <string name="outbound_group_status_checked">%1$s · Checked %2$s</string>
+    <string name="outbound_group_status_checked_at">Checked %1$s</string>
     <string name="outbound_group_status_failed">Failed</string>
     <string name="outbound_group_status_import_counts">Imported %1$d, skipped %2$d, duplicate %3$d</string>
-    <string name="outbound_group_status_labeled_updated">%1$s · Updated %2$s</string>
     <string name="outbound_group_status_not_modified">Not modified</string>
     <string name="outbound_group_status_partial">Partial</string>
     <string name="outbound_group_status_updated">Updated %1$s</string>
     <string name="outbound_group_strict_import">Strict import</string>
     <string name="outbound_group_strict_import_summary">Keep existing proxy servers if any subscription entry is invalid</string>
     <string name="outbound_group_subscription_expire">Expires %1$s</string>
+    <string name="outbound_group_subscription_info">Subscription information</string>
     <string name="outbound_group_subscription_traffic">Used %1$s / Total %2$s</string>
     <string name="outbound_group_sync_all">Update all group subscriptions</string>
     <string name="outbound_group_sync_all_cancelled">Update cancelled: updated %1$d; failed %2$d; skipped %3$d</string>
@@ -347,6 +360,7 @@
     <string name="outbound_group_sync_stage_parsing">Parsing outbounds</string>
     <string name="outbound_group_sync_stage_validating">Validating configuration</string>
     <string name="outbound_group_sync_stage_verifying">Verifying subscription</string>
+    <string name="outbound_group_update_details">Update details</string>
     <string name="outbound_group_update_interval">Update interval (hours, optional)</string>
     <string name="outbound_group_update_interval_value">Every %1$s h</string>
     <string name="outbound_group_update_via_proxy">Update through the running proxy</string>
@@ -1163,7 +1177,7 @@
 
     <!-- Enhancement module -->
     <string name="enhancement_module_acknowledge">OK</string>
-    <string name="enhancement_module_apk_install_failed">The ROOT tool could not install this APK directly. If APK files are unsupported, export this app APK, change .apk to .zip, install it with your ROOT manager, and reboot</string>
+    <string name="enhancement_module_apk_install_failed">Installation failed. Check the error output. You can try exporting this app, changing the .apk extension to .zip, and installing it with your ROOT manager</string>
     <string name="enhancement_module_failed">Module operation failed. Check your ROOT manager and ensure Zygisk Next is installed and enabled, then retry</string>
     <string name="enhancement_module_incompatible">The running enhancement module does not support this runtime</string>
     <string name="enhancement_module_install_close">Close</string>
@@ -1175,6 +1189,8 @@
     <string name="enhancement_module_manager_unsupported">No supported Magisk, KernelSU, or APatch installation CLI was found</string>
     <string name="enhancement_module_missing">No usable enhancement module was detected. Install or reinstall it, then reboot</string>
     <string name="enhancement_module_reboot">Enhancement module installed or updated; restart the device</string>
+    <string name="enhancement_module_reboot_action">Reboot</string>
+    <string name="enhancement_module_reboot_failed">Unable to reboot the device. Please reboot manually.</string>
     <string name="enhancement_module_root_denied">ROOT permission was denied. Grant access and retry</string>
     <string name="enhancement_module_timeout">Module operation timed out. Check your ROOT manager and retry</string>
     <string name="enhancement_module_title">Enhancement module</string>
@@ -1371,6 +1387,8 @@
     <string name="proxy_app_list_mode_global">All-app mode</string>
     <string name="proxy_app_list_mode_whitelist">Whitelist mode</string>
     <string name="proxy_app_list_more_actions">More actions</string>
+    <string name="proxy_app_list_pick_installed_apps">Choose from installed apps</string>
+    <string name="proxy_app_list_picker_title">Select apps</string>
     <string name="proxy_app_list_scan_china_apps">Scan Chinese apps</string>
     <string name="proxy_app_list_scan_china_done">Apps scanned: %1$d; Chinese apps found: %2$d</string>
     <string name="proxy_app_list_scan_china_no_match">Scanned {scanned} apps, no Chinese apps found</string>
@@ -1545,6 +1563,7 @@
     <string name="settings_app">Appearance</string>
     <string name="settings_color_mode">Theme</string>
     <string name="settings_language">Language</string>
+    <string name="settings_privacy">Privacy</string>
     <string name="settings_theme_color">Accent color</string>
     <string name="theme_color_blue">Default blue</string>
     <string name="theme_color_coffee">Coffee brown</string>
@@ -1559,6 +1578,15 @@
     <!-- General preferences -->
     <string name="settings_hide_recent_tasks">Hide from recent tasks</string>
     <string name="settings_hide_recent_tasks_summary">Hide the app from the recent tasks list</string>
+
+    <!-- Privacy mode -->
+    <string name="settings_allow_screenshots">Allow screenshots</string>
+    <string name="settings_allow_screenshots_summary">When enabled, the system allows screenshots and screen recording for this app</string>
+
+    <!-- Hide launcher icon -->
+    <string name="settings_hide_launcher_icon">Hide launcher icon</string>
+    <string name="settings_hide_launcher_icon_summary">Dial %1$s or long-press the Quick Settings tile to open the app</string>
+    <string name="settings_hide_launcher_icon_confirm">The app will disappear from the launcher. Dial %1$s in the phone app to open it. Some OEM systems require the auto-start/background activity permission.</string>
 
     <!-- Logs -->
     <string name="core_logs_title">Core logs</string>

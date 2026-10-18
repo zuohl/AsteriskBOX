@@ -21,6 +21,11 @@ internal class EnhancementModuleRootBackend(
         val output = root.execute(enhancementInspectCommand(executable))
         return parseEnhancementModuleRuntime(output)
     }
+    override suspend fun reboot() {
+        root.requireRoot()
+        root.execute("/system/bin/toybox timeout -s TERM -k 2 10 /system/bin/reboot")
+    }
+
     override suspend fun install(onOutput: (String) -> Unit) {
         root.requireRoot()
         val manager = when (root.execute(EnhancementManagerProbeCommand).trim()) {
@@ -64,7 +69,7 @@ internal fun parseEnhancementModuleRuntime(output: String): EnhancementModuleRun
         val netd = values[4].toULong().also { check(it != 0uL) }
         val api = values[5].toInt().also { check(it >= 26) }
         val modes = values[6].toInt().also { check(it in 0..7) }
-        val flags = values[7].toInt().also { check(it in 0..7) }
+        val flags = values[7].toInt().also { check(it in 0..15) }
         return EnhancementModuleRuntime(image, netd, api, modes, flags, values[8].toInt())
     } catch (_: Exception) {
         throw EnhancementModuleException(EnhancementModuleFailure.InvalidModule)

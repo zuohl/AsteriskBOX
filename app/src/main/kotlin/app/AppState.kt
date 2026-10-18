@@ -35,6 +35,8 @@ data class AppState(
     val languageMode: Int = LanguageModeSystem,
     val seedIndex: Int = 0,
     val hideRecentTasks: Boolean = false,
+    val allowScreenshots: Boolean = false,
+    val hideLauncherIcon: Boolean = false,
 
     val outboundGroups: List<OutboundGroupState> = emptyList(),
     val nextOutboundGroupId: Int = 1,
@@ -143,6 +145,13 @@ data class AppState(
     val tunSharedNetworkInterfaces: List<String> = emptyList(),
     val ignoredInterfaces: List<String> = emptyList(),
     val privateAddressCidrs: List<String> = emptyList(),
+
+    // Global connection-test settings used by the delay test.
+    val connectionTestUrl: String = DefaultConnectionTestUrl,
+    val connectionTestConcurrent: Int = DefaultConnectionTestConcurrent,
+    val connectionTestTimeoutMillis: Int = DefaultConnectionTestTimeoutMillis,
+    val connectionTestUnifiedDelay: Boolean = DefaultConnectionTestUnifiedDelay,
+    val connectionTestIgnoreHandshakeTime: Boolean = DefaultConnectionTestIgnoreHandshakeTime,
 
     val proxyAppListMode: Int = ProxyAppListModeGlobal,
     val proxyAppListSelectedApps: List<String> = emptyList(),

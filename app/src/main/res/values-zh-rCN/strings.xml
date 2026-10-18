@@ -274,9 +274,10 @@
     <string name="sing_box_proxies_delay_not_tested">未测试</string>
     <string name="sing_box_proxies_delay_status_failed">失败</string>
     <string name="sing_box_proxies_delay_testing">测试中</string>
+    <string name="sing_box_proxies_delay_testing_progress">%1$d/%2$d</string>
     <string name="sing_box_proxies_group_test">整组测试</string>
-    <string name="sing_box_proxies_locate_selected">定位当前选中节点</string>
     <string name="sing_box_proxies_loading">正在加载代理…</string>
+    <string name="sing_box_proxies_locate_selected">定位当前选中节点</string>
     <string name="sing_box_proxies_option_layout">布局</string>
     <string name="sing_box_proxies_option_layout_auto">自动</string>
     <string name="sing_box_proxies_option_layout_double">双列</string>
@@ -293,6 +294,18 @@
     <string name="sing_box_proxies_service_stopped_summary">请先在主页启动服务，启动后即可查看代理选择器。</string>
     <string name="sing_box_proxies_service_stopped_title">代理服务未启动</string>
     <string name="sing_box_proxies_title">代理</string>
+
+    <!-- Connection test -->
+    <string name="connection_test_concurrent">测试并发</string>
+    <string name="connection_test_ignore_handshake_time">忽略握手时间</string>
+    <string name="connection_test_ignore_handshake_time_summary">在 TCP/TLS 握手完成后再开始计时</string>
+    <string name="connection_test_settings_summary">调整 sing-box URL 测试的测量行为</string>
+    <string name="connection_test_settings_title">连接测试</string>
+    <string name="connection_test_timeout">测试超时(毫秒)</string>
+    <string name="connection_test_unified_delay">统一延迟</string>
+    <string name="connection_test_unified_delay_summary">在已建立会话上测第二次请求,剔除一次性握手成本</string>
+    <string name="connection_test_url">测试链接</string>
+    <string name="connection_test_url_invalid">请输入合法的 HTTP 或 HTTPS 链接</string>
 
     <!-- Outbound groups -->
     <string name="outbound_group_add">添加分组</string>
@@ -319,16 +332,16 @@
     <string name="outbound_group_name_duplicate">%1$s(%2$d)</string>
     <string name="outbound_group_name_placeholder">留空则首次同步后自动命名</string>
     <string name="outbound_group_required">请选择分组</string>
-    <string name="outbound_group_status_checked">%1$s · 检查于 %2$s</string>
+    <string name="outbound_group_status_checked_at">检查于 %1$s</string>
     <string name="outbound_group_status_failed">失败</string>
     <string name="outbound_group_status_import_counts">导入 %1$d，跳过 %2$d，重复 %3$d</string>
-    <string name="outbound_group_status_labeled_updated">%1$s · 更新于 %2$s</string>
     <string name="outbound_group_status_not_modified">未修改</string>
     <string name="outbound_group_status_partial">部分成功</string>
     <string name="outbound_group_status_updated">更新于 %1$s</string>
     <string name="outbound_group_strict_import">严格导入</string>
     <string name="outbound_group_strict_import_summary">订阅中任一条目无效时保留现有节点</string>
     <string name="outbound_group_subscription_expire">过期 %1$s</string>
+    <string name="outbound_group_subscription_info">订阅信息</string>
     <string name="outbound_group_subscription_traffic">已用 %1$s / 总量 %2$s</string>
     <string name="outbound_group_sync_all">更新全部分组订阅</string>
     <string name="outbound_group_sync_all_cancelled">已取消更新：成功 %1$d 个；失败 %2$d 个；跳过 %3$d 个</string>
@@ -344,6 +357,7 @@
     <string name="outbound_group_sync_stage_parsing">正在解析出站</string>
     <string name="outbound_group_sync_stage_validating">正在校验配置</string>
     <string name="outbound_group_sync_stage_verifying">正在验证订阅</string>
+    <string name="outbound_group_update_details">更新详情</string>
     <string name="outbound_group_update_interval">更新间隔（小时，可选）</string>
     <string name="outbound_group_update_interval_value">每 %1$s 小时</string>
     <string name="outbound_group_update_via_proxy">通过当前运行的代理更新</string>
@@ -1147,7 +1161,7 @@
 
     <!-- Enhancement module -->
     <string name="enhancement_module_acknowledge">知道了</string>
-    <string name="enhancement_module_apk_install_failed">ROOT 工具无法直接刷入本应用 APK。若不支持 APK，请导出本应用 APK，将 .apk 后缀改为 .zip，在 ROOT 管理器中自行刷入并重启</string>
+    <string name="enhancement_module_apk_install_failed">刷入失败，请检查错误输出。可尝试导出本应用，将 .apk 后缀改为 .zip，在 ROOT 管理器中刷入</string>
     <string name="enhancement_module_failed">模块操作失败。请检查 ROOT 管理器，确认 Zygisk Next 已安装且启用后重试</string>
     <string name="enhancement_module_incompatible">当前运行的增强模块不支持此运行环境</string>
     <string name="enhancement_module_install_close">关闭</string>
@@ -1159,6 +1173,8 @@
     <string name="enhancement_module_manager_unsupported">未找到可用的 Magisk、KernelSU 或 APatch 模块安装命令</string>
     <string name="enhancement_module_missing">未检测到可用增强模块，可安装或重新安装后重启</string>
     <string name="enhancement_module_reboot">增强模块已安装或更新，需重启设备</string>
+    <string name="enhancement_module_reboot_action">重启</string>
+    <string name="enhancement_module_reboot_failed">无法重启设备，请手动重启。</string>
     <string name="enhancement_module_root_denied">ROOT 授权被拒绝。请授权后重试</string>
     <string name="enhancement_module_timeout">模块操作超时。请检查 ROOT 管理器后重试</string>
     <string name="enhancement_module_title">增强模块</string>
@@ -1354,6 +1370,8 @@
     <string name="proxy_app_list_mode_global">全应用模式</string>
     <string name="proxy_app_list_mode_whitelist">白名单模式</string>
     <string name="proxy_app_list_more_actions">更多操作</string>
+    <string name="proxy_app_list_pick_installed_apps">从已安装应用中选择</string>
+    <string name="proxy_app_list_picker_title">选择应用</string>
     <string name="proxy_app_list_scan_china_apps">扫描中国应用</string>
     <string name="proxy_app_list_scan_china_done">已扫描 %1$d 个应用，发现 %2$d 个中国应用</string>
     <string name="proxy_app_list_scan_china_no_match">已扫描 {scanned} 个应用，未发现中国应用</string>
@@ -1525,6 +1543,7 @@
     <string name="settings_app">外观</string>
     <string name="settings_color_mode">主题</string>
     <string name="settings_language">语言</string>
+    <string name="settings_privacy">隐私</string>
     <string name="settings_theme_color">强调色</string>
     <string name="theme_color_blue">默认蓝</string>
     <string name="theme_color_coffee">咖啡色</string>
@@ -1539,6 +1558,15 @@
     <!-- General preferences -->
     <string name="settings_hide_recent_tasks">隐藏最近任务</string>
     <string name="settings_hide_recent_tasks_summary">开启后应用不在最近任务列表中显示</string>
+
+    <!-- Privacy mode -->
+    <string name="settings_allow_screenshots">允许截屏</string>
+    <string name="settings_allow_screenshots_summary">打开后系统将允许该应用的截屏与录屏</string>
+
+    <!-- Hide launcher icon -->
+    <string name="settings_hide_launcher_icon">隐藏桌面图标</string>
+    <string name="settings_hide_launcher_icon_summary">拨号输入 %1$s 或长按快捷设置磁贴可打开应用</string>
+    <string name="settings_hide_launcher_icon_confirm">应用将从桌面消失。在拨号界面输入 %1$s 可打开应用，部分 OEM 系统需要 允许自启动/后台运行 权限。</string>
 
     <!-- Logs -->
     <string name="core_logs_title">核心日志</string>

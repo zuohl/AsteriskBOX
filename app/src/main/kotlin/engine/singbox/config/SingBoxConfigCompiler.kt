@@ -5,6 +5,8 @@ package engine.singbox.config
 
 import android.content.Context
 import app.AppState
+import app.DefaultSingBoxUrlTestUrl
+import app.isValidConnectionTestUrl
 import app.ManagedApiServiceTag
 import app.ManagedDirectOutboundTag
 import app.ManagedGlobalSelectorTag
@@ -755,6 +757,7 @@ internal fun compileOutbounds(root: JsonObject, appState: AppState): JsonArray {
                         retained += buildUrlTestOutbound(
                             selector = selector,
                             members = members,
+                            appState = appState,
                         )
                     }
                 }
@@ -825,13 +828,20 @@ private fun buildSelectorOutbound(
 private fun buildUrlTestOutbound(
     selector: app.SingBoxSelectorState,
     members: List<String>,
+    appState: app.AppState,
 ): JsonObject = buildJsonObject {
     put("type", SingBoxSelectorTypeUrlTest)
     put("tag", selector.tag)
     putJsonArray("outbounds") {
         members.forEach(::add)
     }
-    put("url", selector.url.trim())
+    // A blank per-group URL falls back to the global connection-test URL
+    // when that one is a valid HTTP(S) URL, else to the built-in default.
+    val effectiveUrl = selector.url.trim()
+        .takeIf(String::isNotEmpty)
+        ?: appState.connectionTestUrl.trim().takeIf(::isValidConnectionTestUrl)
+        ?: DefaultSingBoxUrlTestUrl
+    put("url", effectiveUrl)
     put("interval", selector.interval.trim())
     put("tolerance", selector.tolerance)
     put("idle_timeout", selector.idleTimeout.trim())
