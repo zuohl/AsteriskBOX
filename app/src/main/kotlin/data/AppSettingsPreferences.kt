@@ -55,6 +55,10 @@ internal class AppSettingsPreferences(
             hideRecentTasks = preferences.getBoolean(KeyHideRecentTasks, defaults.hideRecentTasks),
             allowScreenshots = preferences.getBoolean(KeyAllowScreenshots, defaults.allowScreenshots),
             hideLauncherIcon = preferences.getBoolean(KeyHideLauncherIcon, defaults.hideLauncherIcon),
+            autoHideNavigationBar = preferences.getBoolean(
+                KeyAutoHideNavigationBar,
+                defaults.autoHideNavigationBar,
+            ),
             outboundListLayout = preferences.getInt(
                 KeyOutboundListLayout,
                 defaults.outboundListLayout,
@@ -229,6 +233,9 @@ internal class AppSettingsPreferences(
             ),
             dnsTimeout = preferences.getString(KeyDnsTimeout, defaults.dnsTimeout)
                 ?: defaults.dnsTimeout,
+            enableFakeIp = preferences.getBoolean(KeyEnableFakeIp, defaults.enableFakeIp),
+            dnsFakeIpRange = preferences.getString(KeyDnsFakeIpRange, defaults.dnsFakeIpRange)
+                ?: defaults.dnsFakeIpRange,
             storeFakeIp = preferences.getBoolean(KeyStoreFakeIp, defaults.storeFakeIp),
             storeDns = preferences.getBoolean(KeyStoreDns, defaults.storeDns),
             transparentProxyPort = preferences.getString(
@@ -441,6 +448,7 @@ internal const val KeySeedIndex = "seed_index"
 internal const val KeyHideRecentTasks = "hide_recent_tasks"
 internal const val KeyAllowScreenshots = "allow_screenshots"
 internal const val KeyHideLauncherIcon = "hide_launcher_icon"
+internal const val KeyAutoHideNavigationBar = "auto_hide_navigation_bar"
 private const val KeySubscriptionHwid = "subscription_hwid"
 internal const val KeyOutboundListLayout = "outbound_list_layout"
 internal const val KeyOutboundListSort = "outbound_list_sort"
@@ -501,6 +509,8 @@ internal const val KeyDnsOptimisticCache = "dns_optimistic_cache"
 internal const val KeyDnsDisableCache = "dns_disable_cache"
 internal const val KeyDnsDisableExpire = "dns_disable_expire"
 internal const val KeyDnsTimeout = "dns_timeout"
+internal const val KeyEnableFakeIp = "enable_fake_ip"
+internal const val KeyDnsFakeIpRange = "dns_fake_ip_range"
 internal const val KeyStoreFakeIp = "store_fake_ip"
 internal const val KeyStoreDns = "store_dns"
 internal const val KeyTransparentProxyPort = "transparent_proxy_port"

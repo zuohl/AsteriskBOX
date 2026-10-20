@@ -8,6 +8,8 @@ import app.modes.LanguageModeSystem
 import app.modes.OutboundListLayoutAuto
 import app.modes.OutboundListSortDefault
 import app.modes.ProxyAppListModeGlobal
+import app.modes.isRootRunMode
+import app.modes.supportsAppListEnhancement
 import app.modes.RunModeVpnService
 import app.modes.SingBoxModeRule
 import app.modes.SingBoxProxyLayoutAuto
@@ -37,6 +39,7 @@ data class AppState(
     val hideRecentTasks: Boolean = false,
     val allowScreenshots: Boolean = false,
     val hideLauncherIcon: Boolean = false,
+    val autoHideNavigationBar: Boolean = false,
 
     val outboundGroups: List<OutboundGroupState> = emptyList(),
     val nextOutboundGroupId: Int = 1,
@@ -115,7 +118,9 @@ data class AppState(
     val dnsDisableCache: Boolean = false,
     val dnsDisableExpire: Boolean = false,
     val dnsTimeout: String = DefaultSingBoxDnsTimeout,
-    val storeFakeIp: Boolean = false,
+    val enableFakeIp: Boolean = false,
+    val dnsFakeIpRange: String = engine.network.DefaultFakeIpIpv4Pool,
+    val storeFakeIp: Boolean = true,
     val storeDns: Boolean = false,
     val dnsServers: List<SingBoxDnsServerState> = DefaultSingBoxDnsServers,
     val nextDnsServerId: Int =
@@ -164,4 +169,17 @@ val AppState.rootIpv6DataPathEnabled: Boolean
     get() = enableIpv6 || (effectiveLocalDnsEnabled && !enableRootIpv6Disabler)
 
 val AppState.effectiveFakeIpEnabled: Boolean
-    get() = effectiveLocalDnsEnabled && dnsServers.any { server -> server.type == "fakeip" }
+    get() = effectiveLocalDnsEnabled && enableFakeIp
+
+val AppState.requiresGlobalProxyAppMode: Boolean
+    get() = runMode.isRootRunMode() && effectiveFakeIpEnabled &&
+        !(enableAppListEnhancement && runMode.supportsAppListEnhancement())
+
+internal fun AppState.withCompatibleProxyAppListMode(): AppState {
+    val normalized = withIpv4FakeIpSettings()
+    return if (normalized.requiresGlobalProxyAppMode && normalized.proxyAppListMode != ProxyAppListModeGlobal) {
+        normalized.copy(proxyAppListMode = ProxyAppListModeGlobal)
+    } else {
+        normalized
+    }
+}
