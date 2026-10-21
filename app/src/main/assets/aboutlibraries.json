@@ -15,7 +15,7 @@
         },
         {
             "uniqueId": "com.github.asterisk4magisk:libbox",
-            "artifactVersion": "v1.15.0-alpha.11-reF1nd-android.1",
+            "artifactVersion": "v1.15.0-alpha.11-reF1nd-android.2",
             "name": "AndroidLibBoxLite",
             "description": "Pinned Android JNI and command API bindings for sing-box.",
             "website": "https://github.com/Asterisk4Magisk/AndroidLibBoxLite",
@@ -67,7 +67,7 @@
         },
         {
             "uniqueId": "github:Asterisk4Magisk/asteriskd",
-            "artifactVersion": "v2.1.11",
+            "artifactVersion": "v2.1.12",
             "name": "asteriskd",
             "description": "A root Android daemon that synchronizes local-address bypass rules and pinned eBPF maps.",
             "website": "https://github.com/Asterisk4Magisk/asteriskd",
@@ -80,7 +80,7 @@
         },
         {
             "uniqueId": "github:Asterisk4Magisk/bpf2socks",
-            "artifactVersion": "v1.1.6",
+            "artifactVersion": "v1.1.7",
             "name": "bpf2socks",
             "description": "A root Android/Linux traffic bridge that forwards TCP and UDP through a SOCKS5 upstream using eBPF.",
             "website": "https://github.com/Asterisk4Magisk/bpf2socks",
@@ -197,7 +197,7 @@
         },
         {
             "uniqueId": "io.github.rosemoe:editor",
-            "artifactVersion": "0.24.6",
+            "artifactVersion": "0.24.7",
             "name": "editor",
             "description": "An awesome code editor library on Android",
             "website": "https://github.com/Rosemoe/sora-editor",
@@ -288,7 +288,7 @@
         },
         {
             "uniqueId": "org.jetbrains.kotlinx:kotlinx-serialization-json",
-            "artifactVersion": "1.11.0",
+            "artifactVersion": "1.12.0",
             "name": "kotlinx-serialization-json",
             "description": "Kotlin multiplatform serialization runtime library",
             "website": "https://github.com/Kotlin/kotlinx.serialization",
