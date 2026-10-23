@@ -180,6 +180,11 @@
             </intent-filter>
         </service>
         <service
+            android:name="engine.singbox.runtime.StandaloneUrlTestService"
+            android:exported="false"
+            android:process=":tester" />
+
+        <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             android:foregroundServiceType="dataSync"
             tools:node="merge" />

@@ -223,12 +223,13 @@ jobs:
               local size_bytes
               size_bytes="$(wc -c < app/libs/libbox.aar || echo 0)"
               # A valid trimmed libbox.aar is typically between 10MB and 60MB.
-              if [ "$size_bytes" -gt 10485760 ]; then
+              # Anything larger is almost certainly the untrimmed upstream build (~116MB).
+              if [ "$size_bytes" -gt 10485760 ] && [ "$size_bytes" -lt 62914560 ]; then
                 echo "Successfully fetched $desc ($(ls -lh app/libs/libbox.aar | awk '{print $5}'))"
                 success=true
                 return 0
               else
-                echo "Warning: Downloaded file from $url is suspiciously small (${size_bytes} bytes). Removing."
+                echo "Warning: Downloaded file from $url has unexpected size (${size_bytes} bytes). Removing."
                 rm -f app/libs/libbox.aar
                 return 1
               fi
@@ -237,7 +238,11 @@ jobs:
           }
 
           if [ -n "$REQUESTED_KERNEL_TAG" ]; then
-            fetch_kernel "https://github.com/zuohl/sing-box/releases/download/${REQUESTED_KERNEL_TAG}/libbox.aar" "custom specified tag: $REQUESTED_KERNEL_TAG" || true
+            # An explicitly requested tag must be honored exactly; do not silently substitute another kernel.
+            if ! fetch_kernel "https://github.com/zuohl/sing-box/releases/download/${REQUESTED_KERNEL_TAG}/libbox.aar" "custom specified tag: $REQUESTED_KERNEL_TAG"; then
+              echo "::error::Requested kernel tag $REQUESTED_KERNEL_TAG has no valid trimmed libbox.aar."
+              exit 1
+            fi
           fi
 
           if [ "$success" = "false" ] && [ -n "$target_kernel_ver" ]; then
@@ -249,19 +254,13 @@ jobs:
             fetch_kernel "https://github.com/zuohl/sing-box/releases/latest/download/libbox.aar" "zuohl/sing-box latest release" || true
           fi
 
-          # Last resort fallback if self-hosted release is temporarily inaccessible
+          # Never silently fall back to the untrimmed upstream build: fail loudly instead.
           if [ "$success" = "false" ]; then
-            echo "::warning::Unable to locate self-hosted trimmed libbox.aar from zuohl/sing-box. Checking upstream fallback..."
-            if [ -n "$target_kernel_ver" ]; then
-              fetch_kernel "https://github.com/Asterisk4Magisk/AndroidLibBoxLite/releases/download/${target_kernel_ver}/libbox.aar" "upstream official fallback: $target_kernel_ver" || true
-            fi
+            echo "::error::Unable to fetch a trimmed libbox.aar from zuohl/sing-box. Refusing to fall back to the untrimmed upstream build."
+            exit 1
           fi
 
-          if [ -f "app/libs/libbox.aar" ]; then
-            echo "Final libbox.aar prepared successfully: $(ls -lh app/libs/libbox.aar | awk '{print $5}')"
-          else
-            echo "::warning::No pre-downloaded libbox.aar found. Gradle ivy repository will be used as default fallback."
-          fi
+          echo "Final libbox.aar prepared successfully: $(ls -lh app/libs/libbox.aar | awk '{print $5}')"
 
       - name: Build release APKs
         run: ./gradlew --no-daemon :app:assembleRelease

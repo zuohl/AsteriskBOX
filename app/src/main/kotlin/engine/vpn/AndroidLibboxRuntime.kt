@@ -21,13 +21,13 @@ internal object AndroidLibboxRuntime {
     private var initialized = false
 
     @Synchronized
-    fun setup(context: Context) {
+    fun setup(context: Context, baseDirName: String = "sing-box") {
         if (initialized) return
 
         val appContext = context.applicationContext
-        val baseDir = File(appContext.filesDir, "sing-box").apply { mkdirs() }
+        val baseDir = File(appContext.filesDir, baseDirName).apply { mkdirs() }
         val workingDir = File(baseDir, "runtime").apply { mkdirs() }
-        val tempDir = File(appContext.cacheDir, "sing-box").apply { mkdirs() }
+        val tempDir = File(appContext.cacheDir, baseDirName).apply { mkdirs() }
         val debuggable = appContext.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
 
         Libbox.setLocale(Locale.getDefault().toLanguageTag())

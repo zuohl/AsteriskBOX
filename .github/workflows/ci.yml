@@ -108,22 +108,36 @@ jobs:
         run: |
           mkdir -p app/libs
           target_kernel_ver="$(sed -n 's/^[[:space:]]*const val ANDROID_LIB_BOX_LITE_VERSION = "\(.*\)".*/\1/p' buildSrc/src/main/kotlin/BuildConfig.kt | head -n 1)"
+          success=false
 
-          trimmed_url="https://github.com/zuohl/sing-box/releases/download/${target_kernel_ver}/libbox.aar"
-          echo "Attempting to fetch matching trimmed libbox.aar (${target_kernel_ver})..."
-          if ! curl -sSL -f -o app/libs/libbox.aar "$trimmed_url"; then
-            echo "Notice: Matching trimmed kernel not found. Falling back to official release $target_kernel_ver..."
-            official_url="https://github.com/Asterisk4Magisk/AndroidLibBoxLite/releases/download/${target_kernel_ver}/libbox.aar"
-            if ! curl -sSL -f -o app/libs/libbox.aar "$official_url"; then
-              echo "Warning: Failed to fetch official libbox.aar via curl, letting Gradle ivy repository resolve it."
+          fetch_kernel() {
+            local url="$1"
+            local desc="$2"
+            echo "Attempting to fetch libbox.aar from $desc ($url)..."
+            if curl -sSL -f -o app/libs/libbox.aar "$url"; then
+              local size_bytes
+              size_bytes="$(wc -c < app/libs/libbox.aar || echo 0)"
+              # Trimmed libbox.aar should be 10MB-60MB; larger means the untrimmed upstream build (~116MB).
+              if [ "$size_bytes" -gt 10485760 ] && [ "$size_bytes" -lt 62914560 ]; then
+                echo "Successfully fetched $desc ($(ls -lh app/libs/libbox.aar | awk '{print $5}'))"
+                success=true
+                return 0
+              fi
+              echo "Warning: Downloaded file from $url has unexpected size (${size_bytes} bytes). Removing."
               rm -f app/libs/libbox.aar
             fi
-          fi
+            return 1
+          }
 
-          if [ -f "app/libs/libbox.aar" ]; then
-            echo "Successfully prepared libbox.aar ($(ls -lh app/libs/libbox.aar | awk '{print $5}'))"
-          else
-            echo "Using default dependency from Ivy repository."
+          if [ -n "$target_kernel_ver" ]; then
+            fetch_kernel "https://github.com/zuohl/sing-box/releases/download/${target_kernel_ver}/libbox.aar" "matching zuohl/sing-box tag: $target_kernel_ver" || true
+          fi
+          if [ "$success" = "false" ]; then
+            fetch_kernel "https://github.com/zuohl/sing-box/releases/latest/download/libbox.aar" "zuohl/sing-box latest release" || true
+          fi
+          if [ "$success" = "false" ]; then
+            echo "::error::Unable to fetch a trimmed libbox.aar from zuohl/sing-box. Refusing to fall back to the untrimmed upstream build."
+            exit 1
           fi
 
       - name: Assemble release APKs

@@ -3,10 +3,16 @@
 
 package engine.singbox.runtime
 
+import android.content.ComponentName
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
-import android.os.Build
+import android.content.Intent
+import android.content.ServiceConnection
+import android.os.Bundle
+import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
+import android.os.Message
+import android.os.Messenger
 import app.DefaultSingBoxUrlTestUrl
 import app.OutboundState
 import engine.singbox.config.APP_DIRECT_OUTBOUND
@@ -15,39 +21,10 @@ import engine.singbox.config.inheritedGroupDetour
 import engine.singbox.config.normalizeWireGuardEndpointJson
 import engine.singbox.config.parseSingBoxJson
 import engine.singbox.config.shouldRetainRawGroupedOutbound
-import engine.vpn.toStringIterator
 import features.logs.AndroidAppLogger
-import io.nekohasekai.libbox.AutoRedirectHandler
-import io.nekohasekai.libbox.AutoRedirectSession
-import io.nekohasekai.libbox.BridgeOptions
-import io.nekohasekai.libbox.BridgeSession
-import io.nekohasekai.libbox.CommandClient
-import io.nekohasekai.libbox.CommandClientHandler
-import io.nekohasekai.libbox.CommandClientOptions
-import io.nekohasekai.libbox.CommandServer
-import io.nekohasekai.libbox.CommandServerHandler
-import io.nekohasekai.libbox.ConnectionEvents
-import io.nekohasekai.libbox.ConnectionOwner
-import io.nekohasekai.libbox.InterfaceUpdateListener
-import io.nekohasekai.libbox.Libbox
-import io.nekohasekai.libbox.LocalDNSTransport
-import io.nekohasekai.libbox.LogIterator
-import io.nekohasekai.libbox.NeighborUpdateListener
-import io.nekohasekai.libbox.NetworkInterfaceIterator
-import io.nekohasekai.libbox.Notification
-import io.nekohasekai.libbox.OutboundGroupItemIterator
-import io.nekohasekai.libbox.OutboundGroupIterator
-import io.nekohasekai.libbox.OverrideOptions
-import io.nekohasekai.libbox.PlatformInterface
-import io.nekohasekai.libbox.PlatformUser
-import io.nekohasekai.libbox.ShellSession
-import io.nekohasekai.libbox.StatusMessage
-import io.nekohasekai.libbox.StringIterator
-import io.nekohasekai.libbox.SystemProxyStatus
-import io.nekohasekai.libbox.TunOptions
-import io.nekohasekai.libbox.WIFIState
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -57,18 +34,24 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
-import java.net.NetworkInterface
+import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.milliseconds
-import io.nekohasekai.libbox.NetworkInterface as LibboxNetworkInterface
 
+/**
+ * 独立测速客户端（运行在调用方进程）。
+ *
+ * 负责生成测速配置并委托 `:tester` 进程中的 [StandaloneUrlTestService] 执行，
+ * 避免与 `:bg` 进程的 VPN 内核争抢 `command.sock`。
+ */
 internal object SingBoxStandaloneUrlTester {
     private const val LogTag = "SingBoxStandaloneTester"
     private const val TestGroupName = "__standalone_test_group__"
+    // 预留给 :tester 进程冷启动与 libbox 初始化的额外时间
+    private const val RemoteStartupGraceMillis = 5_000L
     private val runMutex = Mutex()
 
     suspend fun testOutbounds(
@@ -83,83 +66,117 @@ internal object SingBoxStandaloneUrlTester {
         if (distinctTargets.isEmpty()) return@withContext emptyMap()
 
         runMutex.withLock {
-            val results = ConcurrentHashMap<Int, Long>()
+            val appContext = context.applicationContext
             val targetByTag = distinctTargets.associateBy { it.tag }
-            val configContent = buildTestConfig(distinctTargets, groupDetours, testUrl)
-
-            val platformInterface = StandalonePlatformInterface(context.applicationContext)
-            val serverHandler = StandaloneServerHandler()
-            val server = runCatching {
-                Libbox.newCommandServer(serverHandler, platformInterface)
+            val delaysByTag = runCatching {
+                val configFile = File(File(appContext.cacheDir, TesterLibboxBaseDirName), "urltest.json").apply {
+                    parentFile?.mkdirs()
+                    writeText(buildTestConfig(distinctTargets, groupDetours, testUrl))
+                }
+                runInTesterProcess(appContext, configFile, ArrayList(targetByTag.keys), timeoutMillis) { tag, delay ->
+                    targetByTag[tag]?.let { target -> onProgress?.invoke(target.id, delay) }
+                }
             }.getOrElse { error ->
-                AndroidAppLogger.error(LogTag, "Failed to create standalone CommandServer", error)
-                return@withLock distinctTargets.associate { it.id to -1L }
-            }
-
-            var client: CommandClient? = null
-            try {
-                server.start()
-                server.startOrReloadService(configContent, OverrideOptions())
-
-                val allDone = CompletableDeferred<Unit>()
-                val clientHandler = object : CommandClientHandler {
-                    override fun connected() = Unit
-                    override fun disconnected(message: String?) = Unit
-                    override fun clearLogs() = Unit
-                    override fun writeLogs(messageList: LogIterator?) = Unit
-                    override fun setDefaultLogLevel(level: Int) = Unit
-                    override fun writeStatus(message: StatusMessage?) = Unit
-                    override fun initializeClashMode(modeList: StringIterator?, currentMode: String?) = Unit
-                    override fun updateClashMode(newMode: String?) = Unit
-                    override fun writeConnectionEvents(events: ConnectionEvents?) = Unit
-                    override fun writeOutbounds(message: OutboundGroupItemIterator?) = Unit
-
-                    override fun writeGroups(message: OutboundGroupIterator?) {
-                        if (message == null) return
-                        while (message.hasNext()) {
-                            val group = message.next()
-                            val items = group.items
-                            while (items.hasNext()) {
-                                val item = items.next()
-                                val delay = item.urlTestDelay
-                                val matched = targetByTag[item.tag]
-                                if (matched != null && delay > 0) {
-                                    val delayLong = delay.toLong()
-                                    val previous = results.put(matched.id, delayLong)
-                                    if (previous == null || previous != delayLong) {
-                                        onProgress?.invoke(matched.id, delayLong)
-                                    }
-                                }
-                            }
-                        }
-                        if (results.size >= distinctTargets.size) {
-                            allDone.complete(Unit)
-                        }
-                    }
-                }
-
-                val options = CommandClientOptions().apply {
-                    addCommand(Libbox.CommandGroup)
-                    statusInterval = 200_000_000L // 200ms
-                }
-                client = Libbox.newCommandClient(clientHandler, options).apply {
-                    connect()
-                    urlTest(TestGroupName)
-                }
-
-                withTimeoutOrNull(timeoutMillis.milliseconds) {
-                    allDone.await()
-                }
-            } catch (error: Throwable) {
                 AndroidAppLogger.warn(LogTag, "Standalone URL test encountered an issue", error)
-            } finally {
-                runCatching { client?.disconnect() }
-                runCatching { server.closeService() }
-                runCatching { server.close() }
+                emptyMap()
             }
 
             distinctTargets.associate { target ->
-                target.id to (results[target.id] ?: -1L)
+                target.id to (delaysByTag[target.tag] ?: -1L)
+            }
+        }
+    }
+
+    private suspend fun runInTesterProcess(
+        context: Context,
+        configFile: File,
+        tags: ArrayList<String>,
+        timeoutMillis: Long,
+        onProgress: (tag: String, delayMillis: Long) -> Unit,
+    ): Map<String, Long> {
+        val partial = ConcurrentHashMap<String, Long>()
+        val done = CompletableDeferred<Map<String, Long>>()
+
+        val replyMessenger = Messenger(
+            object : Handler(Looper.getMainLooper()) {
+                override fun handleMessage(msg: Message) {
+                    val data = msg.data
+                    when (msg.what) {
+                        StandaloneUrlTestProtocol.MsgProgress -> {
+                            val tag = data.getString(StandaloneUrlTestProtocol.KeyTag) ?: return
+                            val delay = data.getLong(StandaloneUrlTestProtocol.KeyDelay)
+                            partial[tag] = delay
+                            onProgress(tag, delay)
+                        }
+
+                        StandaloneUrlTestProtocol.MsgDone -> {
+                            val resultTags = data.getStringArrayList(StandaloneUrlTestProtocol.KeyTags).orEmpty()
+                            val delays = data.getLongArray(StandaloneUrlTestProtocol.KeyDelays) ?: LongArray(0)
+                            val final = HashMap<String, Long>(partial)
+                            resultTags.forEachIndexed { index, tag ->
+                                delays.getOrNull(index)?.let { final[tag] = it }
+                            }
+                            done.complete(final)
+                        }
+                    }
+                }
+            },
+        )
+
+        val connection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+                if (service == null) {
+                    done.complete(HashMap(partial))
+                    return
+                }
+                val request = Message.obtain(null, StandaloneUrlTestProtocol.MsgRun).apply {
+                    data = Bundle().apply {
+                        putString(StandaloneUrlTestProtocol.KeyConfigPath, configFile.absolutePath)
+                        putString(StandaloneUrlTestProtocol.KeyGroupTag, TestGroupName)
+                        putStringArrayList(StandaloneUrlTestProtocol.KeyTags, tags)
+                        putLong(StandaloneUrlTestProtocol.KeyTimeoutMillis, timeoutMillis)
+                    }
+                    replyTo = replyMessenger
+                }
+                runCatching { Messenger(service).send(request) }.onFailure { error ->
+                    AndroidAppLogger.warn(LogTag, "Failed to send URL test request to tester process", error)
+                    done.complete(HashMap(partial))
+                }
+            }
+
+            // :tester 进程崩溃或被系统回收
+            override fun onServiceDisconnected(name: ComponentName?) {
+                done.complete(HashMap(partial))
+            }
+
+            override fun onBindingDied(name: ComponentName?) {
+                done.complete(HashMap(partial))
+            }
+
+            override fun onNullBinding(name: ComponentName?) {
+                done.complete(HashMap(partial))
+            }
+        }
+
+        val bound = withContext(Dispatchers.Main) {
+            context.bindService(
+                Intent(context, StandaloneUrlTestService::class.java),
+                connection,
+                Context.BIND_AUTO_CREATE,
+            )
+        }
+        if (!bound) {
+            AndroidAppLogger.warn(LogTag, "Unable to bind StandaloneUrlTestService")
+            withContext(NonCancellable + Dispatchers.Main) { runCatching { context.unbindService(connection) } }
+            return emptyMap()
+        }
+        try {
+            return withTimeoutOrNull((timeoutMillis + RemoteStartupGraceMillis).milliseconds) {
+                done.await()
+            } ?: HashMap(partial)
+        } finally {
+            withContext(NonCancellable + Dispatchers.Main) {
+                runCatching { context.unbindService(connection) }
             }
         }
     }
@@ -201,10 +218,11 @@ internal object SingBoxStandaloneUrlTester {
             }
             putJsonObject("dns") {
                 putJsonArray("servers") {
+                    // sing-box 1.14+ 已移除旧版 address 写法，必须使用带 type 的新格式
                     addJsonObject {
+                        put("type", "udp")
                         put("tag", "dns-direct")
-                        put("address", "223.5.5.5")
-                        put("detour", APP_DIRECT_OUTBOUND)
+                        put("server", "223.5.5.5")
                     }
                 }
                 put("strategy", "prefer_ipv4")
@@ -248,117 +266,9 @@ internal object SingBoxStandaloneUrlTester {
                     }
                 }
                 put("final", APP_DIRECT_OUTBOUND)
+                put("default_domain_resolver", "dns-direct")
             }
         }
         return encodeSingBoxJson(root)
-    }
-}
-
-private class StandaloneServerHandler : CommandServerHandler {
-    override fun serviceReload() = Unit
-    override fun serviceStop() = Unit
-    override fun getSystemProxyStatus(): SystemProxyStatus = SystemProxyStatus()
-    override fun setSystemProxyEnabled(enabled: Boolean) = Unit
-    override fun writeDebugMessage(message: String?) = Unit
-    override fun connectSSHAgent(): Int = -1
-    override fun triggerNativeCrash() = Unit
-}
-
-private class StandalonePlatformInterface(
-    private val context: Context,
-) : PlatformInterface {
-    private val connectivityManager =
-        context.getSystemService(ConnectivityManager::class.java)
-
-    override fun useProcFS(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
-    override fun underNetworkExtension(): Boolean = false
-    override fun includeAllNetworks(): Boolean = false
-    override fun clearDNSCache() = Unit
-    override fun localDNSTransport(): LocalDNSTransport? = null
-    override fun startNeighborMonitor(listener: NeighborUpdateListener?) = Unit
-    override fun closeNeighborMonitor(listener: NeighborUpdateListener?) = Unit
-    override fun usePlatformShell(): Boolean = false
-    override fun checkPlatformShell() = Unit
-    override fun openShellSession(
-        user: PlatformUser?,
-        command: String?,
-        environ: StringIterator?,
-        term: String?,
-        rows: Int,
-        cols: Int,
-    ): ShellSession = error("shell not supported")
-
-    override fun readSystemSSHHostKey(): String = error("ssh not supported")
-    override fun lookupSFTPServer(): String = error("sftp not supported")
-    override fun lookupUser(username: String?): PlatformUser = error("user lookup not supported")
-    override fun usePlatformAutoRedirect(): Boolean = false
-    override fun createAutoRedirectListener(inet6: Boolean): Int = error("auto redirect listener not supported")
-    override fun createAutoRedirect(options: ByteArray?, handler: AutoRedirectHandler?): AutoRedirectSession =
-        error("auto redirect not supported")
-
-    override fun usePlatformBridge(): Boolean = false
-    override fun createBridge(options: BridgeOptions?): BridgeSession = error("bridge not supported")
-    override fun registerMyInterface(name: String?) = Unit
-    override fun readWIFIState(): WIFIState? = null
-    override fun tailscaleHostname(): String = ""
-    override fun sendNotification(notification: Notification?) = Unit
-    override fun cancelNotification(identifier: String?, typeID: Int) = Unit
-    override fun autoDetectInterfaceControl(fd: Int) = Unit
-    override fun usePlatformAutoDetectInterfaceControl(): Boolean = false
-
-    override fun openTun(options: TunOptions?): Int =
-        error("TUN interface is not supported in standalone test")
-
-    override fun findConnectionOwner(
-        ipProtocol: Int,
-        sourceAddress: String?,
-        sourcePort: Int,
-        destinationAddress: String?,
-        destinationPort: Int,
-    ): ConnectionOwner = error("connection owner not supported")
-
-    @Suppress("DEPRECATION")
-    override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener?) {
-        val physicalNetwork = connectivityManager?.allNetworks?.firstOrNull { net ->
-            val caps = connectivityManager.getNetworkCapabilities(net)
-            caps != null && !caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
-                (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-                 caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
-                 caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
-        } ?: connectivityManager?.activeNetwork
-
-        val interfaceName = physicalNetwork
-            ?.let { connectivityManager.getLinkProperties(it) }
-            ?.interfaceName
-            .orEmpty()
-        val index = runCatching { NetworkInterface.getByName(interfaceName)?.index ?: -1 }.getOrDefault(-1)
-        listener?.updateDefaultInterface(interfaceName, index, false, false)
-    }
-
-    override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener?) = Unit
-
-    @Suppress("DEPRECATION")
-    override fun getInterfaces(): NetworkInterfaceIterator {
-        val interfaces = runCatching {
-            NetworkInterface.getNetworkInterfaces()?.toList().orEmpty().map { networkInterface ->
-                LibboxNetworkInterface().apply {
-                    index = networkInterface.index
-                    name = networkInterface.name
-                    mtu = runCatching { networkInterface.mtu }.getOrDefault(0)
-                    addresses = emptyList<String>().toStringIterator()
-                    dnsServer = emptyList<String>().toStringIterator()
-                    dnsSearchDomain = emptyList<String>().toStringIterator()
-                    flags = 0
-                    type = Libbox.InterfaceTypeOther
-                    metered = false
-                }
-            }
-        }.getOrDefault(emptyList())
-
-        val iterator = interfaces.iterator()
-        return object : NetworkInterfaceIterator {
-            override fun hasNext(): Boolean = iterator.hasNext()
-            override fun next(): LibboxNetworkInterface = iterator.next()
-        }
     }
 }

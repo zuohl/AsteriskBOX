@@ -205,13 +205,19 @@ class AsteriskApplication : Application(), SingletonImageLoader.Factory {
 
     override fun onCreate() {
         super.onCreate()
-        val isBackgroundProcess = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-            getProcessName().endsWith(":bg")
+        val processName = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            getProcessName()
         } else {
             runCatching {
                 java.io.File("/proc/self/cmdline").readText().trim('\u0000', ' ', '\n', '\r')
-            }.getOrDefault("").endsWith(":bg")
+            }.getOrDefault("")
         }
+        if (processName.endsWith(":tester")) {
+            // 独立测速进程：使用独立 basePath，避免与 :bg 的 VPN 内核争抢 command.sock
+            AndroidLibboxRuntime.setup(this, engine.singbox.runtime.TesterLibboxBaseDirName)
+            return
+        }
+        val isBackgroundProcess = processName.endsWith(":bg")
         if (isBackgroundProcess) {
             AndroidLibboxRuntime.setup(this)
             AndroidCoreLogRepository.initialize(applicationContext)
