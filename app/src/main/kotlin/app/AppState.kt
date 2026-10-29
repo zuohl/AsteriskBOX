@@ -91,7 +91,6 @@ data class AppState(
 
     val proxyRunning: Boolean = false,
     val isLightweightMode: Boolean = false,
-    val autoStartProxyOnAppLaunch: Boolean = false,
 
     /**
      * The running core was started from a configuration that no longer matches the

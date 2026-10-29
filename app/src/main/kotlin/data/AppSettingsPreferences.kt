@@ -180,10 +180,6 @@ internal class AppSettingsPreferences(
                 KeyIsLightweightMode,
                 defaults.isLightweightMode,
             ),
-            autoStartProxyOnAppLaunch = preferences.getBoolean(
-                KeyAutoStartProxyOnAppLaunch,
-                defaults.autoStartProxyOnAppLaunch,
-            ),
             enableAutoConnect = preferences.getBoolean(
                 KeyEnableAutoConnect,
                 defaults.enableAutoConnect,
@@ -576,7 +572,6 @@ internal const val KeyIgnoredInterfaces = "ignored_interfaces"
 internal const val KeyPrivateAddressCidrs = "private_address_cidrs"
 internal const val KeyProxyAppListMode = "proxy_app_list_mode"
 internal const val KeyIsLightweightMode = "is_lightweight_mode"
-internal const val KeyAutoStartProxyOnAppLaunch = "auto_start_proxy_on_app_launch"
 
 // Global connection-test preference keys. Values shared with the husi
 // `connectionTest*` settings (DataStore.kt:220-225).

@@ -144,17 +144,6 @@ fun AppContent(
     val mainDestinationState = rememberMainDestinationState()
     val serviceControl = rememberHomeServiceControl()
     val stateStore = LocalAppStateStore.current
-    var autoStarted by rememberSaveable { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        if (!autoStarted) {
-            autoStarted = true
-            val stateSnapshot = stateStore.state.value
-            if (stateSnapshot.autoStartProxyOnAppLaunch && !serviceControl.busy) {
-                serviceControl.startService()
-            }
-        }
-    }
 
     val backStack = remember { mutableStateListOf<NavKey>().apply { add(Route.Main) } }
     val navigator = remember { Navigator(backStack) }

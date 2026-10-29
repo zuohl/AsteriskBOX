@@ -154,14 +154,6 @@
             </intent-filter>
         </receiver>
 
-        <receiver
-            android:name="features.automation.BootCompletedReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-            </intent-filter>
-        </receiver>
-
         <service
             android:name="features.quicksettings.ProxyQuickSettingsTileService"
             android:exported="true"
