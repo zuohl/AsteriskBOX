@@ -11,6 +11,7 @@ import app.withCompatibleProxyAppListMode
 import app.AppState
 import app.requiresManagedTagCanonicalization
 import app.withCanonicalManagedTagReferences
+import app.withSettledConfigRestart
 import features.logs.AndroidAppLogger
 import features.resources.withInitializedBundledRuleSets
 import kotlinx.coroutines.CompletableDeferred
@@ -292,7 +293,7 @@ class AndroidAppStateStore private constructor(
         )
             // Keep committed state in the main DB file for file-based backup tools.
             .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
             .build()
     }
 
@@ -326,11 +327,14 @@ internal fun canonicalAppStateUpdate(
     transform: (AppState) -> AppState,
 ): (AppState) -> AppState = { state ->
     val nextState = transform(state).withCompatibleProxyAppListMode()
-    if (requiresManagedTagCanonicalization(state, nextState)) {
+    val canonicalState = if (requiresManagedTagCanonicalization(state, nextState)) {
         nextState.withCanonicalManagedTagReferences()
     } else {
         nextState
     }
+    // Single funnel for the pending-restart marker: any write that starts or stops the
+    // core settles it, so no mutation path has to remember to clear it.
+    canonicalState.withSettledConfigRestart(state)
 }
 
 private class StatePersistenceSupersededException : IllegalStateException(

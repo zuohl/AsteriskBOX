@@ -8,6 +8,7 @@ import android.net.Uri
 import data.backup.AppBackupUseCase
 import engine.proxy.AndroidProxyEngine
 import engine.proxy.ProxyServiceUseCase
+import engine.proxy.VpnPermissionRequester
 import engine.singbox.runtime.SingBoxRuntimeRepository
 import features.logs.CoreLogRepository
 import features.monitoring.MonitoringRepository
@@ -22,6 +23,7 @@ import features.enhancement.EnhancementModuleCoordinator
 import features.settings.usecase.RootBootScriptUseCase
 import features.settings.usecase.RootEbpfProbeUseCase
 import features.subscription.usecase.OutboundSubscriptionUpdater
+import features.subscription.usecase.SubscriptionInstallConfig
 import kotlinx.coroutines.CoroutineScope
 import features.home.HomeServiceOperationState
 import system.AndroidNetworkInterfaceProvider
@@ -42,6 +44,7 @@ internal data class AppServices(
     val resourceFileUpdateCoordinator: ResourceFileUpdateCoordinator,
     val appBackupUseCase: AppBackupUseCase,
     val outboundSubscriptionUpdater: OutboundSubscriptionUpdater,
+    val subscriptionInstallConfig: SubscriptionInstallConfig,
     val qrCodeScanner: suspend () -> String?,
     val importFilePicker: suspend () -> Uri?,
     val singBoxRuntime: SingBoxRuntimeRepository,
@@ -50,6 +53,7 @@ internal data class AppServices(
     val outboundListProjectionCache: OutboundListProjectionCache,
     val monitoring: MonitoringRepository,
     val proxyServiceUseCase: ProxyServiceUseCase,
+    val requestVpnPermission: VpnPermissionRequester,
     val switchRunModeUseCase: SwitchRunModeUseCase,
     val applyServiceControlUseCase: ApplyServiceControlUseCase,
     val enhancementModuleCoordinator: EnhancementModuleCoordinator,

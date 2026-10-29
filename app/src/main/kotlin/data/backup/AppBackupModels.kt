@@ -89,6 +89,7 @@ internal data class AppBackupSettings(
     val coreLogLevel: String = BackupDefaults.coreLogLevel,
     val enableTrafficStatsNotification: Boolean = BackupDefaults.enableTrafficStatsNotification,
     val enableBroadcastControl: Boolean = BackupDefaults.enableBroadcastControl,
+    val enableAutoConnect: Boolean = BackupDefaults.enableAutoConnect,
     val enableResourceAutoUpdate: Boolean = BackupDefaults.enableResourceAutoUpdate,
     val resourceAutoUpdateInterval: String = BackupDefaults.resourceAutoUpdateInterval,
     val resourceFileSource: Int = BackupDefaults.resourceFileSource,
@@ -235,6 +236,8 @@ internal data class AppBackupSelector(
     val tolerance: Int = DefaultSingBoxUrlTestTolerance,
     val idleTimeout: String = DefaultSingBoxUrlTestIdleTimeout,
     val interruptExistConnections: Boolean = true,
+    val fallbackEnabled: Boolean = false,
+    val fallbackMaxDelay: String = "",
 )
 
 @Serializable

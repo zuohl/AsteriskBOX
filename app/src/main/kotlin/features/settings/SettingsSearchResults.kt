@@ -172,6 +172,11 @@ internal fun settingsTopLevelSearchItems(
         SettingsSearchItem(SettingsSectionId.Vpn, stringResource(R.string.settings_local_proxy), localProxySummary),
         SettingsSearchItem(
             SettingsSectionId.Vpn,
+            stringResource(R.string.settings_start_on_boot),
+            stringResource(R.string.settings_auto_connect_summary),
+        ),
+        SettingsSearchItem(
+            SettingsSectionId.Vpn,
             stringResource(R.string.settings_traffic_stats_notification),
             stringResource(R.string.settings_traffic_stats_notification_summary),
         ),
@@ -192,7 +197,7 @@ internal fun settingsTopLevelSearchItems(
         SettingsSearchItem(SettingsSectionId.Vpn, stringResource(R.string.settings_tun), tunSummary),
         SettingsSearchItem(
             SettingsSectionId.Tproxy,
-            stringResource(R.string.settings_root_boot_script),
+            stringResource(R.string.settings_start_on_boot),
             stringResource(R.string.settings_root_boot_script_summary),
         ),
         if (useTunSharedNetwork) {
@@ -274,7 +279,7 @@ internal fun settingsTopLevelSearchItems(
             stringResource(R.string.settings_config_preview),
             stringResource(R.string.settings_config_preview_summary),
         ),
-        SettingsSearchItem(SettingsSectionId.Apps, stringResource(R.string.settings_core_logs)),
+        SettingsSearchItem(SettingsSectionId.Apps, stringResource(R.string.core_logs_title)),
         SettingsSearchItem(SettingsSectionId.Apps, stringResource(R.string.settings_logcat)),
         SettingsSearchItem(
             SettingsSectionId.Apps,

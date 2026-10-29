@@ -119,7 +119,7 @@ private fun mainNavigationItems(): List<MainNavigationItem> {
     val home = stringResource(R.string.nav_dashboard)
     val proxies = stringResource(R.string.nav_proxies)
     val groups = stringResource(R.string.nav_groups)
-    val settings = stringResource(R.string.nav_settings)
+    val settings = stringResource(R.string.settings_title)
 
     return remember(home, proxies, groups, settings) {
         listOf(
@@ -680,6 +680,7 @@ private fun HomeServicePowerButton(modifier: Modifier = Modifier) {
             HomeServiceOperation.Starting -> R.string.home_service_starting
             HomeServiceOperation.Stopping -> R.string.home_service_stopping
             HomeServiceOperation.Restarting -> R.string.proxy_service_restarting
+            HomeServiceOperation.Applying -> R.string.home_service_applying
             HomeServiceOperation.Idle -> if (appState.proxyRunning) R.string.home_service_stop else R.string.home_service_start
         },
     )

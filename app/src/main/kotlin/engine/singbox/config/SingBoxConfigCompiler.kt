@@ -3,6 +3,7 @@
 
 package engine.singbox.config
 
+import app.sanitizedRouteNetworkTypes
 import android.content.Context
 import app.AppState
 import app.DefaultSingBoxUrlTestUrl
@@ -16,7 +17,6 @@ import app.ManagedRootInboundTag
 import app.ManagedTunInboundTag
 import app.OutboundState
 import app.SingBoxRouteNetworkStrategies
-import app.SingBoxRouteNetworkTypes
 import app.SingBoxRouteRuleActionReject
 import app.SingBoxRouteRuleLogicalModeOr
 import app.SingBoxRouteRuleState
@@ -322,7 +322,7 @@ internal fun compileEbpfInbound(
         "eBPF shared interfaces must be exact, non-loopback interface names"
     }
     require(appState.ebpfLocalDataPlane in EbpfLocalDataPlanes) {
-        "eBPF local data_plane must be tc or cgroup"
+        "eBPF local data_plane must be socket_assign or cgroup"
     }
     require(sharedInterfaces.isEmpty() || appState.ebpfSharedDataPlane in EbpfSharedDataPlanes) {
         "eBPF shared data_plane must be socket_assign or packet_rewrite"
@@ -844,9 +844,19 @@ private fun buildUrlTestOutbound(
         ?: DefaultSingBoxUrlTestUrl
     put("url", effectiveUrl)
     put("interval", selector.interval.trim())
-    put("tolerance", selector.tolerance)
+    if (!selector.fallbackEnabled) {
+        put("tolerance", selector.tolerance)
+    }
     put("idle_timeout", selector.idleTimeout.trim())
     put("interrupt_exist_connections", selector.interruptExistConnections)
+    if (selector.fallbackEnabled) {
+        putJsonObject("fallback") {
+            put("enabled", true)
+            selector.fallbackMaxDelay.trim().takeIf(String::isNotEmpty)?.let { maxDelay ->
+                put("max_delay", maxDelay)
+            }
+        }
+    }
 }
 
 internal fun normalizeWireGuardEndpointJson(json: String, tag: String): JsonObject? {
@@ -1077,11 +1087,6 @@ private val ManagedRouteSettingKeys = setOf(
     "default_fallback_delay",
     "find_process",
 )
-
-private fun List<String>.sanitizedRouteNetworkTypes(): List<String> {
-    val selected = map { value -> value.trim().lowercase() }.toSet()
-    return SingBoxRouteNetworkTypes.filter(selected::contains)
-}
 
 internal fun SingBoxRouteRuleState.hasLegacyRouteModeMatcher(): Boolean =
     if (type == SingBoxRouteRuleTypeLogical) {

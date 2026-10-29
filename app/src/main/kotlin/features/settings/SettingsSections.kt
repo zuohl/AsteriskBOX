@@ -387,6 +387,7 @@ internal fun SettingsProxyModeSections(
     enableTrafficStatsNotification: Boolean,
     enableVpnAppendHttpProxy: Boolean,
     enableVpnHevTun: Boolean,
+    enableAutoConnect: Boolean,
     tunSettingsSummary: String,
     enableRootBootScript: Boolean,
     enableRootEbpfRules: Boolean,
@@ -404,6 +405,7 @@ internal fun SettingsProxyModeSections(
     onEnableTrafficStatsNotificationChange: (Boolean) -> Unit,
     onEnableVpnAppendHttpProxyChange: (Boolean) -> Unit,
     onEnableVpnHevTunChange: (Boolean) -> Unit,
+    onEnableAutoConnectChange: (Boolean) -> Unit,
     onOpenTunSettings: () -> Unit,
     onEnableRootBootScriptChange: (Boolean) -> Unit,
     onEnableRootEbpfRulesChange: (Boolean) -> Unit,
@@ -426,6 +428,14 @@ internal fun SettingsProxyModeSections(
         Column {
             SmallTitle(text = stringResource(R.string.settings_proxy_vpn_service))
             SettingsSectionCard {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_start_on_boot),
+                    icon = Icons.Rounded.PowerSettingsNew,
+                    summary = stringResource(R.string.settings_auto_connect_summary),
+                    checked = enableAutoConnect,
+                    onCheckedChange = onEnableAutoConnectChange,
+                    accent = IconAccent.MaskPink,
+                )
                 ArrowPreference(
                     title = stringResource(R.string.settings_local_proxy),
                     icon = Icons.Rounded.Router,
@@ -493,7 +503,7 @@ internal fun SettingsProxyModeSections(
             exit = AsteriskMotion.contentExit(),
                 ) {
                     SwitchPreference(
-                        title = stringResource(R.string.settings_root_boot_script),
+                        title = stringResource(R.string.settings_start_on_boot),
                         icon = Icons.Rounded.PowerSettingsNew,
                         summary = stringResource(R.string.settings_root_boot_script_summary),
                         checked = enableRootBootScript,
@@ -721,7 +731,7 @@ internal fun SettingsLogsSection(
     SmallTitle(text = stringResource(R.string.settings_logs))
     SettingsSectionCard {
         ArrowPreference(
-            title = stringResource(R.string.settings_core_logs),
+            title = stringResource(R.string.core_logs_title),
             icon = Icons.AutoMirrored.Rounded.Article,
             onClick = onOpenCoreLogs,
             accent = IconAccent.MaskGreen,
@@ -787,7 +797,7 @@ internal fun SettingsAboutSection(
     onOpenAbout: () -> Unit,
     onOpenLicenses: () -> Unit,
 ) {
-    SmallTitle(text = stringResource(R.string.settings_about))
+    SmallTitle(text = stringResource(R.string.about_title))
     SettingsSectionCard(bottomPadding = 0.dp) {
         ArrowPreference(
             title = stringResource(R.string.settings_about_project),

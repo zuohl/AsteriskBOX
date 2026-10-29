@@ -5,6 +5,7 @@ package data.backup
 
 import engine.singbox.config.DnsConfigurationMatchFields
 import engine.singbox.config.dnsConfigurationEntryTag
+import engine.singbox.normalizedEbpfLocalDataPlane
 
 import app.withCompatibleProxyAppListMode
 import app.AppState
@@ -111,6 +112,7 @@ private fun AppState.toBackupSettings(): AppBackupSettings =
         coreLogLevel = coreLogLevel,
         enableTrafficStatsNotification = enableTrafficStatsNotification,
         enableBroadcastControl = enableBroadcastControl,
+        enableAutoConnect = enableAutoConnect,
         enableResourceAutoUpdate = enableResourceAutoUpdate,
         resourceAutoUpdateInterval = resourceAutoUpdateInterval,
         resourceFileSource = resourceFileSource,
@@ -271,6 +273,8 @@ private fun SingBoxSelectorState.toBackup(): AppBackupSelector =
         tolerance = tolerance,
         idleTimeout = idleTimeout,
         interruptExistConnections = interruptExistConnections,
+        fallbackEnabled = fallbackEnabled,
+        fallbackMaxDelay = fallbackMaxDelay,
     )
 
 private fun CustomResourceFileState.toBackup(): AppBackupCustomResourceFile =
@@ -345,6 +349,7 @@ private fun AppBackupData.toAppState(): AppState {
         coreLogLevel = settings.coreLogLevel,
         enableTrafficStatsNotification = settings.enableTrafficStatsNotification,
         enableBroadcastControl = settings.enableBroadcastControl,
+        enableAutoConnect = settings.enableAutoConnect,
         enableResourceAutoUpdate = settings.enableResourceAutoUpdate,
         resourceAutoUpdateInterval = settings.resourceAutoUpdateInterval,
         resourceFileSource = settings.resourceFileSource,
@@ -382,7 +387,7 @@ private fun AppBackupData.toAppState(): AppState {
         transparentProxyPort = settings.transparentProxyPort,
         enableRootBootScript = false,
         enableRootEbpfRules = false,
-        ebpfLocalDataPlane = settings.ebpfLocalDataPlane,
+        ebpfLocalDataPlane = settings.ebpfLocalDataPlane.normalizedEbpfLocalDataPlane(),
         ebpfSharedDataPlane = settings.ebpfSharedDataPlane,
         ebpfLocalDnsMode = settings.ebpfLocalDnsMode,
         ebpfSharedDnsMode = settings.ebpfSharedDnsMode,
@@ -472,6 +477,8 @@ private fun AppBackupSelector.toState(): SingBoxSelectorState =
         tolerance = tolerance,
         idleTimeout = idleTimeout,
         interruptExistConnections = interruptExistConnections,
+        fallbackEnabled = fallbackEnabled,
+        fallbackMaxDelay = fallbackMaxDelay,
     )
 
 private fun AppBackupCustomResourceFile.toState(): CustomResourceFileState =

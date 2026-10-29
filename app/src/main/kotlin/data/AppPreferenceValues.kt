@@ -78,6 +78,7 @@ internal fun AppState.preferenceValues(): Map<String, AppPreferenceValue> = buil
     boolean(KeyEnableBroadcastControl, enableBroadcastControl)
     boolean(KeyIsLightweightMode, isLightweightMode)
     boolean(KeyAutoStartProxyOnAppLaunch, autoStartProxyOnAppLaunch)
+    boolean(KeyEnableAutoConnect, enableAutoConnect)
     boolean(KeyEnableResourceAutoUpdate, enableResourceAutoUpdate)
     string(KeyResourceAutoUpdateInterval, resourceAutoUpdateInterval)
     int(KeyResourceFileSource, resourceFileSource)

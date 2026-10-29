@@ -57,7 +57,6 @@
     <string name="nav_dashboard">首页</string>
     <string name="nav_groups">分组</string>
     <string name="nav_proxies">代理</string>
-    <string name="nav_settings">设置</string>
 
     <!-- Home -->
     <string name="home_accumulated_download">累计下载</string>
@@ -70,7 +69,6 @@
     <string name="home_monitor_network">网络</string>
     <string name="home_monitor_resource">资源</string>
     <string name="home_monitor_traffic">流量</string>
-    <string name="home_more_actions">更多操作</string>
     <string name="home_network_activity">网络活动</string>
     <string name="home_network_speed_summary">↑ %1$s   ↓ %2$s</string>
     <string name="home_network_summary">IPv4 · %1$s\nIPv6 · %2$s</string>
@@ -79,6 +77,7 @@
     <string name="home_service_disabled">服务未启用</string>
     <string name="home_service_enabled">服务已启用</string>
     <string name="home_service_start">启动服务</string>
+    <string name="home_service_applying">应用中…</string>
     <string name="home_service_starting">启动中…</string>
     <string name="home_service_stop">停止服务</string>
     <string name="home_service_stopping">停止中…</string>
@@ -96,7 +95,6 @@
     <string name="monitor_copy_value">复制数值</string>
     <string name="monitor_data_stale">数据可能已过期</string>
     <string name="monitor_data_unavailable">数据不可用</string>
-    <string name="monitor_filter_all">全部</string>
     <string name="monitor_filter_direct">直连</string>
     <string name="monitor_filter_proxy">代理</string>
     <string name="monitor_loading">正在读取实时数据…</string>
@@ -104,13 +102,11 @@
     <string name="monitor_no_samples">暂无采样；暂停期间会保留断点。</string>
     <string name="monitor_rate_pair">↓ %1$s/s · ↑ %2$s/s</string>
     <string name="monitor_refresh">刷新</string>
-    <string name="monitor_retry">重试</string>
     <string name="monitor_service_not_enabled">服务未启用</string>
     <string name="monitor_sort_rate">实时速率</string>
     <string name="monitor_sort_started">开始时间</string>
     <string name="monitor_sort_target">目标</string>
     <string name="monitor_speed_per_second">%1$s/s</string>
-    <string name="monitor_value_unknown">未知</string>
 
     <!-- Monitoring - Connections -->
     <string name="monitor_connections_active">活动连接</string>
@@ -153,7 +149,7 @@
     <string name="monitor_resource_cpu">进程 CPU</string>
     <string name="monitor_resource_cpu_peak">CPU 峰值</string>
     <string name="monitor_resource_details">采样详情</string>
-    <string name="monitor_resource_embedded_explanation">CPU 包含同一进程内的 sing-box 与 AsteriskBOX 开销，不能与 Root 模式直接横向比较。</string>
+    <string name="monitor_resource_embedded_explanation">CPU 包含同一进程内的 sing-box 与 AsteriskBOX 开销，不能与 ROOT 模式直接横向比较。</string>
     <string name="monitor_resource_focus_memory">内存 %1$s</string>
     <string name="monitor_resource_interval">采样间隔</string>
     <string name="monitor_resource_memory">sing-box 内存</string>
@@ -162,7 +158,7 @@
     <string name="monitor_resource_root_explanation">CPU 数据来自独立运行的 sing-box 进程。</string>
     <string name="monitor_resource_source_embedded">AsteriskBOX 进程 · 内嵌</string>
     <string name="monitor_resource_source_info">CPU 统计说明</string>
-    <string name="monitor_resource_source_root">sing-box 进程 · Root</string>
+    <string name="monitor_resource_source_root">sing-box 进程 · ROOT</string>
     <string name="monitor_resource_title">资源监控</string>
     <string name="monitor_resource_trend">共享趋势</string>
 
@@ -241,10 +237,9 @@
     <string name="monitor_network_quality_http3">HTTP/3</string>
     <string name="monitor_network_quality_http3_summary">当服务端支持时,使用 QUIC / HTTP/3 探测。</string>
     <string name="monitor_network_quality_idle_latency">空闲延迟</string>
-    <string name="monitor_network_quality_idle_latency_explanation">空闲时链路的响应延迟。300 毫秒以内对实时交互足够好,300–700 毫秒可以接受,超过 700 毫秒会明显迟滞。</string>
+    <string name="monitor_network_quality_idle_latency_explanation">空闲时链路的响应延迟。300 ms 以内对实时交互足够好,300–700 ms 可以接受,超过 700 ms 会明显迟滞。</string>
     <string name="monitor_network_quality_info_action">参数说明</string>
     <string name="monitor_network_quality_max_runtime">最长耗时(秒)</string>
-    <string name="monitor_network_quality_outbound_default">默认</string>
     <string name="monitor_network_quality_outbound_label">出站</string>
     <string name="monitor_network_quality_rating_fair">一般</string>
     <string name="monitor_network_quality_rating_good">良好</string>
@@ -284,7 +279,6 @@
     <string name="sing_box_proxies_option_layout_multiple">多列</string>
     <string name="sing_box_proxies_option_layout_single">单列</string>
     <string name="sing_box_proxies_option_sort">排序</string>
-    <string name="sing_box_proxies_option_sort_default">默认</string>
     <string name="sing_box_proxies_option_sort_delay">延迟</string>
     <string name="sing_box_proxies_option_sort_name">名称</string>
     <string name="sing_box_proxies_options">代理显示选项</string>
@@ -301,7 +295,7 @@
     <string name="connection_test_ignore_handshake_time_summary">在 TCP/TLS 握手完成后再开始计时</string>
     <string name="connection_test_settings_summary">调整 sing-box URL 测试的测量行为</string>
     <string name="connection_test_settings_title">连接测试</string>
-    <string name="connection_test_timeout">测试超时(毫秒)</string>
+    <string name="connection_test_timeout">测试超时(ms)</string>
     <string name="connection_test_unified_delay">统一延迟</string>
     <string name="connection_test_unified_delay_summary">在已建立会话上测第二次请求,剔除一次性握手成本</string>
     <string name="connection_test_url">测试链接</string>
@@ -328,6 +322,23 @@
     <string name="outbound_group_hwid">HWID</string>
     <string name="outbound_group_local">本地分组</string>
     <string name="outbound_group_management">分组管理</string>
+    <string name="outbound_group_config_apply_title">修改尚未生效</string>
+    <string name="outbound_group_config_apply_summary">分组或节点已变更，运行中的服务仍在使用变更前的配置，应用后生效。</string>
+    <string name="outbound_group_config_apply_action">立即应用</string>
+    <string name="outbound_group_config_apply_failed">应用配置失败</string>
+    <string name="outbound_group_config_applied">配置已应用</string>
+    <string name="outbound_group_add_method_title">添加分组</string>
+    <string name="outbound_group_add_from_qr">二维码</string>
+    <string name="outbound_group_add_from_qr_summary">扫描订阅链接二维码并立即同步</string>
+    <string name="outbound_group_add_manually">手动填写</string>
+    <string name="outbound_group_add_manually_summary">添加远程订阅 URL，或新建本地分组</string>
+    <string name="outbound_group_add_from_file">文件</string>
+    <string name="outbound_group_add_from_file_summary">导入本地 sing-box JSON、Mihomo YAML 或节点链接文件</string>
+    <string name="outbound_group_add_file_failed">导入文件失败</string>
+    <string name="outbound_group_add_qr_invalid">二维码内容不是订阅链接</string>
+    <string name="outbound_group_add_installed">已添加分组</string>
+    <string name="outbound_group_add_failed">添加分组失败</string>
+    <string name="outbound_group_add_existing">订阅已存在，已更新该分组</string>
     <string name="outbound_group_name">名称</string>
     <string name="outbound_group_name_duplicate">%1$s(%2$d)</string>
     <string name="outbound_group_name_placeholder">留空则首次同步后自动命名</string>
@@ -396,8 +407,6 @@
     <string name="outbound_empty">当前分组暂无出站</string>
     <string name="outbound_empty_summary">点击添加按钮导入，或可视化配置一个出站。</string>
     <string name="outbound_import">导入出站</string>
-    <string name="outbound_import_clipboard">从剪切板导入</string>
-    <string name="outbound_import_empty_clipboard">剪切板为空</string>
     <string name="outbound_import_failed">出站导入失败</string>
     <string name="outbound_import_file">从文件导入</string>
     <string name="outbound_import_manual">手动添加</string>
@@ -418,12 +427,12 @@
     <string name="outbound_option_layout_multiple">多列</string>
     <string name="outbound_option_layout_single">单列</string>
     <string name="outbound_options">出站选项</string>
-    <string name="outbound_ping">Ping</string>
+    <string name="outbound_ping">PING</string>
     <string name="outbound_ping_failed">失败</string>
-    <string name="outbound_ping_group">Ping 当前分组</string>
+    <string name="outbound_ping_group">PING 当前分组</string>
     <string name="outbound_ping_latency">%1$d ms</string>
-    <string name="outbound_ping_no_targets">当前分组没有可 Ping 的服务器地址</string>
-    <string name="outbound_ping_running">正在 Ping</string>
+    <string name="outbound_ping_no_targets">当前分组没有可 PING 的服务器地址</string>
+    <string name="outbound_ping_running">正在 PING</string>
     <plurals name="outbound_proxy_servers_deleted">
         <item quantity="other">已删除 %1$d 个代理节点</item>
     </plurals>
@@ -437,7 +446,7 @@
     <string name="outbound_share_url">复制 URL</string>
     <string name="outbound_sort">排序</string>
     <string name="outbound_sort_real_latency">真实延迟</string>
-    <string name="outbound_sort_latency">Ping 延迟</string>
+    <string name="outbound_sort_latency">PING 延迟</string>
     <string name="outbound_sort_original">手动顺序</string>
     <string name="outbound_sort_remarks">别名</string>
     <string name="outbound_sort_type">协议</string>
@@ -571,7 +580,7 @@
     <string name="outbound_field_password">密码</string>
     <string name="outbound_field_path">路径</string>
     <string name="outbound_field_permit_without_stream">无活动流时允许保活</string>
-    <string name="outbound_field_ping_timeout">Ping 超时</string>
+    <string name="outbound_field_ping_timeout">PING 超时</string>
     <string name="outbound_field_plugin">插件</string>
     <string name="outbound_field_plugin_options">插件选项</string>
     <string name="outbound_field_port_hopping_interval">端口跳跃间隔</string>
@@ -637,7 +646,6 @@
     <plurals name="selector_count">
         <item quantity="other">%1$d 个选择器</item>
     </plurals>
-    <string name="selector_custom_badge">自定义</string>
     <string name="selector_custom_section">自定义选择器</string>
     <string name="selector_default_remarks">新选择器</string>
     <string name="selector_delete_message">选择器“%1$s”将被永久删除。</string>
@@ -647,7 +655,7 @@
     <string name="selector_editor_default">默认出站</string>
     <string name="selector_editor_edit">编辑选择器</string>
     <string name="selector_editor_interrupt">中断现有连接</string>
-    <string name="selector_editor_interrupt_summary">切换所选出站后，重新连接入站连接。</string>
+    <string name="selector_editor_interrupt_summary">切换出站时断开已有连接</string>
     <string name="selector_editor_members">出站成员</string>
     <string name="selector_editor_members_required">请至少选择一个出站</string>
     <string name="selector_editor_regex_disable">关闭正则表达式搜索</string>
@@ -658,20 +666,31 @@
     <string name="selector_editor_search_targets">搜索可用出站</string>
     <string name="selector_editor_select_all_matches">全选匹配的出站</string>
     <string name="selector_editor_type">选择器类型</string>
-    <string name="selector_editor_type_summary">选择手动切换或自动延迟测试</string>
+    <string name="selector_editor_type_summary">手动或自动选择节点</string>
     <string name="selector_editor_urltest">URLTest 设置</string>
-    <string name="selector_editor_urltest_duration_invalid">请输入 30s、3m 或 1h30m 格式的 sing-box 时长，留空则使用默认值</string>
+    <string name="selector_editor_urltest_selection">选择方式</string>
+    <string name="selector_editor_urltest_latency">延迟优选</string>
+    <string name="selector_editor_urltest_latency_summary">优先选择低延迟节点</string>
+    <string name="selector_editor_urltest_fallback">故障转移</string>
+    <string name="selector_editor_urltest_fallback_summary">按顺序选择可用节点</string>
+    <string name="selector_editor_urltest_fallback_max_delay">最大可接受延迟</string>
+    <string name="selector_editor_urltest_fallback_max_delay_placeholder">不限制</string>
+    <string name="selector_editor_urltest_fallback_max_delay_invalid">请输入时长，如 500ms</string>
+    <string name="selector_editor_urltest_fallback_max_delay_summary">优先选择未超限节点；留空或 0 不限</string>
+    <string name="selector_editor_urltest_duration_invalid">请输入时长，如 30s 或 3m</string>
     <string name="selector_editor_urltest_idle_timeout">空闲超时</string>
+    <string name="selector_editor_urltest_idle_timeout_summary">空闲后暂停测试；留空或 0 为 30m</string>
     <string name="selector_editor_urltest_interval">测试间隔</string>
-    <string name="selector_editor_urltest_interval_exceeds_idle">检测间隔不能大于空闲超时</string>
+    <string name="selector_editor_urltest_interval_summary">留空或 0 使用 3m</string>
+    <string name="selector_editor_urltest_interval_exceeds_idle">测试间隔不能大于空闲超时</string>
     <string name="selector_editor_urltest_tolerance">容差（ms）</string>
+    <string name="selector_editor_urltest_tolerance_summary">超过此延迟差才切换；留空或 0 为 50ms</string>
     <string name="selector_editor_urltest_tolerance_invalid">请输入 0 到 65535 之间的整数</string>
     <string name="selector_editor_urltest_url">测试地址</string>
-    <string name="selector_editor_urltest_url_invalid">请输入有效的 HTTP 或 HTTPS 地址，留空则使用 sing-box 默认值</string>
+    <string name="selector_editor_urltest_url_invalid">请输入有效的 HTTP 或 HTTPS 地址</string>
     <string name="selector_empty">暂无自定义选择器</string>
     <string name="selector_empty_summary">创建 Selector 或 URLTest，自由组合当前所有可用的托管出站。</string>
     <string name="selector_group_disabled">分组已停用</string>
-    <string name="selector_managed_badge">自动维护</string>
     <string name="selector_managed_section">托管分组选择器</string>
     <string name="selector_managed_summary">成员自动跟随该应用出站分组。</string>
     <string name="selector_management">选择器管理</string>
@@ -716,8 +735,6 @@
     <string name="endpoint_editor_type">端点类型</string>
     <string name="endpoint_empty">暂无托管端点</string>
     <string name="endpoint_empty_summary">添加受支持的 sing-box 端点，或导入端点 JSON。</string>
-    <string name="endpoint_import_clipboard">从剪切板导入</string>
-    <string name="endpoint_import_empty_clipboard">剪切板为空</string>
     <string name="endpoint_import_failed">端点导入失败</string>
     <string name="endpoint_import_file">从文件导入</string>
     <string name="endpoint_import_formats_summary">sing-box JSON、WireGuard、OpenVPN 或 OpenConnect</string>
@@ -906,11 +923,9 @@
     <string name="settings_dns_predefined_hosts_format">格式：域名=地址1,地址2,…</string>
     <string name="settings_dns_prefer_go">优先使用 Go 解析器</string>
     <string name="settings_dns_reject_method">拒绝方式</string>
-    <string name="settings_dns_reject_method_default">默认</string>
     <string name="settings_dns_reject_method_drop">丢弃</string>
     <string name="settings_dns_resolved_service">Resolved 服务</string>
     <string name="settings_dns_response_code">响应码</string>
-    <string name="settings_dns_response_code_default">默认</string>
     <string name="settings_dns_response_ip_match_summary">请选择已评估的响应，以匹配其中的地址。</string>
     <string name="settings_dns_rewrite_ttl">重写 TTL（可选）</string>
     <string name="settings_dns_rule_action">动作</string>
@@ -948,9 +963,7 @@
     <string name="settings_dns_server_type_quic">QUIC</string>
     <string name="settings_dns_server_type_resolved">Resolved</string>
     <string name="settings_dns_server_type_tailscale">Tailscale</string>
-    <string name="settings_dns_server_type_tcp">TCP</string>
     <string name="settings_dns_server_type_tls">TLS</string>
-    <string name="settings_dns_server_type_udp">UDP</string>
     <string name="settings_dns_servers_empty">还没有添加 DNS 服务器</string>
     <string name="settings_dns_store_dns">持久化 DNS 缓存</string>
     <string name="settings_dns_store_dns_summary">将 DNS 缓存保存到磁盘，重启后仍然有效</string>
@@ -997,8 +1010,6 @@
     <string name="routing_ip_cidr">目标 IP CIDR</string>
     <string name="routing_ip_is_private">目标是私有 IP</string>
     <string name="routing_ip_version_any">不限</string>
-    <string name="routing_ipv4">IPv4</string>
-    <string name="routing_ipv6">IPv6</string>
     <string name="routing_list_empty">暂无内容</string>
     <string name="routing_logical_mode">匹配方式</string>
     <string name="routing_logical_mode_and">全部满足</string>
@@ -1012,18 +1023,15 @@
     </plurals>
     <string name="routing_match_summary">%1$s：%2$s</string>
     <string name="routing_network_icmp">ICMP</string>
-    <string name="routing_network_tcp">TCP</string>
     <string name="routing_network_type_cellular">蜂窝网络</string>
     <string name="routing_network_type_ethernet">以太网</string>
     <string name="routing_network_type_other">其他</string>
     <string name="routing_network_type_wifi">Wi-Fi</string>
-    <string name="routing_network_udp">UDP</string>
     <string name="routing_new_condition">新建条件</string>
     <string name="routing_new_rule">新建路由规则</string>
     <string name="routing_outbound">出站</string>
     <string name="routing_port_invalid">请输入 0 至 65535 的端口匹配值</string>
     <string name="routing_port_range_invalid">请使用 起始:结束、起始: 或 :结束，取值范围为 0 至 65535</string>
-    <string name="routing_reject_default">默认</string>
     <string name="routing_reject_drop">丢弃</string>
     <string name="routing_reject_method">拒绝方式</string>
     <string name="routing_reject_no_drop">重复连接后仍不丢弃</string>
@@ -1048,7 +1056,7 @@
     <string name="routing_settings_default_network_strategy_summary">选择连接使用可用网络的方式</string>
     <string name="routing_settings_default_network_type">默认网络类型</string>
     <string name="routing_settings_default_network_type_summary">全部不选时使用核心默认值</string>
-    <string name="routing_settings_duration_invalid">请输入非负的 sing-box 时长，例如 300ms 或 1s</string>
+    <string name="routing_settings_duration_invalid">请输入 sing-box 时长，例如 300ms 或 1s</string>
     <string name="routing_settings_find_process">查找进程</string>
     <string name="routing_settings_find_process_summary">没有进程规则要求时，也为日志查找连接所属进程</string>
     <string name="routing_settings_override_android_vpn">覆盖 Android VPN</string>
@@ -1058,7 +1066,6 @@
     <string name="routing_settings_section_fallback">回退设置</string>
     <string name="routing_settings_section_interface">接口检测</string>
     <string name="routing_settings_section_network">网络选择</string>
-    <string name="routing_settings_strategy_default">默认</string>
     <string name="routing_settings_strategy_fallback">回退</string>
     <string name="routing_settings_strategy_hybrid">混合</string>
     <string name="routing_settings_summary">配置接口检测、网络选择与进程查找</string>
@@ -1086,11 +1093,11 @@
     <string name="proxy_error_dialog_occurred_at">时间：%1$s</string>
     <string name="proxy_error_dialog_service_log">启动日志</string>
     <string name="proxy_error_dialog_title">代理启动失败</string>
-    <!-- Proxy error: eBPF tc data plane unavailable (confirmed on kernel 4.19 + KernelSU Next) -->
-    <string name="proxy_error_ebpf_tc_unsupported_explanation">eBPF tc 数据面需要内核同时支持 veth 设备与 clsact qdisc。当前内核拒绝在当前网络命名空间内创建 veth pair（内核返回 EOPNOTSUPP）。</string>
+    <!-- Proxy error: eBPF socket_assign data plane unavailable (confirmed on kernel 4.19 + KernelSU Next) -->
+    <string name="proxy_error_ebpf_tc_unsupported_explanation">eBPF socket_assign 数据面需要内核支持 veth 设备与 TC 挂载。当前内核拒绝创建 veth pair（内核返回 EOPNOTSUPP）。</string>
     <string name="proxy_error_ebpf_tc_unsupported_fallback">若 cgroup 也无法启动：进入 设置 → 高级设置，在 运行模式 中改选 TUN（ROOT）作为备用方案。</string>
     <string name="proxy_error_ebpf_tc_unsupported_report">上报时请附上上方错误原文，以及 logcat 中 asteriskd / sing-box 相关段落。</string>
-    <string name="proxy_error_ebpf_tc_unsupported_switch">临时方案：进入 设置 → 高级设置，在 运行模式 中确认已选择 eBPF（ROOT）；再在 代理设置（eBPF） 中把 数据面 从 tc 改为 cgroup，然后重试。</string>
+    <string name="proxy_error_ebpf_tc_unsupported_switch">临时方案：进入 设置 → 高级设置，在 运行模式 中确认已选择 eBPF（ROOT）；再在 代理设置（eBPF） 中把 数据面 从 socket_assign 改为 cgroup，然后重试。</string>
     <string name="proxy_service_started">代理服务已启动</string>
     <string name="proxy_service_stopped">代理服务已停止</string>
     <string name="proxy_service_restarted">代理服务已重启</string>
@@ -1124,6 +1131,8 @@
     <string name="settings_vpn_hev_tun_summary">使用 hev-socks5-tunnel 创建 TUN 设备</string>
     <string name="settings_vpn_local_dns">启用 DNS 劫持</string>
     <string name="settings_vpn_local_dns_summary">使用核心处理 DNS 请求</string>
+    <string name="settings_auto_connect_summary">开机启动 VPN 服务，应用更新后恢复服务状态</string>
+    <string name="auto_connect_permission_text">点击授权并启动 VPN Service</string>
 
     <!-- ROOT -->
     <string name="error_bpf2socks_root_required">ROOT 权限不可用，无法启动 BPF2SOCKS 模式</string>
@@ -1142,11 +1151,11 @@
     <string name="settings_ebpf_data_plane">数据面</string>
     <string name="settings_ebpf_dns_disabled">本地 DNS 已关闭，当前使用 off。</string>
     <string name="settings_ebpf_dns_mode">DNS 模式</string>
-    <string name="settings_ebpf_local_data_plane_summary">tc 接管接口流量；cgroup 接管 socket</string>
+    <string name="settings_ebpf_local_data_plane_summary">socket_assign 接管接口流量；cgroup 接管 socket</string>
     <string name="settings_ebpf_local_dns_mode_summary">hijack 接管 53 端口；respect_policy 遵循应用筛选</string>
     <string name="settings_ebpf_shared_data_plane_summary">socket_assign 使用透明监听器；packet_rewrite 改写以太网报文。</string>
     <string name="settings_ebpf_shared_dns_mode_summary">hijack 接管 53 端口；respect_policy 遵循客户端筛选。</string>
-    <string name="settings_root_boot_script">开机自启</string>
+    <string name="settings_start_on_boot">开机自启</string>
     <string name="settings_root_boot_script_failed">开机自启设置失败</string>
     <string name="settings_root_boot_script_summary">生成 service.d 启动脚本</string>
     <string name="settings_root_ebpf_bypass_direct_cidrs">绕过直连地址</string>
@@ -1164,7 +1173,6 @@
     <string name="enhancement_module_apk_install_failed">刷入失败，请检查错误输出。可尝试导出本应用，将 .apk 后缀改为 .zip，在 ROOT 管理器中刷入</string>
     <string name="enhancement_module_failed">模块操作失败。请检查 ROOT 管理器，确认 Zygisk Next 已安装且启用后重试</string>
     <string name="enhancement_module_incompatible">当前运行的增强模块不支持此运行环境</string>
-    <string name="enhancement_module_install_close">关闭</string>
     <string name="enhancement_module_install_output_waiting">等待刷入输出…</string>
     <string name="enhancement_module_install_title">刷入增强模块</string>
     <string name="enhancement_module_installing">正在安装增强模块…</string>
@@ -1178,7 +1186,6 @@
     <string name="enhancement_module_root_denied">ROOT 授权被拒绝。请授权后重试</string>
     <string name="enhancement_module_timeout">模块操作超时。请检查 ROOT 管理器后重试</string>
     <string name="enhancement_module_title">增强模块</string>
-    <string name="enhancement_module_update">更新增强模块</string>
     <string name="enhancement_module_update_available">当前应用提供增强模块更新。请更新并重启设备后再使用应用名单增强</string>
 
     <!-- TUN -->
@@ -1336,7 +1343,7 @@
     <string name="proxy_traffic_stats_notification_speed">速度：↑ %1$s / ↓ %2$s</string>
     <string name="proxy_traffic_stats_notification_traffic">流量：↑ %1$s / ↓ %2$s</string>
     <string name="settings_traffic_stats_notification">显示统计数据</string>
-    <string name="settings_traffic_stats_notification_summary">在通知中显示当前速度和累计流量</string>
+    <string name="settings_traffic_stats_notification_summary">在通知和状态栏中显示当前速度和累计流量</string>
 
     <!-- Quick settings tile -->
     <string name="quick_settings_tile_label">AsteriskBOX</string>
@@ -1370,7 +1377,6 @@
     <string name="proxy_app_list_mode_blacklist">黑名单模式</string>
     <string name="proxy_app_list_mode_global">全应用模式</string>
     <string name="proxy_app_list_mode_whitelist">白名单模式</string>
-    <string name="proxy_app_list_more_actions">更多操作</string>
     <string name="proxy_app_list_pick_installed_apps">从已安装应用中选择</string>
     <string name="proxy_app_list_picker_title">选择应用</string>
     <string name="proxy_app_list_scan_china_apps">扫描中国应用</string>
@@ -1389,7 +1395,6 @@
 
     <!-- Resource management -->
     <string name="error_resource_file_picker_missing">资源文件选择器未注册</string>
-    <string name="resource_file_download_notification_cancel">取消</string>
     <string name="resource_file_download_notification_cancelled">资源文件更新已取消</string>
     <string name="resource_file_download_notification_channel">资源文件更新</string>
     <string name="resource_file_download_notification_complete">资源文件更新完成</string>
@@ -1404,7 +1409,6 @@
     <string name="settings_resource_files_add_custom_summary">输入下载地址，或选取本地 .srs/.json/.hosts 文件</string>
     <string name="settings_resource_files_add_geoip_summary">添加来自 sing-geoip 的 IP 规则集</string>
     <string name="settings_resource_files_add_geosite_summary">添加来自 sing-geosite 的域名规则集</string>
-    <string name="settings_resource_files_add_source_hint">选择规则集文件的来源</string>
     <string name="settings_resource_files_auto_update_interval">更新周期（小时）</string>
     <string name="settings_resource_files_auto_update_summary">联网时定期更新资源文件</string>
     <string name="settings_resource_files_auto_update_title">资源自动更新</string>
@@ -1595,7 +1599,6 @@
     <plurals name="logs_total_count">
         <item quantity="other">共 %1$d 条</item>
     </plurals>
-    <string name="settings_core_logs">核心日志</string>
     <string name="settings_log_level">日志等级</string>
     <string name="settings_logcat">Logcat</string>
     <string name="settings_logs">日志</string>
@@ -1608,7 +1611,6 @@
     <string name="about_view_source">在 GitHub 查看源码</string>
     <string name="license_load_failed">无法加载许可证信息</string>
     <string name="license_title">第三方开源许可</string>
-    <string name="settings_about">关于</string>
     <string name="settings_about_project">关于项目</string>
     <string name="settings_open_source_licenses">开源许可</string>
 </resources>

@@ -241,7 +241,6 @@ private class StandalonePlatformInterface(
     private val connectivityManager =
         context.getSystemService(ConnectivityManager::class.java)
 
-    override fun useProcFS(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
     override fun underNetworkExtension(): Boolean = false
     override fun includeAllNetworks(): Boolean = false
     override fun clearDNSCache() = Unit

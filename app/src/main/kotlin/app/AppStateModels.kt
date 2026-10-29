@@ -181,6 +181,8 @@ data class SingBoxSelectorState(
     val tolerance: Int = DefaultSingBoxUrlTestTolerance,
     val idleTimeout: String = DefaultSingBoxUrlTestIdleTimeout,
     val interruptExistConnections: Boolean = true,
+    val fallbackEnabled: Boolean = false,
+    val fallbackMaxDelay: String = "",
 ) {
     val tag: String
         get() = managedSelectorTag(id, remarks)
@@ -194,6 +196,11 @@ const val SingBoxRouteRuleLogicalModeAnd = "and"
 const val SingBoxRouteRuleLogicalModeOr = "or"
 val SingBoxRouteNetworkStrategies = listOf("default", "hybrid", "fallback")
 val SingBoxRouteNetworkTypes = listOf("wifi", "cellular", "ethernet", "other")
+
+internal fun List<String>.sanitizedRouteNetworkTypes(): List<String> {
+    val selected = map { value -> value.trim().lowercase() }.toSet()
+    return SingBoxRouteNetworkTypes.filter(selected::contains)
+}
 
 @Stable
 @Serializable

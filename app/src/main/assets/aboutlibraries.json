@@ -15,7 +15,7 @@
         },
         {
             "uniqueId": "com.github.asterisk4magisk:libbox",
-            "artifactVersion": "v1.15.0-alpha.11-reF1nd-android.3",
+            "artifactVersion": "v1.15.0-alpha.13-reF1nd-android.1",
             "name": "AndroidLibBoxLite",
             "description": "Pinned Android JNI and command API bindings for sing-box.",
             "website": "https://github.com/Asterisk4Magisk/AndroidLibBoxLite",
@@ -54,7 +54,7 @@
         },
         {
             "uniqueId": "github:Asterisk4Magisk/AsteriskEnhance",
-            "artifactVersion": "v1.0.7",
+            "artifactVersion": "v1.0.8",
             "name": "Asterisk Enhance",
             "description": "System DNS enhancement for Asterisk apps, powered by Zygisk Next.",
             "website": "https://github.com/Asterisk4Magisk/AsteriskEnhance",
@@ -67,7 +67,7 @@
         },
         {
             "uniqueId": "github:Asterisk4Magisk/asteriskd",
-            "artifactVersion": "v2.1.14",
+            "artifactVersion": "v2.2.3",
             "name": "asteriskd",
             "description": "A root Android daemon that synchronizes local-address bypass rules and pinned eBPF maps.",
             "website": "https://github.com/Asterisk4Magisk/asteriskd",
@@ -80,7 +80,7 @@
         },
         {
             "uniqueId": "github:Asterisk4Magisk/bpf2socks",
-            "artifactVersion": "v1.1.7",
+            "artifactVersion": "v1.2.1",
             "name": "bpf2socks",
             "description": "A root Android/Linux traffic bridge that forwards TCP and UDP through a SOCKS5 upstream using eBPF.",
             "website": "https://github.com/Asterisk4Magisk/bpf2socks",
@@ -158,7 +158,7 @@
         },
         {
             "uniqueId": "org.jetbrains.compose.material3:material3",
-            "artifactVersion": "1.13.0-alpha02",
+            "artifactVersion": "1.13.0-beta01",
             "name": "Compose Material3 Components",
             "description": "Compose Material You Design Components library",
             "website": "https://github.com/JetBrains/compose-multiplatform",
@@ -236,7 +236,7 @@
         },
         {
             "uniqueId": "github:heiher/hev-socks5-tunnel",
-            "artifactVersion": "2.18.0",
+            "artifactVersion": "2.19.3",
             "name": "hev-socks5-tunnel",
             "description": "A tun2socks tunnel that forwards TUN traffic to a SOCKS5 server.",
             "website": "https://github.com/heiher/hev-socks5-tunnel",

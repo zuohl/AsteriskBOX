@@ -11,6 +11,8 @@ import features.resources.ResourceFileUpdateRequest
 import features.resources.runtime.AndroidResourceFileDownloadCancellation
 import android.app.Application
 import features.home.HomeServiceOperationState
+import app.modes.RunModeVpnService
+import features.boot.BootAutoConnect
 import data.AndroidAppStateStore
 import data.AppSettingsPreferences
 import engine.singbox.config.validateSingBoxRuntimeConfiguration
@@ -154,7 +156,15 @@ class AsteriskApplication : Application(), SingletonImageLoader.Factory {
                     verifyConfiguration = false,
                 )
             },
-            parse = ::parseOutboundImportContent,
+            parse = { content, group, state ->
+                parseOutboundImportContent(
+                    content,
+                    providerFetcher = { request ->
+                        subscriptionPreparer.fetchProvider(request, group.userAgent, state.toSubscriptionFetchOptions(group))
+                    },
+                    sourceUrl = group.url,
+                )
+            },
             validate = { state ->
                 validateSingBoxRuntimeConfiguration(applicationContext, state)
             },
@@ -238,6 +248,16 @@ class AsteriskApplication : Application(), SingletonImageLoader.Factory {
         AndroidLogcatRepository.initialize(applicationContext)
         AndroidCoreLogRepository.initialize(applicationContext)
         AndroidAsteriskdLogRepository.initialize(applicationContext)
+        appScope.launch {
+            stateStore.state
+                .map { state ->
+                    state.enableAutoConnect && state.runMode == RunModeVpnService
+                }
+                .distinctUntilChanged()
+                .collect { enabled ->
+                    BootAutoConnect.setComponentEnabled(applicationContext, enabled)
+                }
+        }
         appScope.launch {
             stateStore.state
                 .map { state ->

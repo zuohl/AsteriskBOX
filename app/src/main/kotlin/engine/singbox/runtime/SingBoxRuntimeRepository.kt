@@ -161,6 +161,14 @@ internal class SingBoxRuntimeRepository(
         reloadConfiguration(appState)
     }
 
+    /**
+     * Recompiles [appState] and reloads it into the running VPN core through the Command API.
+     * Throws when the reload is not possible, so the caller can fall back to a restart.
+     */
+    suspend fun reloadVpnConfiguration(appState: AppState) {
+        reloadConfiguration(appState)
+    }
+
     internal suspend fun reloadConfiguration(appState: AppState) {
         if (!appState.proxyRunning) return
         val active = requireActiveSession(appState)
@@ -307,9 +315,12 @@ internal class SingBoxRuntimeRepository(
                         runCatching {
                             // Read inside the lock: a reconnect must not restore its original snapshot.
                             modeMutex.withLock {
-                                appContext.withRootDnsMutation(appState) {
-                                    check(isCurrent(nextGeneration, target)) { "sing-box session changed before mode restore" }
-                                    next.setMode(desiredMode)
+                                // A reconnect to an unchanged core must not withdraw and rebuild DNS enhancement.
+                                if (!next.modeApplied(desiredMode)) {
+                                    appContext.withRootDnsMutation(appState) {
+                                        check(isCurrent(nextGeneration, target)) { "sing-box session changed before mode restore" }
+                                        next.setMode(desiredMode)
+                                    }
                                 }
                             }
                         }.onFailure { error ->
