@@ -996,7 +996,8 @@ internal fun OutboundListPage(
                                 state.withSelectorSelection(activeGroupTag, outbound.tag)
                             }
                             if (appState.proxyRunning) {
-                                scope.launch {
+                                // Finish the DNS transaction even if this page leaves composition.
+                                services.appScope.launch(Dispatchers.Main.immediate) {
                                     services.singBoxRuntime.selectProxy(appState, activeGroupTag, outbound.tag)
                                         .onFailure {
                                             services.tipNotifier.show(it.message ?: "切换失败")
