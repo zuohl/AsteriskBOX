@@ -72,6 +72,7 @@ internal fun LazyListScope.outboundEditorContent(state: OutboundEditorContentSta
         "snell" -> snellOutboundEditor(state)
         "ssh" -> sshOutboundEditor(state)
         "wireguard" -> wireguardOutboundEditor(state)
+        "mieru", "shadowquic", "juicity" -> pluginOutboundEditor(state)
         else -> error("Unsupported outbound editor: ${state.schema.type}")
     }
 }

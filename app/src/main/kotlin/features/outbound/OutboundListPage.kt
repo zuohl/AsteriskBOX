@@ -349,8 +349,9 @@ internal fun OutboundListPage(
         val targetGroupId = selectedGroup?.id ?: return
         var stage = ImportStage.PARSE
         try {
+            val formatter = context.singBoxOutboundConfigFormatter(stateStore.state.value.runMode)
             val result = withContext(Dispatchers.Default) {
-                parseOutboundImportContent(content)
+                parseOutboundImportContent(content, formatter)
             }
             val snapshot = stateStore.state.value
             val plan = snapshot.planOutboundImport(
@@ -777,15 +778,16 @@ internal fun OutboundListPage(
                             },
                             toolsEnabled = selectedGroup != null && activeOperations == 0,
                             onCopyAllUrls = {
-                                val groupId = selectedGroup?.id
-                                val targets = stateStore.state.value.outbounds.filter { it.groupId == groupId }
-                                launchOperation {
-                                    val urls = withContext(Dispatchers.Default) { outboundUrls(targets) }
-                                    if (urls.isBlank()) {
-                                        services.tipNotifier.show(resources.getString(R.string.outbound_no_urls))
-                                    } else {
-                                        clipboard.setPlainText(urls)
-                                        services.tipNotifier.show(copiedMessage)
+                                if (selectedGroup != null) {
+                                    val outbounds = stateStore.state.value.outbounds
+                                    launchOperation {
+                                        copyOutboundGroupShareLinks(
+                                            groupId = selectedGroup.id,
+                                            outbounds = outbounds,
+                                            clipboard = clipboard,
+                                            tipNotifier = services.tipNotifier,
+                                            resources = resources,
+                                        )
                                     }
                                 }
                             },
@@ -1415,7 +1417,7 @@ private fun OutboundCard(
         onClick = onSelect,
         modifier = modifier
             .fillMaxWidth()
-            .height(OutboundCardHeight)
+            .height(if (compact) OutboundCompactCardHeight else OutboundCardHeight)
             .zIndex(if (isDragging) 1f else 0f)
             .graphicsLayer {
                 scaleX = scale
@@ -2009,6 +2011,9 @@ private val OutboundOptionsMenuWidth = 224.dp
 private val OutboundCardMenuWidth = 224.dp
 private val OutboundGridSpacing = OutboundGridSpacingDp.dp
 private val OutboundCardHeight = OutboundCardHeightDp.dp
+
+// Compact (multi-column) cards fit a two-line title; the title row is held at the 48dp menu touch target.
+private val OutboundCompactCardHeight = 100.dp
 private val OutboundCardPadding =
     PaddingValues(start = 10.dp, top = 14.dp, end = 10.dp, bottom = 10.dp)
 private val OutboundCardMenuIconOffset = outboundCardMenuIconOffsetDp(

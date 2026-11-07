@@ -5,6 +5,7 @@ package app
 
 import app.modes.ColorModeSystem
 import app.modes.LanguageModeSystem
+import app.modes.NetworkActivityStyleDotted
 import app.modes.OutboundListLayoutAuto
 import app.modes.OutboundListSortDefault
 import app.modes.ProxyAppListModeGlobal
@@ -12,6 +13,7 @@ import app.modes.isRootRunMode
 import app.modes.supportsAppListEnhancement
 import app.modes.RunModeVpnService
 import app.modes.SingBoxModeRule
+import app.modes.SingBoxProxyGroupLayoutTabs
 import app.modes.SingBoxProxyLayoutAuto
 import app.modes.SingBoxProxySortDefault
 import engine.singbox.DefaultSingBoxControlPort
@@ -36,6 +38,7 @@ data class AppState(
     val colorMode: Int = ColorModeSystem,
     val languageMode: Int = LanguageModeSystem,
     val seedIndex: Int = 0,
+    val networkActivityStyle: Int = NetworkActivityStyleDotted,
     val hideRecentTasks: Boolean = false,
     val allowScreenshots: Boolean = false,
     val hideLauncherIcon: Boolean = false,
@@ -66,6 +69,7 @@ data class AppState(
     val runMode: Int = RunModeVpnService,
     val singBoxMode: Int = SingBoxModeRule,
     val singBoxProxyLayout: Int = SingBoxProxyLayoutAuto,
+    val singBoxProxyGroupLayout: Int = SingBoxProxyGroupLayoutTabs,
     val singBoxProxySort: Int = SingBoxProxySortDefault,
     val singBoxControlPort: String = DefaultSingBoxControlPort.toString(),
     val singBoxControlSecret: String = "",
@@ -106,6 +110,8 @@ data class AppState(
 
     val enableConfigOverrideScript: Boolean = false,
     val configOverrideScript: String = "const main = (config) => {\n  return config\n}",
+    /** Protocols the core also implements that run through their plugin instead. */
+    val pluginProtocols: List<String> = emptyList(),
     val coreLogLevel: String = DefaultSingBoxLogLevel,
     val enableTrafficStatsNotification: Boolean = false,
     val enableBroadcastControl: Boolean = false,

@@ -36,6 +36,7 @@ internal fun AppState.preferenceValues(): Map<String, AppPreferenceValue> = buil
     }
 
     int(KeyColorMode, colorMode)
+    int(KeyNetworkActivityStyle, networkActivityStyle)
     int(KeyLanguageMode, languageMode)
     int(KeySeedIndex, seedIndex)
     boolean(KeyHideRecentTasks, hideRecentTasks)
@@ -56,6 +57,7 @@ internal fun AppState.preferenceValues(): Map<String, AppPreferenceValue> = buil
     int(KeyRunMode, runMode)
     int(KeySingBoxMode, singBoxMode)
     int(KeySingBoxProxyLayout, singBoxProxyLayout)
+    int(KeySingBoxProxyGroupLayout, singBoxProxyGroupLayout)
     int(KeySingBoxProxySort, singBoxProxySort)
     string(KeySingBoxControlPort, singBoxControlPort)
     string(KeySingBoxControlSecret, singBoxControlSecret)
@@ -73,6 +75,7 @@ internal fun AppState.preferenceValues(): Map<String, AppPreferenceValue> = buil
     string(KeyTunIpv6Cidr, tunIpv6Cidr)
     boolean(KeyEnableConfigOverrideScript, enableConfigOverrideScript)
     string(KeyConfigOverrideScript, configOverrideScript)
+    stringList(KeyPluginProtocols, pluginProtocols)
     string(KeyCoreLogLevel, coreLogLevel)
     boolean(KeyEnableTrafficStatsNotification, enableTrafficStatsNotification)
     boolean(KeyEnableBroadcastControl, enableBroadcastControl)

@@ -81,8 +81,13 @@ class MainActivity : ComponentActivity() {
             appString(R.string.error_backup_file_creator_missing)
         },
     )
-    private val notificationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission(),
+    private val outboundShareFileCreator = AndroidLogFileCreator(
+        missingLauncherMessage = {
+            appString(R.string.error_outbound_group_share_file_creator_missing)
+        },
+    )
+    private val startupPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
     ) {}
 
     private val vpnPermissionLauncher = registerForActivityResult(
@@ -117,6 +122,12 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.CreateDocument("application/json"),
     ) { uri ->
         backupFileCreator.complete(uri)
+    }
+
+    private val outboundShareFileCreatorLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain"),
+    ) { uri ->
+        outboundShareFileCreator.complete(uri)
     }
 
     private fun appString(@StringRes id: Int, vararg args: Any): String {
@@ -154,6 +165,9 @@ class MainActivity : ComponentActivity() {
         backupFileCreator.registerLauncher { fileName ->
             backupFileCreatorLauncher.launch(fileName)
         }
+        outboundShareFileCreator.registerLauncher { fileName ->
+            outboundShareFileCreatorLauncher.launch(fileName)
+        }
         showAppContent()
         requestStartupPermissions()
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -180,7 +194,7 @@ class MainActivity : ComponentActivity() {
         pendingAutoConnect = false
         lifecycleScope.launch {
             val notifier = AndroidToastTipNotifier(application)
-            BootAutoConnect.connectAfterConsent(applicationContext, vpnPermissionRequester::request)
+            BootAutoConnect.connect(applicationContext, vpnPermissionRequester::request)
                 .onSuccess { running ->
                     if (running) notifier.show(appString(R.string.proxy_service_started))
                 }
@@ -319,6 +333,8 @@ class MainActivity : ComponentActivity() {
         logFileCreator.registerLauncher(null)
         backupFileCreator.complete(null)
         backupFileCreator.registerLauncher(null)
+        outboundShareFileCreator.complete(null)
+        outboundShareFileCreator.registerLauncher(null)
         super.onDestroy()
         if (isFinishing) {
             val settings = AppSettingsPreferences(this).load()
@@ -346,11 +362,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestStartupPermissions() {
-        if (
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        val permissions = buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN) {
+                add(Manifest.permission.ACCESS_LOCAL_NETWORK)
+            }
+        }.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        if (permissions.isNotEmpty()) {
+            startupPermissionLauncher.launch(permissions.toTypedArray())
         }
     }
 
@@ -364,6 +385,7 @@ class MainActivity : ComponentActivity() {
                 backupFilePicker = { resourceFilePicker.pick(BackupFileMimeTypes) },
                 backupFileCreator = backupFileCreator::create,
                 logFileCreator = logFileCreator::create,
+                outboundShareFileCreator = outboundShareFileCreator::create,
                 requestVpnPermission = vpnPermissionRequester::request,
             )
         }

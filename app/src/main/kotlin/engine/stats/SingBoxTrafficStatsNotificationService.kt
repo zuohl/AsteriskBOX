@@ -1,8 +1,6 @@
 // Copyright 2026, AsteriskBOX contributors
 // SPDX-License-Identifier: GPL-3.0
 
-@file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-
 package engine.stats
 
 import android.app.Notification
@@ -16,7 +14,6 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.content.ContextCompat
-import app.AsteriskApplication
 import app.R
 import engine.singbox.SingBoxControlConfig
 import engine.singbox.runtime.SingBoxCommandClient
@@ -24,8 +21,8 @@ import engine.singbox.runtime.SingBoxCommandListener
 import engine.singbox.runtime.SingBoxCommandTarget
 import engine.singbox.runtime.SingBoxConnectionsState
 import engine.singbox.runtime.SingBoxProxiesState
-import engine.singbox.runtime.SingBoxRuntimeRepository
 import engine.singbox.runtime.SingBoxTrafficSample
+import engine.vpn.AndroidLibboxRuntime
 import features.logs.AndroidAppLogger
 import io.nekohasekai.libbox.StatusMessage
 import java.math.BigInteger
@@ -38,10 +35,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.channels.awaitClose
 import system.AndroidLauncherIcon
@@ -67,6 +60,8 @@ class SingBoxTrafficStatsNotificationService : Service() {
     private var activeRuntime: SingBoxTrafficStatsRuntime? = null
     private var foregroundStarted = false
     private var latestStartId = 0
+    private var lastSnapshot = TrafficStatsSnapshot()
+    private val screenObserver = ScreenInteractiveObserver(this, ::onScreenInteractiveChanged)
     private val notificationManager by lazy { getSystemService(NotificationManager::class.java) }
     private val speedIcon by lazy { TrafficSpeedNotificationIcon(resources.displayMetrics.density) }
     private val contentIntent by lazy {
@@ -100,10 +95,12 @@ class SingBoxTrafficStatsNotificationService : Service() {
             // Every startForegroundService() request must reach startForeground() before the
             // service may stop, including requests superseded by a later stop request.
             if (!foregroundStarted && !startForegroundNotification(startId)) {
-                requests.consumeStart()
+                intent.acknowledgeTrafficStatsStart()
                 return START_NOT_STICKY
             }
-            requests.consumeStart()
+            // The app process waits for this before it may stop the service.
+            intent.acknowledgeTrafficStatsStart()
+            intent.readRuntime()
         } else {
             intent?.readRuntime()
         }
@@ -112,14 +109,28 @@ class SingBoxTrafficStatsNotificationService : Service() {
             stopSelf(startId)
             return START_NOT_STICKY
         }
-        if (activeRuntime == runtime && monitor.isActive) {
+        if (activeRuntime == runtime && (monitor.isActive || !screenObserver.isInteractive)) {
             return START_NOT_STICKY
         }
 
+        if (activeRuntime != runtime) lastSnapshot = TrafficStatsSnapshot()
         activeRuntime = runtime
         if (!startForegroundNotification(startId)) return START_NOT_STICKY
-        startMonitor(runtime)
+        screenObserver.register()
+        if (screenObserver.isInteractive) startMonitor(runtime)
         return START_NOT_STICKY
+    }
+
+    // Sampling pauses while the screen is off. The core keeps counting, so the totals it
+    // reports after resuming already include that time.
+    private fun onScreenInteractiveChanged(interactive: Boolean) {
+        val runtime = activeRuntime ?: return
+        if (!interactive) {
+            monitor.cancel()
+            updateNotification(lastSnapshot.copy(upSpeed = 0L, downSpeed = 0L))
+        } else if (!monitor.isActive) {
+            startMonitor(runtime)
+        }
     }
 
     private fun startForegroundNotification(startId: Int): Boolean {
@@ -143,14 +154,16 @@ class SingBoxTrafficStatsNotificationService : Service() {
     }
 
     private fun startMonitor(runtime: SingBoxTrafficStatsRuntime) {
+        // Created on the main thread, which owns lastSnapshot and every accept() call.
+        val accumulator = TrafficStatsAccumulator(lastSnapshot.totalUp, lastSnapshot.totalDown)
         monitor.start {
-            val repository = (application as AsteriskApplication).singBoxRuntime
-            val accumulator = TrafficStatsAccumulator()
             var consecutiveFailures = 0
 
             while (currentCoroutineContext().isActive) {
                 val result = runCatching {
-                    trafficSamples(runtime, repository).collect { sample ->
+                    // The service runs in the `:service` process, apart from the app's runtime
+                    // repository, so it owns its traffic stream.
+                    commandTraffic(runtime).collect { sample ->
                         consecutiveFailures = 0
                         publish { updateNotification(accumulator.accept(sample)) }
                     }
@@ -177,40 +190,9 @@ class SingBoxTrafficStatsNotificationService : Service() {
         }
     }
 
-    private fun trafficSamples(
-        runtime: SingBoxTrafficStatsRuntime,
-        repository: SingBoxRuntimeRepository,
-    ): Flow<SingBoxTrafficSample> {
-        return repository.state
-            .map { state -> state.traffic.connected }
-            .distinctUntilChanged()
-            .flatMapLatest { repositoryConnected ->
-                AndroidAppLogger.debug(
-                    LogTag,
-                    if (repositoryConnected) {
-                        "Using foreground runtime traffic stream"
-                    } else {
-                        "Using notification-owned traffic stream"
-                    },
-                )
-                if (repositoryConnected) {
-                    repository.state
-                        .map { state -> state.traffic }
-                        .distinctUntilChanged()
-                        .filter { traffic -> traffic.connected }
-                        .map { traffic ->
-                            traffic.latest.copy(
-                                totalUp = traffic.totalUp,
-                                totalDown = traffic.totalDown,
-                            )
-                        }
-                } else {
-                    commandTraffic(runtime)
-                }
-            }
-    }
-
     private fun commandTraffic(runtime: SingBoxTrafficStatsRuntime): Flow<SingBoxTrafficSample> = callbackFlow {
+        // The local command socket needs libbox, which the `:service` process sets up on demand.
+        if (runtime.local) AndroidLibboxRuntime.setup(this@SingBoxTrafficStatsNotificationService)
         val client = SingBoxCommandClient(
             target = SingBoxCommandTarget(local = runtime.local, control = runtime.control),
             listener = object : SingBoxCommandListener {
@@ -241,6 +223,7 @@ class SingBoxTrafficStatsNotificationService : Service() {
     }
 
     private fun updateNotification(snapshot: TrafficStatsSnapshot) {
+        lastSnapshot = snapshot
         notificationManager.notify(NotificationId, buildNotification(snapshot))
     }
 
@@ -281,8 +264,10 @@ class SingBoxTrafficStatsNotificationService : Service() {
     }
 
     private fun stopStats() {
+        screenObserver.unregister()
         monitor.cancel()
         activeRuntime = null
+        lastSnapshot = TrafficStatsSnapshot()
         stopForegroundCompat()
         foregroundStarted = false
         notificationManager.cancel(NotificationId)
@@ -315,7 +300,7 @@ class SingBoxTrafficStatsNotificationService : Service() {
     }
 
     companion object {
-        private val requests = TrafficStatsServiceRequests<SingBoxTrafficStatsRuntime>()
+        private val requests = TrafficStatsServiceRequests()
 
         internal fun reconcile(context: Context, runtime: SingBoxTrafficStatsRuntime?) {
             if (runtime == null) {
@@ -331,7 +316,8 @@ class SingBoxTrafficStatsNotificationService : Service() {
                 action = ActionStart
                 putRuntime(runtime)
             }
-            requests.start(runtime) {
+            requests.start { acknowledgement ->
+                intent.putTrafficStatsStartAcknowledgement(acknowledgement)
                 tryStartTrafficStatsService(
                     start = { ContextCompat.startForegroundService(appContext, intent) },
                     onFailure = { error ->
@@ -343,12 +329,13 @@ class SingBoxTrafficStatsNotificationService : Service() {
 
         internal fun stop(context: Context) {
             val appContext = context.applicationContext
-            requests.stop {
+            val stopRequested = requests.stop {
                 appContext.stopService(Intent(appContext, SingBoxTrafficStatsNotificationService::class.java).apply {
                     action = ActionStop
                 })
             }
-            appContext.getSystemService(NotificationManager::class.java).cancel(NotificationId)
+            // Without a start since the last stop, that stop already removed the notification.
+            if (stopRequested) appContext.getSystemService(NotificationManager::class.java).cancel(NotificationId)
         }
     }
 }
@@ -365,9 +352,10 @@ private data class TrafficSpeedSample(
     val down: Long,
 )
 
-internal class TrafficStatsAccumulator {
-    private var totalUp = 0L
-    private var totalDown = 0L
+internal class TrafficStatsAccumulator(
+    private var totalUp: Long = 0L,
+    private var totalDown: Long = 0L,
+) {
     private val speedSamples = ArrayDeque<TrafficSpeedSample>(TrafficSpeedWindowSamples)
 
     fun accept(sample: SingBoxTrafficSample): TrafficStatsSnapshot {

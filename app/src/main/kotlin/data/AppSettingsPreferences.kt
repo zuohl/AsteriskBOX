@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import app.AppState
+import app.modes.normalizeNetworkActivityStyle
 import app.withNormalizedConnectionTestSettings
 import app.ServiceControlSchedule
 import app.ServiceControlKeyguard
@@ -41,22 +42,6 @@ internal class AppSettingsPreferences(
         }
     }
 
-    /**
-     * Whether the VPN Service tunnel was up when the process last ran. It is cleared on every
-     * orderly stop and survives only a process kill, which lets an app update restore the
-     * tunnel without starting one the user had stopped.
-     */
-    fun isVpnSessionActive(): Boolean = preferences.getBoolean(KeyVpnSessionActive, false)
-
-    @SuppressLint("UseKtx", "ApplySharedPref")
-    fun setVpnSessionActive(active: Boolean) {
-        if (isVpnSessionActive() == active) return
-        val editor = preferences.edit().putBoolean(KeyVpnSessionActive, active)
-        // A start is committed synchronously: an app update kills the process without a
-        // callback. A stop may also run on the main thread, so it is applied asynchronously.
-        if (active) editor.commit() else editor.apply()
-    }
-
     fun load(): AppState {
         val defaults = AppState(singBoxControlSecret = UUID.randomUUID().toString())
         val singBoxControlSecret = preferences
@@ -67,6 +52,9 @@ internal class AppSettingsPreferences(
             }
         return defaults.copy(
             colorMode = preferences.getInt(KeyColorMode, defaults.colorMode),
+            networkActivityStyle = normalizeNetworkActivityStyle(
+                preferences.getInt(KeyNetworkActivityStyle, defaults.networkActivityStyle),
+            ),
             languageMode = preferences.getInt(KeyLanguageMode, defaults.languageMode),
             seedIndex = preferences.getInt(KeySeedIndex, defaults.seedIndex),
             hideRecentTasks = preferences.getBoolean(KeyHideRecentTasks, defaults.hideRecentTasks),
@@ -121,6 +109,10 @@ internal class AppSettingsPreferences(
                 KeySingBoxProxyLayout,
                 defaults.singBoxProxyLayout,
             ),
+            singBoxProxyGroupLayout = preferences.getInt(
+                KeySingBoxProxyGroupLayout,
+                defaults.singBoxProxyGroupLayout,
+            ),
             singBoxProxySort = preferences.getInt(
                 KeySingBoxProxySort,
                 defaults.singBoxProxySort,
@@ -166,6 +158,7 @@ internal class AppSettingsPreferences(
                 ?: defaults.tunIpv6Cidr,
             enableConfigOverrideScript = preferences.getBoolean(KeyEnableConfigOverrideScript, defaults.enableConfigOverrideScript),
             configOverrideScript = preferences.getString(KeyConfigOverrideScript, defaults.configOverrideScript) ?: defaults.configOverrideScript,
+            pluginProtocols = preferences.getStringList(KeyPluginProtocols, defaults.pluginProtocols),
             coreLogLevel = preferences.getString(KeyCoreLogLevel, defaults.coreLogLevel)
                 ?: defaults.coreLogLevel,
             enableTrafficStatsNotification = preferences.getBoolean(
@@ -461,6 +454,7 @@ internal class AppSettingsPreferences(
 private const val PreferencesName = "asteriskbox_settings"
 private const val ObsoleteSettingsPayloadKey = "settings"
 internal const val KeyColorMode = "color_mode"
+internal const val KeyNetworkActivityStyle = "network_activity_style"
 internal const val KeyLanguageMode = "language_mode"
 internal const val KeySeedIndex = "seed_index"
 internal const val KeyHideRecentTasks = "hide_recent_tasks"
@@ -482,6 +476,7 @@ internal const val KeyRouteFinal = "route_final"
 internal const val KeyRunMode = "run_mode"
 internal const val KeySingBoxMode = "sing_box_mode"
 internal const val KeySingBoxProxyLayout = "sing_box_proxy_layout"
+internal const val KeySingBoxProxyGroupLayout = "sing_box_proxy_group_layout"
 internal const val KeySingBoxProxySort = "sing_box_proxy_sort"
 internal const val KeySingBoxControlPort = "sing_box_control_port"
 internal const val KeySingBoxControlSecret = "sing_box_control_secret"
@@ -499,11 +494,11 @@ internal const val KeyTunIpv4Cidr = "tun_ipv4_cidr"
 internal const val KeyTunIpv6Cidr = "tun_ipv6_cidr"
 internal const val KeyEnableConfigOverrideScript = "enable_config_override_script"
 internal const val KeyConfigOverrideScript = "config_override_script"
+internal const val KeyPluginProtocols = "plugin_protocols"
 internal const val KeyCoreLogLevel = "core_log_level"
 internal const val KeyEnableTrafficStatsNotification = "enable_traffic_stats_notification"
 internal const val KeyEnableBroadcastControl = "enable_broadcast_control"
 internal const val KeyEnableAutoConnect = "enable_auto_connect"
-private const val KeyVpnSessionActive = "vpn_session_active"
 internal const val KeyEnableResourceAutoUpdate = "enable_resource_auto_update"
 internal const val KeyResourceAutoUpdateInterval = "resource_auto_update_interval"
 internal const val KeyResourceFileSource = "resource_file_source"

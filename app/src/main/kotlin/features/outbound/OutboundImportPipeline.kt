@@ -914,7 +914,7 @@ internal object MihomoYamlOutboundParser {
 
 private object ProxyUrlOutboundParser {
     private val urlPattern = Regex(
-        """(?i)(?:socks(?:4a?|5h?)?|https?|ss|vmess|vless|trojan|hysteria|hy1|shadowtls|tuic|hysteria2(?:\+realm(?:\+http)?)?|hy2|anytls|snell|ssh|tor|naive(?:\+(?:https|quic))?|wg|wireguard|awg|warp)://[^\s<>"']+""",
+        """(?i)(?:socks(?:4a?|5h?)?|https?|ss|vmess|vless|trojan|hysteria|hy1|shadowtls|tuic|hysteria2(?:\+realm(?:\+http)?)?|hy2|anytls|snell|ssh|tor|naive(?:\+(?:https|quic))?|wg|wireguard|awg|warp|mierus|sq|juicity)://[^\s<>"']+""",
     )
 
     fun parseOutcomeOrNull(content: String): ImportOutcome<ImportedSingBoxOutbound>? {
@@ -1002,6 +1002,7 @@ private object ProxyUrlOutboundParser {
             return parseLegacyVmess(link, index)
         }
         if (scheme == "ss") return parseShadowsocks(link, index)
+        if (scheme in PluginShareLinkSchemes) return parsePluginShareLink(link)
         if (scheme == "hysteria2+realm" || scheme == "hysteria2+realm+http") {
             return parseHysteria2Realm(link, index)
         }

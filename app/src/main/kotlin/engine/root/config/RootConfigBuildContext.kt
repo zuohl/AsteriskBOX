@@ -3,6 +3,7 @@
 
 package engine.root.config
 
+import android.content.ComponentName
 import android.content.Context
 import app.AppState
 import app.effectiveFakeIpEnabled
@@ -10,10 +11,12 @@ import app.effectiveLocalDnsEnabled
 import engine.network.toPortOrNull
 import engine.proxy.ProxyEngineStartRequest
 import engine.network.normalizedFakeIpIpv4Pool
-import engine.singbox.SingBoxConfigFactory
+import engine.singbox.config.SingBoxConfigCompiler
+import engine.singbox.plugin.buildPluginEnvelope
 import engine.singbox.prepareSingBoxCoreLogPaths
 import features.resources.runtime.SingBoxResourceFilePaths
 import features.resources.runtime.singBoxResourceFilePaths
+import features.quicksettings.QuickSettingsTileRefreshReceiver
 import java.io.File
 
 internal class RootConfigBuildContext(
@@ -22,8 +25,14 @@ internal class RootConfigBuildContext(
     val resourceFilePaths: SingBoxResourceFilePaths,
 ) {
     fun buildRootStartConfig(): RootStartConfig {
+        // ROOT plugins cannot protect sockets: they dial a loopback mapping inbound.
+        val compiled = SingBoxConfigCompiler.compileForRuntime(androidContext, appState)
+        val pluginOptions = androidContext.buildPluginEnvelope(compiled.pluginPlans, compiled.pluginTarget)
         return appState.toRootStartConfig(
-            singBoxConfigBytes = SingBoxConfigFactory.buildConfigBytes(androidContext, appState),
+            runtimeEventReceiver = ComponentName(androidContext, QuickSettingsTileRefreshReceiver::class.java)
+                .flattenToString(),
+            singBoxConfigBytes = compiled.config.toByteArray(Charsets.UTF_8),
+            pluginOptionsBytes = pluginOptions.toByteArray(Charsets.UTF_8),
             resourceFilePaths = resourceFilePaths,
         )
     }
@@ -43,12 +52,15 @@ internal fun Context.prepareRootConfigBuildContext(request: ProxyEngineStartRequ
 }
 
 private fun AppState.toRootStartConfig(
+    runtimeEventReceiver: String,
     singBoxConfigBytes: ByteArray,
+    pluginOptionsBytes: ByteArray,
     resourceFilePaths: SingBoxResourceFilePaths,
 ): RootStartConfig {
     val dataDirectory = File(resourceFilePaths.dataDir)
     return RootStartConfig(
         singBoxConfigBytes = singBoxConfigBytes,
+        pluginOptionsBytes = pluginOptionsBytes,
         runtimePaths = RootConfigRuntimePaths(
             coreExecutablePath = resourceFilePaths.singBoxCorePath,
             coreConfigPath = File(dataDirectory, "config.json").absolutePath,
@@ -69,6 +81,7 @@ private fun AppState.toRootStartConfig(
         fakeIpIpv4Pool = rootFakeIpIpv4Pool(),
         enableBoot = enableRootBootScript,
         serviceControl = serviceControl,
+        runtimeEventReceiver = runtimeEventReceiver,
     )
 }
 

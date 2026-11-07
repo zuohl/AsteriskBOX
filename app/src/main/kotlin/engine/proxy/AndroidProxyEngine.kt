@@ -36,7 +36,7 @@ import system.AndroidRootShellGateway
 internal class AndroidProxyEngine(
     context: Context,
     rootAccess: AndroidRootShellGateway,
-) {
+) : ProxyLifecycleLock {
     private val appContext = context.applicationContext
     private var requestVpnPermission: VpnPermissionRequester = DenyVpnPermission
     private val vpnSingBoxEngine = VpnSingBoxEngine(
@@ -71,6 +71,9 @@ internal class AndroidProxyEngine(
     suspend fun shutdownCurrentRunMode(runMode: Int): ProxyEngineStatus = operationMutex.withLock {
         shutdownRunModeUnlocked(runMode)
     }
+
+    override suspend fun <T> withLifecycleLock(action: suspend () -> T): T =
+        operationMutex.withLock { action() }
 
     suspend fun <T> changeRootCore(
         runMode: Int,
@@ -177,10 +180,14 @@ internal class AndroidProxyEngine(
         val hasOtherActiveEngine = activeEngine.let { active -> active != null && active !== requestedEngine }
         var rootResumeChecked = false
         // A start that reaches an already running engine does not relaunch the core, so the
-        // ports it is running with must be kept instead of being resolved again.
-        if (!explicitRestart && requestedEngine is VpnSingBoxEngine && activeEngine === requestedEngine) {
+        // ports it is running with must be kept instead of being resolved again. The VPN tunnel
+        // outlives this process, so a fresh process (no active engine yet) checks it as well.
+        if (!explicitRestart && requestedEngine is VpnSingBoxEngine &&
+            (activeEngine == null || activeEngine === requestedEngine)
+        ) {
             val status = requestedEngine.status()
             if (status.running) {
+                activeEngine = requestedEngine
                 SingBoxTrafficStatsNotificationService.reconcile(
                     appContext,
                     request.appState.toSingBoxTrafficStatsRuntime(status.runMode ?: request.appState.runMode),

@@ -15,7 +15,7 @@
         },
         {
             "uniqueId": "com.github.asterisk4magisk:libbox",
-            "artifactVersion": "v1.15.0-alpha.13-reF1nd-android.1",
+            "artifactVersion": "v1.15.0-alpha.13-reF1nd-android.2",
             "name": "AndroidLibBoxLite",
             "description": "Pinned Android JNI and command API bindings for sing-box.",
             "website": "https://github.com/Asterisk4Magisk/AndroidLibBoxLite",
@@ -28,10 +28,10 @@
         },
         {
             "uniqueId": "androidx.navigation3:navigation3-runtime",
-            "artifactVersion": "1.2.0",
+            "artifactVersion": "1.2.1",
             "name": "Androidx Navigation 3 Runtime",
             "description": "Provides the building blocks for a Compose first Navigation solution that easily supports extensions.",
-            "website": "https://developer.android.com/jetpack/androidx/releases/navigation3#1.2.0",
+            "website": "https://developer.android.com/jetpack/androidx/releases/navigation3#1.2.1",
             "scm": {
                 "url": "https://cs.android.com/androidx/platform/frameworks/support"
             },
@@ -41,10 +41,10 @@
         },
         {
             "uniqueId": "androidx.navigation3:navigation3-ui",
-            "artifactVersion": "1.2.0",
+            "artifactVersion": "1.2.1",
             "name": "Androidx Navigation 3 UI",
             "description": "Provides a Navigation3 display that uses the building blocks from runtime to create a higher level solution.",
-            "website": "https://developer.android.com/jetpack/androidx/releases/navigation3#1.2.0",
+            "website": "https://developer.android.com/jetpack/androidx/releases/navigation3#1.2.1",
             "scm": {
                 "url": "https://cs.android.com/androidx/platform/frameworks/support"
             },
@@ -67,7 +67,7 @@
         },
         {
             "uniqueId": "github:Asterisk4Magisk/asteriskd",
-            "artifactVersion": "v2.2.7",
+            "artifactVersion": "v2.3.0",
             "name": "asteriskd",
             "description": "A root Android daemon that synchronizes local-address bypass rules and pinned eBPF maps.",
             "website": "https://github.com/Asterisk4Magisk/asteriskd",
@@ -158,7 +158,7 @@
         },
         {
             "uniqueId": "org.jetbrains.compose.material3:material3",
-            "artifactVersion": "1.13.0-beta01",
+            "artifactVersion": "1.13.0-beta02",
             "name": "Compose Material3 Components",
             "description": "Compose Material You Design Components library",
             "website": "https://github.com/JetBrains/compose-multiplatform",
@@ -210,7 +210,7 @@
         },
         {
             "uniqueId": "dev.chrisbanes.haze:haze",
-            "artifactVersion": "2.0.1",
+            "artifactVersion": "2.1.0",
             "name": "Haze",
             "description": "Haze",
             "website": "https://github.com/chrisbanes/haze/",
@@ -223,7 +223,7 @@
         },
         {
             "uniqueId": "dev.chrisbanes.haze:haze-blur",
-            "artifactVersion": "2.0.1",
+            "artifactVersion": "2.1.0",
             "name": "Haze Blur",
             "description": "Haze",
             "website": "https://github.com/chrisbanes/haze/",
@@ -301,7 +301,7 @@
         },
         {
             "uniqueId": "io.ktor:ktor-http",
-            "artifactVersion": "3.6.0",
+            "artifactVersion": "3.6.1",
             "name": "ktor-http",
             "description": "Ktor is a framework for quickly creating web applications in Kotlin with minimal effort.",
             "website": "https://github.com/ktorio/ktor",
@@ -366,7 +366,7 @@
         },
         {
             "uniqueId": "io.github.dokar3:quickjs-kt-android",
-            "artifactVersion": "1.0.15",
+            "artifactVersion": "1.0.16",
             "name": "quickjs-kt",
             "description": "A QuickJS binding for idiomatic Kotlin, with Async/DSL/ES Modules support.",
             "website": "https://github.com/dokar3/quickjs-kt",

@@ -52,8 +52,11 @@ internal fun SettingsAppSection(
     colorMode: Int,
     keyColorOptions: List<String>,
     seedIndex: Int,
+    chartStyleOptions: List<String>,
+    networkActivityStyle: Int,
     onColorModeChange: (Int) -> Unit,
     onSeedIndexChange: (Int) -> Unit,
+    onNetworkActivityStyleChange: (Int) -> Unit,
     onLanguageModeChange: (Int) -> Unit,
     autoHideNavigationBar: Boolean,
     onAutoHideNavigationBarChange: (Boolean) -> Unit,
@@ -74,8 +77,11 @@ internal fun SettingsAppSection(
         colorMode = colorMode,
         keyColorOptions = keyColorOptions,
         seedIndex = seedIndex,
+        chartStyleOptions = chartStyleOptions,
+        networkActivityStyle = networkActivityStyle,
         onColorModeChange = onColorModeChange,
         onSeedIndexChange = onSeedIndexChange,
+        onNetworkActivityStyleChange = onNetworkActivityStyleChange,
     )
     val autoHideNavigationBarTitle = stringResource(R.string.settings_auto_hide_navigation_bar)
     val autoHideNavigationBarSummary = stringResource(R.string.settings_auto_hide_navigation_bar_summary)
@@ -300,6 +306,7 @@ internal fun SettingsAdvancedSection(
     enableIpv6: Boolean,
     enableIpv6Prefer: Boolean,
     isLightweightMode: Boolean,
+    onOpenPlugins: () -> Unit,
     onOpenConfigOverrideScript: () -> Unit,
     runModeOptions: List<String>,
     selectedRunModeIndex: Int,
@@ -349,6 +356,13 @@ internal fun SettingsAdvancedSection(
                 accent = IconAccent.MaskGreen,
             )
         }
+        ArrowPreference(
+            title = stringResource(R.string.settings_plugins),
+            icon = Icons.Rounded.Extension,
+            summary = stringResource(R.string.settings_plugins_summary),
+            onClick = onOpenPlugins,
+            accent = IconAccent.MaskCyan,
+        )
         ArrowPreference(
             title = stringResource(R.string.singbox_override_script_title),
             icon = Icons.Rounded.Code,

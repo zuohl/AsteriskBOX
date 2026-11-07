@@ -4,7 +4,6 @@
 package features.monitoring.resource
 
 import android.content.Context
-import android.os.Process
 import android.os.SystemClock
 import android.system.Os
 import android.system.OsConstants
@@ -12,6 +11,7 @@ import app.AppState
 import app.modes.isRootRunMode
 import engine.root.runtime.RootSupervisorController
 import engine.root.runtime.runningCorePid
+import engine.vpn.AsteriskVpnService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import system.AndroidRootShellGateway
@@ -20,40 +20,49 @@ import utils.shellQuote
 
 internal enum class ProcessStatsSourceKind {
     CoreProcess,
-    AppProcess,
+    VpnProcess,
 }
 
 internal data class ProcessStatsReading(
     val snapshot: ProcessTickSnapshot,
     val source: ProcessStatsSourceKind,
     val uptimeMillis: Long?,
+    val memoryBytes: Long? = null,
 )
 
 internal class AndroidProcessStatsSource(
-    context: Context,
+    private val context: Context,
     private val rootAccess: AndroidRootShellGateway,
 ) {
     private val rootSupervisor = RootSupervisorController(context, rootAccess)
 
     suspend fun read(appState: AppState): ProcessStatsReading? = withContext(Dispatchers.IO) {
         if (!appState.proxyRunning) return@withContext null
-        if (appState.runMode.isRootRunMode()) readRootProcess() else readAppProcess()
+        if (appState.runMode.isRootRunMode()) readRootProcess() else readVpnProcess()
     }
 
-    private fun readAppProcess(): ProcessStatsReading? {
-        val elapsedRealtimeMillis = SystemClock.elapsedRealtime()
-        val processStartElapsedRealtimeMillis = Process.getStartElapsedRealtime()
+    private suspend fun readVpnProcess(): ProcessStatsReading? {
+        val stats = AsteriskVpnService.queryProcessStats(context) ?: return null
         val snapshot = buildAppProcessTickSnapshot(
-            pid = Process.myPid(),
-            processCpuMillis = Process.getElapsedCpuTime(),
-            elapsedRealtimeMillis = elapsedRealtimeMillis,
+            pid = stats.pid,
+            processCpuMillis = stats.cpuTimeMillis,
+            elapsedRealtimeMillis = stats.elapsedRealtimeMillis,
             processorCount = Runtime.getRuntime().availableProcessors().coerceAtLeast(1),
-            processStartElapsedRealtimeMillis = processStartElapsedRealtimeMillis,
+            processStartElapsedRealtimeMillis = stats.startElapsedRealtimeMillis,
         ) ?: return null
+        val memoryBytes = stats.procStatm?.let { procStatm ->
+            runCatching {
+                parseProcessResidentMemoryBytes(
+                    procStatm = procStatm,
+                    pageSizeBytes = Os.sysconf(OsConstants._SC_PAGESIZE),
+                )
+            }.getOrNull()
+        }
         return ProcessStatsReading(
             snapshot = snapshot,
-            source = ProcessStatsSourceKind.AppProcess,
-            uptimeMillis = (elapsedRealtimeMillis - processStartElapsedRealtimeMillis).coerceAtLeast(0L),
+            source = ProcessStatsSourceKind.VpnProcess,
+            uptimeMillis = (stats.elapsedRealtimeMillis - stats.startElapsedRealtimeMillis).coerceAtLeast(0L),
+            memoryBytes = memoryBytes,
         )
     }
 

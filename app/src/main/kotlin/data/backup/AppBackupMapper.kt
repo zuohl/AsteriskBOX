@@ -9,6 +9,7 @@ import engine.singbox.normalizedEbpfLocalDataPlane
 
 import app.withCompatibleProxyAppListMode
 import app.AppState
+import app.modes.normalizeNetworkActivityStyle
 import app.withNormalizedConnectionTestSettings
 import features.resources.withInitializedBundledRuleSets
 import app.ServiceControlSchedule
@@ -75,6 +76,7 @@ private fun AppState.toBackupSettings(): AppBackupSettings =
         colorMode = colorMode,
         languageMode = languageMode,
         seedIndex = seedIndex,
+        networkActivityStyle = networkActivityStyle,
         hideRecentTasks = hideRecentTasks,
         allowScreenshots = allowScreenshots,
         hideLauncherIcon = hideLauncherIcon,
@@ -92,6 +94,7 @@ private fun AppState.toBackupSettings(): AppBackupSettings =
         routeFinal = routeFinal,
         singBoxMode = singBoxMode,
         singBoxProxyLayout = singBoxProxyLayout,
+        singBoxProxyGroupLayout = singBoxProxyGroupLayout,
         singBoxProxySort = singBoxProxySort,
         singBoxControlPort = singBoxControlPort,
         singBoxControlSecret = singBoxControlSecret,
@@ -109,6 +112,7 @@ private fun AppState.toBackupSettings(): AppBackupSettings =
         tunIpv6Cidr = tunIpv6Cidr,
         enableConfigOverrideScript = enableConfigOverrideScript,
         configOverrideScript = configOverrideScript,
+        pluginProtocols = pluginProtocols,
         coreLogLevel = coreLogLevel,
         enableTrafficStatsNotification = enableTrafficStatsNotification,
         enableBroadcastControl = enableBroadcastControl,
@@ -296,6 +300,7 @@ private fun AppBackupData.toAppState(): AppState {
         colorMode = settings.colorMode,
         languageMode = settings.languageMode,
         seedIndex = settings.seedIndex,
+        networkActivityStyle = normalizeNetworkActivityStyle(settings.networkActivityStyle),
         hideRecentTasks = settings.hideRecentTasks,
         allowScreenshots = settings.allowScreenshots,
         hideLauncherIcon = settings.hideLauncherIcon,
@@ -328,6 +333,7 @@ private fun AppBackupData.toAppState(): AppState {
         enableAppListEnhancement = false,
         singBoxMode = settings.singBoxMode,
         singBoxProxyLayout = settings.singBoxProxyLayout,
+        singBoxProxyGroupLayout = settings.singBoxProxyGroupLayout,
         singBoxProxySort = settings.singBoxProxySort,
         singBoxControlPort = settings.singBoxControlPort,
         singBoxControlSecret = settings.singBoxControlSecret,
@@ -346,6 +352,7 @@ private fun AppBackupData.toAppState(): AppState {
         proxyRunning = false,
         enableConfigOverrideScript = settings.enableConfigOverrideScript,
         configOverrideScript = settings.configOverrideScript,
+        pluginProtocols = settings.pluginProtocols,
         coreLogLevel = settings.coreLogLevel,
         enableTrafficStatsNotification = settings.enableTrafficStatsNotification,
         enableBroadcastControl = settings.enableBroadcastControl,

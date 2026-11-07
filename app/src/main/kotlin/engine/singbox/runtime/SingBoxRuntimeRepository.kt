@@ -6,6 +6,7 @@ package engine.singbox.runtime
 import engine.root.dns.withRootDnsMutation
 import android.content.Context
 import app.AppState
+import app.effects.SingBoxRuntimeLifecycleTarget
 import app.DefaultConnectionTestUrl
 import app.isValidConnectionTestUrl
 import app.modes.RunModeVpnService
@@ -39,10 +40,10 @@ import ui.feedback.AndroidToastTipNotifier
 internal class SingBoxRuntimeRepository(
     private val appScope: CoroutineScope,
     context: Context,
-) {
+) : SingBoxRuntimeLifecycleTarget {
     private val appContext = context.applicationContext
     private val mutableState = MutableStateFlow(SingBoxRuntimeState())
-    private val trafficHistory = SingBoxTrafficHistoryBuffer(MaxTrafficHistorySize)
+    private val trafficHistory = SingBoxTrafficHistoryBuffer(TrafficHistoryCapacity)
     private val trafficHistoryLock = Any()
     private val sessionLock = Any()
     private val delayTestRunGate = SingBoxDelayTestRunGate()
@@ -84,6 +85,14 @@ internal class SingBoxRuntimeRepository(
             }
         }
         replaceSession(target, appState)
+    }
+
+    override fun resumeForForeground(appState: AppState) {
+        start(appState)
+    }
+
+    override fun pauseForBackground(appState: AppState) {
+        stop(resetSnapshots = false)
     }
 
     fun stop(resetSnapshots: Boolean = false) {
@@ -671,7 +680,6 @@ internal class SingBoxRuntimeRepository(
     }
 
     private companion object {
-        const val MaxTrafficHistorySize = 48
         const val ConnectAttempts = 3
         const val ConnectRetryMillis = 750L
         const val ReconnectDelayMillis = 1_000L

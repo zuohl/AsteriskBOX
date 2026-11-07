@@ -18,10 +18,11 @@ import ui.feedback.AndroidToastTipNotifier
 @Composable
 internal fun SingBoxRuntimeSynchronizer(
     stateStore: AndroidAppStateStore,
+    singBoxRuntimeLifecycle: SingBoxRuntimeLifecycleCoordinator,
     singBoxRuntime: SingBoxRuntimeRepository,
     tipNotifier: AndroidToastTipNotifier? = null,
 ) {
-    LaunchedEffect(stateStore, singBoxRuntime, tipNotifier) {
+    LaunchedEffect(stateStore, singBoxRuntimeLifecycle, singBoxRuntime, tipNotifier) {
         var previousState: AppState? = null
         var reloadJob: Job? = null
         stateStore.state
@@ -29,7 +30,7 @@ internal fun SingBoxRuntimeSynchronizer(
                 val prev = previousState
                 previousState = currentAppState
 
-                singBoxRuntime.start(currentAppState)
+                singBoxRuntimeLifecycle.updateAppState(currentAppState)
 
                 if (prev != null && prev.proxyRunning && currentAppState.proxyRunning) {
                     if (prev.hasKernelConfigurationChanged(currentAppState)) {

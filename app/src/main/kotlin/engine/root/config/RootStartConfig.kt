@@ -24,6 +24,8 @@ internal data class RootConfigRuntimePaths(
 
 internal data class RootStartConfig(
     val singBoxConfigBytes: ByteArray,
+    /** Plugin envelope the core reads beside its config; empty when no plugin runs. */
+    val pluginOptionsBytes: ByteArray,
     val runtimePaths: RootConfigRuntimePaths,
     val directCidrIpv4Path: String,
     val directCidrIpv6Path: String,
@@ -35,6 +37,7 @@ internal data class RootStartConfig(
     val fakeIpIpv4Pool: String,
     val enableBoot: Boolean,
     val serviceControl: ServiceControlSettings,
+    val runtimeEventReceiver: String,
 ) {
     val configPath: String
         get() = runtimePaths.coreConfigPath
@@ -43,6 +46,7 @@ internal data class RootStartConfig(
         if (this === other) return true
         if (other !is RootStartConfig) return false
         return singBoxConfigBytes.contentEquals(other.singBoxConfigBytes) &&
+            pluginOptionsBytes.contentEquals(other.pluginOptionsBytes) &&
             runtimePaths == other.runtimePaths &&
             directCidrIpv4Path == other.directCidrIpv4Path &&
             directCidrIpv6Path == other.directCidrIpv6Path &&
@@ -53,11 +57,13 @@ internal data class RootStartConfig(
             enableFakeIp == other.enableFakeIp &&
             fakeIpIpv4Pool == other.fakeIpIpv4Pool &&
             enableBoot == other.enableBoot &&
-            serviceControl == other.serviceControl
+            serviceControl == other.serviceControl &&
+            runtimeEventReceiver == other.runtimeEventReceiver
     }
 
     override fun hashCode(): Int {
         var result = singBoxConfigBytes.contentHashCode()
+        result = 31 * result + pluginOptionsBytes.contentHashCode()
         result = 31 * result + runtimePaths.hashCode()
         result = 31 * result + directCidrIpv4Path.hashCode()
         result = 31 * result + directCidrIpv6Path.hashCode()
@@ -69,6 +75,7 @@ internal data class RootStartConfig(
         result = 31 * result + fakeIpIpv4Pool.hashCode()
         result = 31 * result + enableBoot.hashCode()
         result = 31 * result + serviceControl.hashCode()
+        result = 31 * result + runtimeEventReceiver.hashCode()
         return result
     }
 }

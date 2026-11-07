@@ -71,7 +71,6 @@
     <string name="home_monitor_resource">Resource</string>
     <string name="home_monitor_traffic">Traffic</string>
     <string name="home_network_activity">Network activity</string>
-    <string name="home_network_speed_summary">↑ %1$s   ↓ %2$s</string>
     <string name="home_network_summary">IPv4 · %1$s\nIPv6 · %2$s</string>
     <string name="home_no_network_activity">No activity yet</string>
     <string name="home_resource_summary">CPU %1$s · %2$s</string>
@@ -148,21 +147,20 @@
     <!-- Monitoring - Resources -->
     <string name="monitor_resource_15_minutes">15 minutes</string>
     <string name="monitor_resource_1_hour">1 hour</string>
+    <string name="monitor_resource_active_connections">Active connections</string>
+    <string name="monitor_resource_card_cpu">CPU</string>
+    <string name="monitor_resource_card_memory">Memory</string>
     <string name="monitor_resource_cpu">Process CPU</string>
+    <string name="monitor_resource_cpu_average">CPU average</string>
     <string name="monitor_resource_cpu_peak">CPU peak</string>
     <string name="monitor_resource_details">Sampling details</string>
-    <string name="monitor_resource_embedded_explanation">CPU includes sing-box and other AsteriskBOX work in the same process, so it is not directly comparable with ROOT mode.</string>
-    <string name="monitor_resource_focus_memory">Memory %1$s</string>
     <string name="monitor_resource_interval">Sampling interval</string>
-    <string name="monitor_resource_memory">sing-box memory</string>
+    <string name="monitor_resource_memory_average">Memory average</string>
     <string name="monitor_resource_memory_peak">Memory peak</string>
     <string name="monitor_resource_pid">Process PID</string>
-    <string name="monitor_resource_root_explanation">CPU is sampled from the independent sing-box process.</string>
-    <string name="monitor_resource_source_embedded">AsteriskBOX process · Embedded</string>
-    <string name="monitor_resource_source_info">CPU measurement</string>
-    <string name="monitor_resource_source_root">sing-box process · ROOT</string>
     <string name="monitor_resource_title">Resource monitor</string>
-    <string name="monitor_resource_trend">Shared trend</string>
+    <string name="monitor_resource_today_traffic">Today’s traffic</string>
+    <string name="monitor_resource_uptime">Uptime</string>
 
     <!-- Monitoring - Traffic -->
     <string name="monitor_traffic_30_days">Last 30 days</string>
@@ -272,15 +270,22 @@
     <string name="sing_box_proxies_delay_status_failed">Failed</string>
     <string name="sing_box_proxies_delay_testing">Testing</string>
     <string name="sing_box_proxies_delay_testing_progress">%1$d/%2$d</string>
+    <string name="sing_box_proxies_groups">Proxy groups</string>
+    <string name="sing_box_proxies_expand_groups">Show all proxy groups</string>
     <string name="sing_box_proxies_group_test">Test group</string>
+    <string name="sing_box_proxies_group_expanded">Expanded</string>
+    <string name="sing_box_proxies_group_collapsed">Collapsed</string>
     <string name="sing_box_proxies_loading">Loading proxies…</string>
     <string name="sing_box_proxies_locate_selected">Locate current proxy</string>
-    <string name="sing_box_proxies_option_layout">Layout</string>
+    <string name="sing_box_proxies_option_group_layout">Group layout</string>
+    <string name="sing_box_proxies_option_group_layout_expandable">Expandable list</string>
+    <string name="sing_box_proxies_option_group_layout_tabs">Top tabs</string>
+    <string name="sing_box_proxies_option_layout">Proxy layout</string>
     <string name="sing_box_proxies_option_layout_auto">Automatic</string>
     <string name="sing_box_proxies_option_layout_double">Double</string>
     <string name="sing_box_proxies_option_layout_multiple">Multiple</string>
     <string name="sing_box_proxies_option_layout_single">Single</string>
-    <string name="sing_box_proxies_option_sort">Sort</string>
+    <string name="sing_box_proxies_option_sort">Proxy sorting</string>
     <string name="sing_box_proxies_option_sort_delay">Delay</string>
     <string name="sing_box_proxies_option_sort_name">Name</string>
     <string name="sing_box_proxies_options">Proxy display options</string>
@@ -304,6 +309,7 @@
     <string name="connection_test_url_invalid">Enter a valid HTTP or HTTPS URL</string>
 
     <!-- Outbound groups -->
+    <string name="error_outbound_group_share_file_creator_missing">Group export file creator is not registered</string>
     <string name="outbound_group_add">Add group</string>
     <string name="outbound_group_age_secret_key">Mihomo Age secret key</string>
     <string name="outbound_group_tab_all">All</string>
@@ -346,6 +352,12 @@
     <string name="outbound_group_name_duplicate">%1$s(%2$d)</string>
     <string name="outbound_group_name_placeholder">Leave blank to auto-assign on first sync</string>
     <string name="outbound_group_required">Select a group</string>
+    <string name="outbound_group_share">Share</string>
+    <string name="outbound_group_share_export_failed">Unable to export the group</string>
+    <string name="outbound_group_share_exported">Group exported</string>
+    <string name="outbound_group_share_file">Export links to file</string>
+    <string name="outbound_group_share_subscription_qr">Subscription QR code</string>
+    <string name="outbound_group_share_subscription_url">Copy subscription link</string>
     <string name="outbound_group_status_checked_at">Checked %1$s</string>
     <string name="outbound_group_status_failed">Failed</string>
     <string name="outbound_group_status_import_counts">Imported %1$d, skipped %2$d, duplicate %3$d</string>
@@ -427,7 +439,7 @@
     <string name="outbound_no_duplicates">No duplicate proxy servers found</string>
     <string name="outbound_no_invalid">No invalid proxy servers found</string>
     <string name="outbound_no_proxy_servers_to_delete">No proxy servers to delete</string>
-    <string name="outbound_no_urls">No proxy server URLs available to copy</string>
+    <string name="outbound_no_urls">No shareable proxy server URLs</string>
     <string name="outbound_option_layout">Layout</string>
     <string name="outbound_option_layout_auto">Automatic</string>
     <string name="outbound_option_layout_double">Double</string>
@@ -500,6 +512,22 @@
     <string name="outbound_editor_value">Value</string>
     <string name="outbound_field_allow_insecure">Allow insecure</string>
     <string name="outbound_field_alpn">ALPN</string>
+    <string name="outbound_field_gso">GSO</string>
+    <string name="outbound_field_blackhole_detection">Blackhole detection</string>
+    <string name="outbound_field_certificates">Certificates</string>
+    <string name="outbound_field_extra_paths">Extra paths</string>
+    <string name="outbound_field_keep_alive_interval">Keep-alive interval</string>
+    <string name="outbound_field_max_paths">Max paths</string>
+    <string name="outbound_field_min_mtu">Min MTU</string>
+    <string name="outbound_field_mtu_discovery">MTU discovery</string>
+    <string name="outbound_field_pinned_cert_sha256">Pinned certificate SHA-256</string>
+    <string name="outbound_field_sub_protocol">Sub-protocol</string>
+    <string name="outbound_field_zero_rtt">Zero-RTT</string>
+    <string name="outbound_field_initial_mtu">Initial MTU</string>
+    <string name="outbound_field_mieru_transport">Mieru transport</string>
+    <string name="outbound_field_mtu">MTU</string>
+    <string name="outbound_field_multiplexing_level">Multiplexing level</string>
+    <string name="outbound_field_traffic_pattern">Traffic pattern (JSON)</string>
     <string name="outbound_field_alter_id">Alter ID</string>
     <string name="outbound_field_authenticated_length">Authenticated length</string>
     <string name="outbound_field_authentication_bytes">Authentication bytes</string>
@@ -1141,6 +1169,7 @@
     <string name="error_vpn_start_config_missing">VPN Service start configuration is missing</string>
     <string name="error_vpn_tun_fd_unavailable">VPN TUN file descriptor is unavailable</string>
     <string name="error_vpn_tunnel_establish_failed">Unable to establish VPN tunnel</string>
+    <string name="error_vpn_session_unavailable">Unable to publish the VPN session; the tunnel was not started</string>
     <string name="settings_vpn_append_http_proxy">Append HTTP proxy</string>
     <string name="settings_vpn_append_http_proxy_summary">Supported apps use HTTP proxy directly</string>
     <string name="settings_vpn_hev_tun">Use Hev TUN</string>
@@ -1558,6 +1587,8 @@
     <string name="settings_tools">Tools</string>
 
     <!-- Appearance and language -->
+    <string name="option_chart_dots">Dots</string>
+    <string name="option_chart_lines">Two lines</string>
     <string name="option_dark">Dark</string>
     <string name="option_english">English</string>
     <string name="option_follow_system">Follow system</string>
@@ -1568,6 +1599,7 @@
     <string name="settings_language">Language</string>
     <string name="settings_privacy">Privacy</string>
     <string name="settings_theme_color">Accent color</string>
+    <string name="settings_network_activity_style">Network activity chart</string>
     <string name="settings_auto_hide_navigation_bar">Auto-hide navigation bar</string>
     <string name="settings_auto_hide_navigation_bar_summary">Hide the bottom bar when scrolling up</string>
     <string name="theme_color_blue">Default blue</string>
@@ -1632,4 +1664,19 @@
     <string name="license_title">Third Party Licenses</string>
     <string name="settings_about_project">About project</string>
     <string name="settings_open_source_licenses">Open source licenses</string>
+
+    <!-- Protocol plugins -->
+    <string name="settings_plugins">Plugins</string>
+    <string name="settings_plugins_summary">Run protocols shipped as separate APKs</string>
+    <string name="plugin_packages_title">Protocol plugins</string>
+    <string name="plugin_installed">Installed</string>
+    <string name="plugin_not_installed">Not installed</string>
+    <string name="plugin_installed_summary">%1$s · %2$s</string>
+    <string name="plugin_missing_summary">Tap to download</string>
+    <string name="plugin_trust_note">Plugins run as child processes of the core. Only plugins signed by husi, SagerNet, Exclave or Matsuri are recognized.</string>
+    <string name="plugin_implementations_title">Protocol implementations</string>
+    <string name="plugin_use_plugin">Use the %1$s plugin</string>
+    <string name="plugin_use_hysteria2_summary">Replaces the built-in implementation; port hopping is not supported</string>
+    <string name="plugin_use_naive_summary">Replaces the built-in implementation; QUIC is not supported</string>
+    <string name="plugin_missing_message">The %1$s plugin (%2$s) is not installed. Install it from Advanced settings → Plugins and try again.</string>
 </resources>

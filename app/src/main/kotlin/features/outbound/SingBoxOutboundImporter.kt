@@ -583,6 +583,9 @@ internal val SupportedSingBoxProxyOutboundTypes = linkedSetOf(
     "snell",
     "ssh",
     "wireguard",
+    "mieru",
+    "shadowquic",
+    "juicity",
 )
 
 private val ExpectedIgnoredSingBoxOutboundTypes = setOf(

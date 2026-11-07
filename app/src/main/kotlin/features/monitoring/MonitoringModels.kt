@@ -15,26 +15,12 @@ internal data class MonitoringResourceSummary(
     val memoryBytes: Long? = null,
     val source: ProcessStatsSourceKind? = null,
     val uptimeMillis: Long? = null,
+    val uptimeMeasuredAtElapsedMillis: Long = 0L,
     val processId: Int? = null,
     val memoryLimitBytes: Long? = null,
     val sampleIntervalMillis: Long? = null,
     val fifteenMinuteSamples: List<ProcessStatsSample> = emptyList(),
     val oneHourSamples: List<ProcessStatsSample> = emptyList(),
-)
-
-internal data class MonitoringResourceFocusState(
-    val serviceRunning: Boolean,
-    val cpuPercent: Double?,
-    val memoryBytes: Long?,
-)
-
-internal fun buildMonitoringResourceFocusState(
-    serviceRunning: Boolean,
-    summary: MonitoringResourceSummary,
-): MonitoringResourceFocusState = MonitoringResourceFocusState(
-    serviceRunning = serviceRunning,
-    cpuPercent = summary.cpuPercent,
-    memoryBytes = summary.memoryBytes,
 )
 
 internal enum class ConnectionMonitorStatus {

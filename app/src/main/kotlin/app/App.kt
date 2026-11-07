@@ -50,6 +50,7 @@ fun App(
     backupFilePicker: suspend () -> Uri?,
     backupFileCreator: suspend (String) -> Uri?,
     logFileCreator: suspend (String) -> Uri?,
+    outboundShareFileCreator: suspend (String) -> Uri?,
     requestVpnPermission: VpnPermissionRequester,
 ) {
     val appContext = LocalContext.current.applicationContext
@@ -105,10 +106,11 @@ fun App(
     val enhancementModuleCoordinator = remember(appContext) {
         EnhancementModuleCoordinator { AndroidEnhancementModuleBackend(appContext) }
     }
-    val rootBootScriptUseCase = remember(appContext, rootAccess) {
+    val rootBootScriptUseCase = remember(appContext, rootAccess, proxyEngine) {
         RootBootScriptUseCase(
             context = appContext,
             rootAccess = rootAccess,
+            lifecycleLock = proxyEngine,
         )
     }
     val rootEbpfProbeUseCase = remember(appContext, rootAccess) {
@@ -159,6 +161,7 @@ fun App(
         enhancementModuleCoordinator,
         tipNotifier,
         logFileCreator,
+        outboundShareFileCreator,
     ) {
         AppServices(
             appScope = appScope,
@@ -189,6 +192,7 @@ fun App(
             enhancementModuleCoordinator = enhancementModuleCoordinator,
             tipNotifier = tipNotifier,
             logFileCreator = logFileCreator,
+            outboundShareFileCreator = outboundShareFileCreator,
             coreLogRepository = AndroidCoreLogRepository,
             rootLogRepository = AndroidAsteriskdLogRepository,
             logcatRepository = AndroidLogcatRepository,
@@ -206,6 +210,7 @@ fun App(
     )
     SingBoxRuntimeSynchronizer(
         stateStore = stateStore,
+        singBoxRuntimeLifecycle = application.singBoxRuntimeLifecycle,
         singBoxRuntime = application.singBoxRuntime,
         tipNotifier = tipNotifier,
     )

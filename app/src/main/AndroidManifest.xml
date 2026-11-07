@@ -3,6 +3,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Android 17+: required to reach LAN proxy nodes and to serve hotspot/LAN clients. -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <!-- Required for network callbacks to include standby physical networks. -->
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -136,6 +138,12 @@
             </intent-filter>
         </receiver>
 
+        <!-- Receives the start that the VPN Service hands back after a boot resume or an
+             always-on start; only the service sends it, by explicit component. -->
+        <receiver
+            android:name="features.boot.VpnResumeReceiver"
+            android:exported="false" />
+
         <!--
             Opens the main screen when the user dials *#*#260728#*#*
             from the system dialer. The broadcast is dispatched system-wide
@@ -166,12 +174,23 @@
             <meta-data
                 android:name="android.service.quicksettings.TOGGLEABLE_TILE"
                 android:value="true" />
+            <meta-data
+                android:name="android.service.quicksettings.ACTIVE_TILE"
+                android:value="true" />
         </service>
 
+        <!-- Receives the runtime events that the ROOT supervisor sends by explicit component, so the
+             tile is current before the panel opens; only root can deliver to it. -->
+        <receiver
+            android:name="features.quicksettings.QuickSettingsTileRefreshReceiver"
+            android:exported="false" />
+
+        <!-- Runs in the ":service" process beside the VPN Service, so showing traffic statistics
+             never keeps the UI process alive, in VPN and ROOT modes alike. -->
         <service
             android:name="engine.stats.SingBoxTrafficStatsNotificationService"
             android:exported="false"
-            android:process=":bg"
+            android:process=":service"
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
@@ -181,13 +200,15 @@
         <!-- systemExempted is the documented type for a VPN app configured in the system VPN
              settings. Lint's ForegroundServicePermission check only models the exact-alarm
              criterion, so the documented VPN criterion is suppressed here instead of adding an
-             alarm permission this app never uses. -->
+             alarm permission this app never uses.
+             The service and its core run in the ":service" process so the app process stays
+             reclaimable; keep the name in sync with AsteriskVpnService.ServiceProcessSuffix. -->
         <service
             android:name="engine.vpn.AsteriskVpnService"
             android:exported="false"
-            android:process=":bg"
             android:foregroundServiceType="systemExempted"
             android:permission="android.permission.BIND_VPN_SERVICE"
+            android:process=":service"
             tools:ignore="ForegroundServicePermission,VpnServicePolicy">
             <intent-filter>
                 <action android:name="android.net.VpnService" />

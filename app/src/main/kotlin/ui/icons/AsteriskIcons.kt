@@ -16,6 +16,8 @@ import androidx.compose.material.icons.automirrored.rounded.Wysiwyg
 import androidx.compose.material.icons.rounded.AccountTree
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.AutoFixHigh
 import androidx.compose.material.icons.rounded.Block
@@ -44,6 +46,7 @@ import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.FilterAlt
@@ -81,6 +84,7 @@ import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SettingsEthernet
 import androidx.compose.material.icons.rounded.SettingsInputComponent
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SortByAlpha
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Storage
@@ -107,6 +111,8 @@ internal object AsteriskIcons {
         val AccountTree: ImageVector = MaterialIcons.Rounded.AccountTree
         val Add: ImageVector = MaterialIcons.Rounded.Add
         val Apps: ImageVector = MaterialIcons.Rounded.Apps
+        val ArrowDownward: ImageVector = MaterialIcons.Rounded.ArrowDownward
+        val ArrowUpward: ImageVector = MaterialIcons.Rounded.ArrowUpward
         val AutoAwesome: ImageVector = MaterialIcons.Rounded.AutoAwesome
         val AutoFixHigh: ImageVector = MaterialIcons.Rounded.AutoFixHigh
         val Block: ImageVector = MaterialIcons.Rounded.Block
@@ -136,6 +142,7 @@ internal object AsteriskIcons {
         val ErrorOutline: ImageVector = MaterialIcons.Rounded.ErrorOutline
         val ExpandLess: ImageVector = MaterialIcons.Rounded.ExpandLess
         val ExpandMore: ImageVector = MaterialIcons.Rounded.ExpandMore
+        val Extension: ImageVector = MaterialIcons.Rounded.Extension
         val FileDownload: ImageVector = MaterialIcons.Rounded.FileDownload
         val FileUpload: ImageVector = MaterialIcons.Rounded.FileUpload
         val FilterAlt: ImageVector = MaterialIcons.Rounded.FilterAlt
@@ -172,6 +179,7 @@ internal object AsteriskIcons {
         val Settings: ImageVector = MaterialIcons.Rounded.Settings
         val SettingsEthernet: ImageVector = MaterialIcons.Rounded.SettingsEthernet
         val SettingsInputComponent: ImageVector = MaterialIcons.Rounded.SettingsInputComponent
+        val Share: ImageVector = MaterialIcons.Rounded.Share
         val SortByAlpha: ImageVector = MaterialIcons.Rounded.SortByAlpha
         val Speed: ImageVector = MaterialIcons.Rounded.Speed
         val Storage: ImageVector = MaterialIcons.Rounded.Storage

@@ -127,6 +127,8 @@ internal suspend fun synchronizeProxyStatus(
     val shouldCheckRuntime = !snapshot.runMode.isRootRunMode() || snapshot.serviceControl.enabled || snapshot.proxyRunning
     if (!shouldCheckRuntime) return true
 
+    // Every run mode is probed: `proxyRunning` is not persisted, and the VPN Service runs in its
+    // own process, so a tunnel that outlived this process must be discovered here.
     val status = readStatus(snapshot) ?: return false
     updateAppState { state ->
         if (state.runMode != snapshot.runMode || state.proxyRunning != snapshot.proxyRunning) {

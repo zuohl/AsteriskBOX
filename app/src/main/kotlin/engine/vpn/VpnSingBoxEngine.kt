@@ -11,6 +11,13 @@ import app.R
 import engine.proxy.mode.AndroidModeProxyEngine
 import engine.proxy.ProxyEngineStartRequest
 import engine.proxy.ProxyEngineStatus
+import engine.singbox.logDirectoryPath
+import features.logs.AndroidAppLogger
+import features.logs.clearVpnServiceLogsAsApp
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 
 internal class VpnSingBoxEngine(
     private val context: Context,
@@ -41,22 +48,42 @@ internal class VpnSingBoxEngine(
         if (prepareIntent != null && !requestVpnPermission(prepareIntent)) {
             error(context.getString(R.string.error_vpn_permission_denied))
         }
-        AsteriskVpnService.start(
-            context = context,
-            config = VpnSingBoxConfigFactory.create(context, request),
-        )
+        try {
+            val config = VpnSingBoxConfigFactory.create(context, request)
+            // The core log files and their in-memory copies belong to this process; the service
+            // process only hosts the core, so the previous session's logs are cleared here.
+            clearVpnServiceLogsAsApp(File(config.coreLogPaths.logDirectoryPath()), LogTag)
+            AsteriskVpnService.start(
+                context = context,
+                config = config,
+            )
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            // The service may run in another process and does not write this process' log.
+            AndroidAppLogger.error(LogTag, "Failed to start VPN Service", error)
+            throw error
+        }
     }
 
     override suspend fun stop(): ProxyEngineStatus {
-        AsteriskVpnService.stop(context)
+        // Without a session there is nothing to stop, and asking would launch the service process.
+        if (runtimeRunning()) AsteriskVpnService.stop(context)
         return status()
     }
 
-    override suspend fun status(): ProxyEngineStatus {
-        return ProxyEngineStatus(
-            running = runtimeRunning(),
+    override suspend fun status(): ProxyEngineStatus = withContext(Dispatchers.IO) {
+        val running = runtimeRunning()
+        // The local proxy is read from the session on demand (LocalProxyRuntime), and the
+        // watch reports the end of the tunnel, however it ends, to this process.
+        if (running) VpnSession.watch(context)
+        ProxyEngineStatus(
+            running = running,
             runMode = runMode,
         )
+    }
+
+    private companion object {
+        const val LogTag = "VpnSingBoxEngine"
     }
 }
 

@@ -67,16 +67,18 @@ internal fun reduceSingBoxProxyNodeNames(
     displayNames: Map<String, String> = emptyMap(),
     testingBaselines: Map<String, Long> = emptyMap(),
     failedNodes: Set<String> = emptySet(),
+    protocolTypes: Map<String, String> = emptyMap(),
 ): List<String> {
     val keyword = query.trim()
     return group?.all
         ?.filter { nodeName ->
             val node = proxies.node(nodeName)
-            val displayType = node.type.displaySingBoxProtocolName()
+            val protocolType = protocolTypes[nodeName] ?: node.type
+            val displayType = protocolType.displaySingBoxProtocolName()
             keyword.isEmpty() ||
                 node.name.contains(keyword, ignoreCase = true) ||
                 displayNames[nodeName]?.contains(keyword, ignoreCase = true) == true ||
-                node.type.contains(keyword, ignoreCase = true) ||
+                protocolType.contains(keyword, ignoreCase = true) ||
                 displayType.contains(keyword, ignoreCase = true)
         }
         ?.sortSingBoxProxyNodeNames(
@@ -87,6 +89,38 @@ internal fun reduceSingBoxProxyNodeNames(
             failedNodes = failedNodes,
         )
         .orEmpty()
+}
+
+internal data class SingBoxProxyGroupSection(
+    val group: SingBoxProxyGroup,
+    val nodes: List<String>,
+)
+
+internal fun reduceSingBoxProxyGroupSections(
+    proxies: SingBoxProxiesState,
+    query: String,
+    sort: Int,
+    displayNamesForGroup: (SingBoxProxyGroup) -> Map<String, String>,
+    testingBaselines: Map<String, Long>,
+    failedNodes: Set<String>,
+    protocolTypes: Map<String, String> = emptyMap(),
+): List<SingBoxProxyGroupSection> {
+    val keyword = query.trim()
+    return proxies.groups.mapNotNull { group ->
+        val matchesGroup = group.displayName.contains(keyword, ignoreCase = true) ||
+            group.name.contains(keyword, ignoreCase = true)
+        val nodes = reduceSingBoxProxyNodeNames(
+            group = group,
+            proxies = proxies,
+            query = if (matchesGroup) "" else keyword,
+            sort = sort,
+            displayNames = displayNamesForGroup(group),
+            testingBaselines = testingBaselines,
+            failedNodes = failedNodes,
+            protocolTypes = protocolTypes,
+        )
+        if (matchesGroup || nodes.isNotEmpty()) SingBoxProxyGroupSection(group, nodes) else null
+    }
 }
 
 internal fun resolveSingBoxProxyLayout(layout: Int, isWideScreen: Boolean): Int {

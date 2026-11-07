@@ -11,13 +11,19 @@ import features.resources.ResourceFileUpdateRequest
 import features.resources.runtime.AndroidResourceFileDownloadCancellation
 import android.app.Application
 import features.home.HomeServiceOperationState
+import app.effects.AppActivityForegroundTracker
+import app.effects.SingBoxRuntimeLifecycleCoordinator
 import app.modes.RunModeVpnService
 import features.boot.BootAutoConnect
+import features.quicksettings.quickSettingsTileState
+import features.quicksettings.refreshQuickSettingsTileUnlessShowing
 import data.AndroidAppStateStore
 import data.AppSettingsPreferences
 import engine.singbox.config.validateSingBoxRuntimeConfiguration
 import features.outbound.parseOutboundImportContent
 import features.outbound.RealDelayPinger
+import features.outbound.singBoxOutboundConfigFormatter
+import features.outbound.AndroidOutboundPinger
 import features.outbound.OutboundListProjectionCache
 import features.outbound.OutboundCommandResult
 import features.outbound.OutboundPingRuntimeRepository
@@ -50,11 +56,19 @@ import engine.singbox.runtime.SingBoxRuntimeRepository
 import engine.proxy.AndroidProxyEngine
 import system.AndroidRootShellGateway
 import engine.vpn.AndroidLibboxRuntime
+import engine.proxy.LocalProxyRuntime
+import engine.vpn.AsteriskVpnService
+import engine.vpn.VpnSession
+import app.effects.synchronizeProxyStatus
 
 class AsteriskApplication : Application(), SingletonImageLoader.Factory {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     internal val homeServiceOperationState = HomeServiceOperationState()
     internal val singBoxRuntime: SingBoxRuntimeRepository by lazy { SingBoxRuntimeRepository(appScope, this) }
+    internal val singBoxRuntimeLifecycle: SingBoxRuntimeLifecycleCoordinator by lazy {
+        SingBoxRuntimeLifecycleCoordinator(appScope, singBoxRuntime)
+    }
+    private lateinit var foregroundTracker: AppActivityForegroundTracker
     internal val outboundPingRuntime: OutboundPingRuntimeRepository by lazy {
         OutboundPingRuntimeRepository(
             scope = appScope,
@@ -159,6 +173,7 @@ class AsteriskApplication : Application(), SingletonImageLoader.Factory {
             parse = { content, group, state ->
                 parseOutboundImportContent(
                     content,
+                    jsonFormatter = applicationContext.singBoxOutboundConfigFormatter(state.runMode),
                     providerFetcher = { request ->
                         subscriptionPreparer.fetchProvider(request, group.userAgent, state.toSubscriptionFetchOptions(group))
                     },
@@ -213,6 +228,46 @@ class AsteriskApplication : Application(), SingletonImageLoader.Factory {
         )
     }
 
+    /**
+     * Brings the app state in line when a tunnel ends in the service process, whether it was
+     * stopped, revoked or its process died. The session watch reports the end, so this costs
+     * nothing while the tunnel runs; a tunnel that is up when this process starts is watched
+     * from here as well.
+     */
+    private fun synchronizeOnVpnSessionEnd() {
+        appScope.launch {
+            VpnSession.ended.collect {
+                // Only the VPN mode is resynchronized: other modes are probed through ROOT.
+                if (stateStore.state.value.runMode != RunModeVpnService) return@collect
+                synchronizeProxyStatus(
+                    currentState = { stateStore.state.value },
+                    readStatus = { snapshot ->
+                        runCatching {
+                            proxyEngine.status(snapshot.runMode, snapshot)
+                        }.getOrNull()
+                    },
+                    updateAppState = stateStore::update,
+                )
+            }
+        }
+        appScope.launch(Dispatchers.IO) { VpnSession.watch(applicationContext) }
+    }
+
+    /**
+     * Asks SystemUI to rebind the quick settings tile whenever a state source in this process
+     * changes it; the first collection is the refresh at process start. The language is included
+     * because opening the panel no longer refreshes an active tile. A `proxyRunning` the tile
+     * writes back itself is skipped, since the tile shows it without reading the status again.
+     */
+    private fun refreshQuickSettingsTileOnProxyStateChange() {
+        appScope.launch {
+            stateStore.state
+                .map { state -> state.quickSettingsTileState() }
+                .distinctUntilChanged()
+                .collect { tileState -> refreshQuickSettingsTileUnlessShowing(applicationContext, tileState) }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         val processName = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
@@ -223,20 +278,22 @@ class AsteriskApplication : Application(), SingletonImageLoader.Factory {
             }.getOrDefault("")
         }
         if (processName.endsWith(":tester")) {
-            // 独立测速进程：使用独立 basePath，避免与 :bg 的 VPN 内核争抢 command.sock
+            // 独立测速进程：使用独立 basePath，避免与 :service 的 VPN 内核争抢 command.sock
             AndroidLibboxRuntime.setup(this, engine.singbox.runtime.TesterLibboxBaseDirName)
             return
         }
-        val isBackgroundProcess = processName.endsWith(":bg")
-        if (isBackgroundProcess) {
-            AndroidLibboxRuntime.setup(this)
-            AndroidCoreLogRepository.initialize(applicationContext)
+        // The `:service` process only executes: the VPN Service with its core and the traffic
+        // statistics service. The state store, the schedulers, WorkManager and the core log
+        // repositories belong to this app process; `:service` only appends its own app log.
+        if (AsteriskVpnService.isServiceProcess(this)) {
+            // libbox is set up on demand there: a ROOT traffic statistics service never needs it.
+            AndroidLogcatRepository.initializeServiceProcess(this)
             return
         }
-        engine.vpn.AsteriskVpnService.reconcileState(this)
-        if (!engine.vpn.AsteriskVpnService.isRunning(this)) {
-            stateStore.update { it.copy(proxyRunning = false) }
-        }
+        // HTTP fetches here go through the tunnel's local proxy, which the service publishes.
+        LocalProxyRuntime.attachExternalSource { VpnSession.runningLocalProxyOptions(applicationContext) }
+        synchronizeOnVpnSessionEnd()
+        refreshQuickSettingsTileOnProxyStateChange()
         appScope.launch {
             val scheduler = ResourceAutoUpdateScheduler(applicationContext)
             stateStore.state
@@ -248,6 +305,8 @@ class AsteriskApplication : Application(), SingletonImageLoader.Factory {
         AndroidLogcatRepository.initialize(applicationContext)
         AndroidCoreLogRepository.initialize(applicationContext)
         AndroidAsteriskdLogRepository.initialize(applicationContext)
+        foregroundTracker = AppActivityForegroundTracker(singBoxRuntimeLifecycle)
+        registerActivityLifecycleCallbacks(foregroundTracker)
         appScope.launch {
             stateStore.state
                 .map { state ->
