@@ -65,7 +65,7 @@ internal class OutboundListIndex internal constructor(
         groupId: Int,
         query: String,
         sort: Int,
-        pingState: OutboundPingRuntimeState,
+        pingState: OutboundPingRuntimeState? = null,
         proxiesState: SingBoxProxiesState? = null,
     ): List<OutboundListItem> {
         val visible = byGroup[groupId].orEmpty().filter { item ->
@@ -94,11 +94,11 @@ internal class OutboundListIndex internal constructor(
 
 internal fun OutboundListItem.effectiveDelaySortKey(
     proxiesState: SingBoxProxiesState?,
-    pingState: OutboundPingRuntimeState,
+    pingState: OutboundPingRuntimeState? = null,
 ): Long {
     val runtimeNode = proxiesState?.nodeByName?.get(outbound.tag)
     val runtimeDelay = runtimeNode?.delay?.takeIf { it > 0 }?.toLong()
-    val pingLatency = pingLatencyMillis(pingState)
+    val pingLatency = pingState?.let { pingLatencyMillis(it) }
     val effective = runtimeDelay ?: pingLatency
     return when {
         effective != null && effective > 0 && effective != FailedPingMillis -> effective

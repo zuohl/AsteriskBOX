@@ -21,7 +21,6 @@ import data.AndroidAppStateStore
 import data.AppSettingsPreferences
 import engine.singbox.config.validateSingBoxRuntimeConfiguration
 import features.outbound.parseOutboundImportContent
-import features.outbound.RealDelayPinger
 import features.outbound.singBoxOutboundConfigFormatter
 import features.outbound.AndroidOutboundPinger
 import features.outbound.OutboundListProjectionCache
@@ -72,11 +71,7 @@ class AsteriskApplication : Application(), SingletonImageLoader.Factory {
     internal val outboundPingRuntime: OutboundPingRuntimeRepository by lazy {
         OutboundPingRuntimeRepository(
             scope = appScope,
-            pinger = RealDelayPinger(
-                context = applicationContext,
-                singBoxRuntime = singBoxRuntime,
-                getAppState = { stateStore.state.value },
-            ),
+            pinger = AndroidOutboundPinger(),
         )
     }
     internal val outboundListProjectionCache: OutboundListProjectionCache by lazy {
@@ -276,11 +271,6 @@ class AsteriskApplication : Application(), SingletonImageLoader.Factory {
             runCatching {
                 java.io.File("/proc/self/cmdline").readText().trim('\u0000', ' ', '\n', '\r')
             }.getOrDefault("")
-        }
-        if (processName.endsWith(":tester")) {
-            // 独立测速进程：使用独立 basePath，避免与 :service 的 VPN 内核争抢 command.sock
-            AndroidLibboxRuntime.setup(this, engine.singbox.runtime.TesterLibboxBaseDirName)
-            return
         }
         // The `:service` process only executes: the VPN Service with its core and the traffic
         // statistics service. The state store, the schedulers, WorkManager and the core log

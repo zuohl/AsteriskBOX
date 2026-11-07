@@ -118,6 +118,9 @@ import features.importing.reportImportFailure
 import features.importing.toImportResultPresentation
 import features.logs.FailureLogContext
 import features.singbox.displaySingBoxProtocolName
+import features.singbox.resolveSingBoxProxyDelayStatus
+import features.singbox.SingBoxProxyDelayStatus
+import features.singbox.didSingBoxProxyDelayTestSucceed
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -335,9 +338,6 @@ internal fun OutboundListPage(
     val copiedMessage = stringResource(R.string.common_copied)
     val noPingTargetsMessage = stringResource(R.string.outbound_ping_no_targets)
 
-    LaunchedEffect(appState.outbounds) {
-        services.outboundPingRuntime.reconcile(appState.outbounds)
-    }
 
     LaunchedEffect(groups.map(OutboundGroupState::id)) {
         if (pagerState.currentPage > groups.lastIndex && groups.isNotEmpty()) {
@@ -501,17 +501,50 @@ internal fun OutboundListPage(
         }
     }
 
-    fun pingOutbounds(
-        targets: List<OutboundState>,
-    ) {
-        val testable = targets.filter { outbound ->
-            outboundIndex.item(outbound.id)?.pingHost != null
-        }
-        if (testable.isEmpty()) {
-            launchOperation { services.tipNotifier.show(noPingTargetsMessage) }
+    val runtimeUnavailableMessage = stringResource(R.string.sing_box_proxies_runtime_unavailable)
+    val delayDoneMessage = stringResource(R.string.sing_box_proxies_delay_done)
+    val delayFailedMessage = stringResource(R.string.sing_box_proxies_delay_failed)
+
+    fun testGroup(groupTag: String?) {
+        if (!appState.proxyRunning) {
+            scope.launch { services.tipNotifier.show(runtimeUnavailableMessage) }
             return
         }
-        services.outboundPingRuntime.start(testable)
+        if (runtimeState.delayTestingTarget != null) return
+        val targetGroup = groupTag?.takeIf { tag -> runtimeState.proxies.groups.any { it.name == tag } }
+            ?: APP_ALL_NODES_TEST_SELECTOR.takeIf { tag -> runtimeState.proxies.groups.any { it.name == tag } }
+            ?: runtimeState.proxies.groups.firstOrNull()?.name
+        if (targetGroup != null) {
+            services.appScope.launch {
+                services.singBoxRuntime.testGroupDelay(appState, targetGroup)
+                    .onSuccess { services.tipNotifier.show(delayDoneMessage) }
+                    .onFailure { error -> services.tipNotifier.showError(error, delayFailedMessage) }
+            }
+        } else {
+            scope.launch { services.tipNotifier.show(runtimeUnavailableMessage) }
+        }
+    }
+
+    fun testProxy(proxyTag: String) {
+        if (!appState.proxyRunning) {
+            scope.launch { services.tipNotifier.show(runtimeUnavailableMessage) }
+            return
+        }
+        if (runtimeState.delayTestingTarget != null) return
+        services.appScope.launch {
+            services.singBoxRuntime.testProxyDelay(appState, proxyTag)
+                .onSuccess { result ->
+                    val message = if (didSingBoxProxyDelayTestSucceed(result)) {
+                        delayDoneMessage
+                    } else {
+                        delayFailedMessage
+                    }
+                    services.tipNotifier.show(message)
+                }
+                .onFailure { error ->
+                    services.tipNotifier.showError(error, delayFailedMessage)
+                }
+        }
     }
 
     suspend fun handleOutboundCommandResult(
@@ -738,13 +771,13 @@ internal fun OutboundListPage(
                                 contentDescription = stringResource(R.string.outbound_locate_active),
                             )
                         }
-                        val isTestingDelay = (runtimeState.delayTestingTarget != null) ||
-                            selectedOutbounds.any { it.id in pingState.runningIds }
+                        val isTestingDelay = runtimeState.delayTestingTarget != null
                         IconButton(
                             onClick = {
-                                pingOutbounds(targets = selectedOutbounds)
+                                val currentTag = selectedGroup?.let { managedOutboundGroupSelectorTag(it.id, it.name) }
+                                testGroup(currentTag)
                             },
-                            enabled = selectedOutbounds.isNotEmpty() && !isTestingDelay,
+                            enabled = !isTestingDelay,
                         ) {
                             if (isTestingDelay) {
                                 CircularProgressIndicator(
@@ -762,13 +795,10 @@ internal fun OutboundListPage(
                             onInteractionCountChange = onChildInteractionChange,
                             layout = appState.outboundListLayout,
                             sort = appState.outboundListSort,
-                            pingRunning = selectedOutbounds.any { outbound ->
-                                outbound.id in pingState.runningIds
-                            },
+                            pingRunning = runtimeState.delayTestingTarget != null,
                             onPing = {
-                                pingOutbounds(
-                                    targets = selectedOutbounds,
-                                )
+                                val currentTag = selectedGroup?.let { managedOutboundGroupSelectorTag(it.id, it.name) }
+                                testGroup(currentTag)
                             },
                             onLayoutChange = { layout ->
                                 updateAppState { state -> state.copy(outboundListLayout = layout) }
@@ -930,6 +960,12 @@ internal fun OutboundListPage(
             verticalAlignment = Alignment.Top,
         ) { page ->
             val group = groups.getOrNull(page)
+            val currentGroupTag = group?.let { managedOutboundGroupSelectorTag(it.id, it.name) }.orEmpty()
+            val runtimeGroup = runtimeState.proxies.groups.firstOrNull { it.name == currentGroupTag }
+            val currentGroupSelectedTag = runtimeGroup?.now?.takeIf(String::isNotBlank)
+                ?: appState.selectorSelections[currentGroupTag]?.takeIf(String::isNotBlank)
+                ?: (if (activeTarget == currentGroupTag) effectiveActiveNodeTag else null)
+                ?: group?.let { g -> appState.outbounds.firstOrNull { it.groupId == g.id }?.tag }.orEmpty()
             val groupOutbounds = outboundIndex.visible(
                 groupId = group?.id ?: Int.MIN_VALUE,
                 query = query,
@@ -985,40 +1021,36 @@ internal fun OutboundListPage(
                 pingState = pingState,
                 runtimeState = runtimeState,
                 isSelectorMode = isSelectorMode,
-                effectiveActiveNodeTag = effectiveActiveNodeTag,
+                isSingleOutbound = !isSelectorMode && selectedSingleOutbound != null,
+                currentGroupSelectedTag = currentGroupSelectedTag,
                 onMove = preview.onMove,
                 onDragStarted = preview.onDragStarted,
                 onDragStopped = preview.onDragStopped,
                 onSelect = { outbound ->
-                    if (isSelectorMode) {
-                        val activeGroupTag = activeTarget
-                        val wasSelected = effectiveActiveNodeTag == outbound.tag
+                    if (!isSelectorMode && selectedSingleOutbound != null) {
+                        val wasSelected = activeTarget == outbound.tag
                         if (!wasSelected) {
                             updateAppState { state ->
-                                state.withSelectorSelection(activeGroupTag, outbound.tag)
+                                state.withSelectorSelection(ManagedGlobalSelectorTag, outbound.tag)
                             }
-                            if (appState.proxyRunning) {
-                                // Finish the DNS transaction even if this page leaves composition.
+                            if (appState.proxyRunning && !homeServiceControl.busy) {
+                                homeServiceControl.restartService()
+                            }
+                        }
+                    } else {
+                        val targetGroupTag = if (currentGroupTag.isNotEmpty()) currentGroupTag else activeTarget
+                        val wasSelected = currentGroupSelectedTag == outbound.tag
+                        if (!wasSelected) {
+                            updateAppState { state ->
+                                state.withSelectorSelection(targetGroupTag, outbound.tag)
+                            }
+                            if (appState.proxyRunning && targetGroupTag.isNotEmpty()) {
                                 services.appScope.launch(Dispatchers.Main.immediate) {
-                                    services.singBoxRuntime.selectProxy(appState, activeGroupTag, outbound.tag)
+                                    services.singBoxRuntime.selectProxy(appState, targetGroupTag, outbound.tag)
                                         .onFailure {
                                             services.tipNotifier.show(it.message ?: "切换失败")
                                         }
                                 }
-                            }
-                        }
-                    } else {
-                        val wasSelected = activeTarget == outbound.tag
-                        updateAppState { state ->
-                            state.withSelectorSelection(ManagedGlobalSelectorTag, outbound.tag)
-                        }
-                        if (!appState.proxyRunning) {
-                            if (!homeServiceControl.busy) {
-                                homeServiceControl.startService()
-                            }
-                        } else if (!wasSelected) {
-                            if (!homeServiceControl.busy) {
-                                homeServiceControl.restartService()
                             }
                         }
                     }
@@ -1078,17 +1110,7 @@ internal fun OutboundListPage(
                     }
                 },
                 onPing = { outbound ->
-                    val inKernel = appState.proxyRunning && runtimeState.proxies.nodeByName.containsKey(outbound.tag)
-                    if (inKernel) {
-                        scope.launch {
-                            services.singBoxRuntime.testProxyDelay(appState, outbound.tag)
-                                .onFailure {
-                                    services.tipNotifier.show(it.message ?: "测速失败")
-                                }
-                        }
-                    } else {
-                        pingOutbounds(targets = listOf(outbound))
-                    }
+                    testProxy(outbound.tag)
                 },
                 onDelete = { pendingDelete = it },
                 locateTargetTag = locateTargetTag,
@@ -1236,7 +1258,8 @@ private fun OutboundPage(
     pingState: OutboundPingRuntimeState,
     runtimeState: SingBoxRuntimeState,
     isSelectorMode: Boolean,
-    effectiveActiveNodeTag: String,
+    isSingleOutbound: Boolean,
+    currentGroupSelectedTag: String,
     onMove: (fromIndex: Int, toIndex: Int) -> Unit,
     onDragStarted: () -> Unit,
     onDragStopped: () -> Unit,
@@ -1328,10 +1351,10 @@ private fun OutboundPage(
                     modifier = Modifier.fillMaxWidth(),
                     animateItemModifier = Modifier.animateItem(),
                 ) { isDragging ->
-                    val isNodeSelected = if (isSelectorMode) {
-                        outbound.tag == effectiveActiveNodeTag
-                    } else {
+                    val isNodeSelected = if (isSingleOutbound) {
                         outbound.tag == activeTarget
+                    } else {
+                        outbound.tag == currentGroupSelectedTag
                     }
                     OutboundCard(
                         onInteractionCountChange = onInteractionCountChange,
@@ -1383,14 +1406,22 @@ private fun OutboundCard(
     TrackOutboundInteraction(isDragging, onInteractionCountChange)
     val outbound = item.outbound
     val runtimeNode = runtimeState.proxies.nodeByName[outbound.tag]
-    val fallbackLatency = item.pingLatencyMillis(pingState)
-    val realLatencyMillis = runtimeNode?.delay?.takeIf { it > 0 }?.toLong() ?: fallbackLatency
-    val isTesting = (runtimeState.delayTestingTarget != null &&
-        (runtimeState.delayTestingTarget == outbound.tag ||
-            runtimeState.proxies.groups.any { it.name == runtimeState.delayTestingTarget && outbound.tag in it.all })) ||
-        (outbound.id in pingState.runningIds)
-    val isFailed = (runtimeNode != null && runtimeNode.name in runtimeState.delayFailureBaselines) ||
-        (fallbackLatency == FailedPingMillis)
+    val delay = runtimeNode?.delay
+    val delayStatus = resolveSingBoxProxyDelayStatus(
+        nodeName = outbound.tag,
+        delay = delay,
+        delayUpdatedAtEpochSeconds = runtimeNode?.delayUpdatedAtEpochSeconds,
+        testingBaselines = runtimeState.delayTestingBaselines,
+        failedNodes = runtimeState.delayFailureBaselines.keys,
+    )
+    val isTesting = delayStatus == SingBoxProxyDelayStatus.Testing ||
+        runtimeState.delayTestingTarget == outbound.tag ||
+        (runtimeState.delayTestingTarget != null &&
+            runtimeState.proxies.groups.any { it.name == runtimeState.delayTestingTarget && outbound.tag in it.all })
+    val isFailed = delayStatus == SingBoxProxyDelayStatus.Failed
+    val realLatencyMillis = if (delayStatus == SingBoxProxyDelayStatus.Measured && delay != null && delay >= 0) {
+        delay.toLong()
+    } else null
     val shareUrlResult = remember(outbound.json, outbound.remarks) {
         encodeOutboundShareUrl(outbound.json, outbound.remarks)
     }
