@@ -105,33 +105,21 @@ internal class OutboundPingRuntimeRepository(
             var cancelled = false
 
             try {
-                val reportedIds = mutableSetOf<Int>()
-                val resultMap = pinger.pingBatch(plan.targets) { outboundId, latencyMillis ->
-                    reportedIds += outboundId
-                    val identity = plan.identities[outboundId]
-                    if (identity != null) {
-                        recordCompletion(
-                            Completion(
-                                identity = identity,
-                                batchId = plan.batchId,
-                                latencyMillis = latencyMillis,
-                            )
-                        )
-                    }
-                }
-                plan.targets.forEach { target ->
-                    if (target.id !in reportedIds) {
-                        val identity = plan.identities[target.id]
-                        if (identity != null) {
+                supervisorScope {
+                    plan.targets.map { outbound ->
+                        launch {
+                            val latencyMillis = semaphore.withPermit {
+                                pingOrFailure { pinger.ping(outbound) }
+                            }
                             recordCompletion(
                                 Completion(
-                                    identity = identity,
+                                    identity = plan.identities.getValue(outbound.id),
                                     batchId = plan.batchId,
-                                    latencyMillis = resultMap[target.id] ?: -1L,
+                                    latencyMillis = latencyMillis,
                                 )
                             )
                         }
-                    }
+                    }.joinAll()
                 }
             } catch (error: CancellationException) {
                 cancelled = true
@@ -190,10 +178,17 @@ internal class OutboundPingRuntimeRepository(
     }
 
     private fun recordCompletion(completion: Completion) {
+        var newPublisherToken: Long? = null
         synchronized(lock) {
             pendingCompletions += completion
-            publishPendingLocked()
+            if (snapshotIntervalMillis == 0L) {
+                publishPendingLocked()
+            } else if (publisherToken == null) {
+                newPublisherToken = ++nextPublisherToken
+                publisherToken = newPublisherToken
+            }
         }
+        newPublisherToken?.let(::launchPublisher)
     }
 
     private fun launchPublisher(token: Long) {
