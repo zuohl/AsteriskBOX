@@ -71,7 +71,7 @@ internal class AndroidLibboxServiceRuntime(
         val server = CommandServer(this, platformInterface)
         runCatching {
             server.start()
-            server.startOrReloadServiceWithPlugins(
+            server.startOrReloadServiceCompat(
                 configContent,
                 config.toOverrideOptions(platformInterface),
                 config.pluginEnvelope(),
@@ -93,7 +93,7 @@ internal class AndroidLibboxServiceRuntime(
         val config = activeConfig ?: error("AndroidLibBoxLite configuration is unavailable")
         val content = File(config.singBoxConfigPath).readText()
         // An empty envelope also stops the plugins the previous config ran.
-        server.startOrReloadServiceWithPlugins(
+        server.startOrReloadServiceCompat(
             content,
             config.toOverrideOptions(platformInterface),
             config.pluginEnvelope(),
@@ -163,3 +163,28 @@ internal data class VpnApplicationOverride(
 /** The plugin envelope the app process published beside the config, compiled with it. */
 private fun VpnServiceStartConfig.pluginEnvelope(): String =
     File(File(singBoxConfigPath).parentFile, PluginEnvelopeFileName).takeIf(File::isFile)?.readText().orEmpty()
+
+private fun CommandServer.startOrReloadServiceCompat(
+    configContent: String,
+    overrideOptions: OverrideOptions,
+    pluginEnvelope: String,
+) {
+    val methodWithPlugins = runCatching {
+        CommandServer::class.java.getMethod(
+            "startOrReloadServiceWithPlugins",
+            String::class.java,
+            OverrideOptions::class.java,
+            String::class.java,
+        )
+    }.getOrNull()
+
+    if (methodWithPlugins != null) {
+        try {
+            methodWithPlugins.invoke(this, configContent, overrideOptions, pluginEnvelope)
+        } catch (e: java.lang.reflect.InvocationTargetException) {
+            throw e.targetException ?: e
+        }
+    } else {
+        startOrReloadService(configContent, overrideOptions)
+    }
+}
