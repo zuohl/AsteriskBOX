@@ -207,59 +207,26 @@ jobs:
           fi
 
       - name: Prepare trimmed libbox.aar
+        if: ${{ github.event.inputs.sing_box_tag != '' }}
         shell: bash
         env:
           REQUESTED_KERNEL_TAG: ${{ github.event.inputs.sing_box_tag }}
         run: |
           mkdir -p app/libs
-          target_kernel_ver="$(sed -n 's/^[[:space:]]*const val ANDROID_LIB_BOX_LITE_VERSION = "\(.*\)".*/\1/p' buildSrc/src/main/kotlin/BuildConfig.kt | head -n 1)"
-          success=false
-
-          fetch_kernel() {
-            local url="$1"
-            local desc="$2"
-            echo "Attempting to fetch libbox.aar from $desc ($url)..."
-            if curl -sSL -f -o app/libs/libbox.aar "$url"; then
-              local size_bytes
-              size_bytes="$(wc -c < app/libs/libbox.aar || echo 0)"
-              # A valid trimmed libbox.aar is typically between 10MB and 60MB.
-              # Anything larger is almost certainly the untrimmed upstream build (~116MB).
-              if [ "$size_bytes" -gt 10485760 ] && [ "$size_bytes" -lt 62914560 ]; then
-                echo "Successfully fetched $desc ($(ls -lh app/libs/libbox.aar | awk '{print $5}'))"
-                success=true
-                return 0
-              else
-                echo "Warning: Downloaded file from $url has unexpected size (${size_bytes} bytes). Removing."
-                rm -f app/libs/libbox.aar
-                return 1
-              fi
-            fi
-            return 1
-          }
-
-          if [ -n "$REQUESTED_KERNEL_TAG" ]; then
-            # An explicitly requested tag must be honored exactly; do not silently substitute another kernel.
-            if ! fetch_kernel "https://github.com/zuohl/sing-box/releases/download/${REQUESTED_KERNEL_TAG}/libbox.aar" "custom specified tag: $REQUESTED_KERNEL_TAG"; then
-              echo "::error::Requested kernel tag $REQUESTED_KERNEL_TAG has no valid trimmed libbox.aar."
+          echo "Attempting to fetch libbox.aar from custom tag ($REQUESTED_KERNEL_TAG)..."
+          if curl -sSL -f -o app/libs/libbox.aar "https://github.com/zuohl/sing-box/releases/download/${REQUESTED_KERNEL_TAG}/libbox.aar"; then
+            size_bytes="$(wc -c < app/libs/libbox.aar || echo 0)"
+            if [ "$size_bytes" -gt 10485760 ] && [ "$size_bytes" -lt 62914560 ]; then
+              echo "Successfully fetched custom kernel ($(ls -lh app/libs/libbox.aar | awk '{print $5}'))"
+            else
+              echo "::error::Downloaded libbox.aar has unexpected size (${size_bytes} bytes)."
+              rm -f app/libs/libbox.aar
               exit 1
             fi
-          fi
-
-          if [ "$success" = "false" ] && [ -n "$target_kernel_ver" ]; then
-            fetch_kernel "https://github.com/zuohl/sing-box/releases/download/${target_kernel_ver}/libbox.aar" "matching zuohl/sing-box tag: $target_kernel_ver" || true
-          fi
-
-          # Decoupled strategy: fetch the latest release from zuohl/sing-box
-          if [ "$success" = "false" ]; then
-            fetch_kernel "https://github.com/zuohl/sing-box/releases/latest/download/libbox.aar" "zuohl/sing-box latest release" || true
-          fi
-
-          # Never silently fall back to the untrimmed upstream build: fail loudly instead.
-          if [ "$success" = "false" ]; then
-            echo "::error::Unable to fetch a trimmed libbox.aar from zuohl/sing-box. Refusing to fall back to the untrimmed upstream build."
+          else
+            echo "::error::Requested kernel tag $REQUESTED_KERNEL_TAG has no valid libbox.aar."
             exit 1
           fi
-
           echo "Final libbox.aar prepared successfully: $(ls -lh app/libs/libbox.aar | awk '{print $5}')"
 
       - name: Build release APKs
