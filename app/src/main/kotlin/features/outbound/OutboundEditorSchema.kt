@@ -358,7 +358,6 @@ internal object OutboundEditorRegistry {
         ),
     )
 
-<<<<<<< HEAD
     /** vless only: the shared transports plus the ones the VLESS (Xray) plugin adds. */
     private fun vlessTransportFields(): List<OutboundFieldSpec> {
         fun onType(vararg types: String) = listOf(OutboundFieldCondition("transport.type", types.toSet()))

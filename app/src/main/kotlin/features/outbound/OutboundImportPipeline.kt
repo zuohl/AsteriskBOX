@@ -803,12 +803,12 @@ internal object MihomoYamlOutboundParser {
                         options.stringList("host").firstOrNull()
                             ?: options.headerValues("Host").firstOrNull().orEmpty(),
                     )
-                    putNotBlank("path", options.string("path"))
-                    putNotBlank("mode", options.string("mode"))
+                    putNotBlank("path", options.stringOrEmpty("path"))
+                    putNotBlank("mode", options.stringOrEmpty("mode"))
                     options.headers(excludedNames = setOf("host"))?.let { put("headers", it) }
-                    val padding = options.string("x-padding-bytes")
-                        .ifBlank { options.string("x_padding_bytes") }
-                        .ifBlank { options.string("xPaddingBytes") }
+                    val padding = options.stringOrEmpty("x-padding-bytes")
+                        .ifBlank { options.stringOrEmpty("x_padding_bytes") }
+                        .ifBlank { options.stringOrEmpty("xPaddingBytes") }
                     putNotBlank("x_padding_bytes", padding)
                     val noGrpc = options.bool("no-grpc-header") || options.bool("no_grpc_header") || options.bool("noGRPCHeader")
                     if (noGrpc) {
@@ -1675,16 +1675,8 @@ private fun parseQuery(rawQuery: String?): Map<String, List<String>> {
         .groupBy({ it.first }, { it.second })
 }
 
-private fun decodeQueryValue(value: String?): String {
-    if (value.isNullOrBlank()) return ""
-    return runCatching {
-        if (value.contains('%')) {
-            URLDecoder.decode(value, StandardCharsets.UTF_8.name())
-        } else {
-            URLDecoder.decode(value.replace("+", "%2B"), StandardCharsets.UTF_8.name())
-        }
-    }.getOrDefault(value)
-}
+private fun decodeQueryValue(value: String?): String =
+    value?.takeIf(String::isNotBlank)?.decodeUrlComponentPreservingPlus().orEmpty()
 
 private data class PortHoppingLink(
     val normalizedLink: String,
