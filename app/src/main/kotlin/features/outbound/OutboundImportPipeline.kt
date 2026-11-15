@@ -664,7 +664,7 @@ internal object MihomoYamlOutboundParser {
             putIfTrue("disable_sni", disableSni)
             val alpn = proxy.stringList("alpn")
             if (alpn.isNotEmpty()) put("alpn", JsonArray(alpn.map(::JsonPrimitive)))
-            val network = proxy.string("network")
+            val network = proxy.stringOrEmpty("network")
             val isXhttp = network in setOf("xhttp", "splithttp", "split-http") || proxy.map("xhttp-opts").isNotEmpty() || proxy.map("splithttp-opts").isNotEmpty()
             val skipUtlsForH3 = isXhttp && alpn.firstOrNull() == "h3"
             if (fingerprint.isNotBlank() && !skipUtlsForH3) {

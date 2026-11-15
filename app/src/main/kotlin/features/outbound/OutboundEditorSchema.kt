@@ -447,7 +447,6 @@ internal object OutboundEditorRegistry {
             listOf("", "auto", "packet-up", "stream-up", "stream-one"),
             conditions = listOf(OutboundFieldCondition("transport.type", setOf("xhttp"))),
         ),
-        ),
         field(
             "transport.method",
             "HTTP method",
