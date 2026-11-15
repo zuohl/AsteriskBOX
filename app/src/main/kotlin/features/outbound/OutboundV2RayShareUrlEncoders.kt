@@ -354,16 +354,16 @@ private fun JsonObject.readV2RayShareTransport(): V2RayShareTransport {
         }
         "xhttp" -> {
             requireTransportFieldsEmpty(transport, "method", "service_name", "max_early_data", "early_data_header_name", "idle_timeout", "ping_timeout", "permit_without_stream")
-            val host = transport.stringValue("host")
-            val path = transport.stringValue("path")
-            val mode = transport.stringValue("mode")
+            val host = transport.stringOrEmpty("host")
+            val path = transport.stringOrEmpty("path")
+            val mode = transport.stringOrEmpty("mode")
             V2RayShareTransport(
                 type = "xhttp",
                 parameters = buildList {
                     add("type" to "xhttp")
-                    host.takeIf(String::isNotBlank)?.let { add("host" to it) }
-                    path.takeIf(String::isNotBlank)?.let { add("path" to it) }
-                    mode.takeIf(String::isNotBlank)?.let { add("mode" to it) }
+                    if (host.isNotBlank()) add("host" to host)
+                    if (path.isNotBlank()) add("path" to path)
+                    if (mode.isNotBlank()) add("mode" to mode)
                 },
                 legacyHost = host,
                 legacyPath = path,
