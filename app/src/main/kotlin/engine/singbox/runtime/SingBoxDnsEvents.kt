@@ -7,7 +7,6 @@ import engine.network.DnsEventUpdate
 import engine.network.DnsEventsUnavailable
 import engine.network.decodeDnsEvent
 import io.nekohasekai.libbox.CommandClient
-import io.nekohasekai.libbox.DnsEventsHandler
 import java.io.IOException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.channels.trySendBlocking
@@ -37,32 +36,64 @@ internal fun CommandClient.streamDnsEvents(token: String): Flow<DnsEventUpdate> 
     }
 
 private fun CommandClient.dnsEventCallbacks(token: String): Flow<DnsCallbackUpdate> = callbackFlow {
+    val handlerClass = runCatching {
+        Class.forName("io.nekohasekai.libbox.DnsEventsHandler")
+    }.getOrNull()
+    val method = handlerClass?.let { cls ->
+        runCatching {
+            javaClass.getMethod("subscribeDnsEventBatches", String::class.java, cls)
+        }.getOrNull()
+    }
+    if (handlerClass == null || method == null) {
+        close(DnsEventsUnavailable())
+        return@callbackFlow
+    }
+
     val handshake = launch {
         delay(DnsHandshakeTimeoutMillis)
         close(IOException("DNS events handshake timed out"))
     }
-    val handler = object : DnsEventsHandler {
-        override fun onReady() {
-            handshake.cancel()
-            trySend(DnsCallbackUpdate.Ready)
+    val handler = java.lang.reflect.Proxy.newProxyInstance(
+        handlerClass.classLoader,
+        arrayOf(handlerClass),
+    ) { _, called, args ->
+        when (called.name) {
+            "onReady" -> {
+                handshake.cancel()
+                trySend(DnsCallbackUpdate.Ready)
+            }
+            "onEvent" -> {
+                val payload = args?.firstOrNull() as? String ?: ""
+                trySendBlocking(DnsCallbackUpdate.Received(payload))
+            }
+            "onError" -> {
+                val code = args?.firstOrNull() as? String ?: "UNKNOWN"
+                close(
+                    if (code == "UNSUPPORTED") DnsEventsUnavailable()
+                    else IOException("DNS events command ended ($code)"),
+                )
+            }
         }
-
-        override fun onEvent(payload: String) {
-            trySendBlocking(DnsCallbackUpdate.Received(payload))
-        }
-
-        override fun onError(code: String) {
-            close(
-                if (code == "UNSUPPORTED") DnsEventsUnavailable()
-                else IOException("DNS events command ended ($code)"),
-            )
-        }
+        null
     }
-    val subscription = subscribeDnsEventBatches(token, handler)
-        ?: throw IOException("Missing DNS events session")
+    val subscription = try {
+        method.invoke(this@dnsEventCallbacks, token, handler)
+    } catch (e: java.lang.reflect.InvocationTargetException) {
+        handshake.cancel()
+        throw e.targetException ?: e
+    } ?: run {
+        handshake.cancel()
+        throw IOException("Missing DNS events session")
+    }
     awaitClose {
         handshake.cancel()
-        runCatching { subscription.close() }
+        runCatching {
+            if (subscription is AutoCloseable) {
+                subscription.close()
+            } else {
+                subscription.javaClass.getMethod("close").invoke(subscription)
+            }
+        }
     }
 }.buffer(DnsBatchBufferCapacity)
 

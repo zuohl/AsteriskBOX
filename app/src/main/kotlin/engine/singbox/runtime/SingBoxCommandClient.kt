@@ -20,7 +20,6 @@ import io.nekohasekai.libbox.NetworkQualityTestHandler
 import io.nekohasekai.libbox.NetworkQualityTestSession
 import io.nekohasekai.libbox.OutboundGroupItemIterator
 import io.nekohasekai.libbox.OutboundGroupIterator
-import io.nekohasekai.libbox.ProxyIpProbeHandler
 import io.nekohasekai.libbox.RemoteConnectionOptions
 import io.nekohasekai.libbox.StatusMessage
 import io.nekohasekai.libbox.StringIterator
@@ -133,17 +132,56 @@ internal class SingBoxCommandClient(
 
     suspend fun probeProxyIp(request: ProxyIpProbeRequest, token: String): ProxyIpProbeResponse =
         suspendCancellableCoroutine { continuation ->
-            val handler = object : ProxyIpProbeHandler {
-                override fun onError(code: String) {
-                    continuation.resumeWithException(ProxyIpProbeException(code))
+            val client = requireClient()
+            val handlerClass = runCatching {
+                Class.forName("io.nekohasekai.libbox.ProxyIpProbeHandler")
+            }.getOrNull()
+            val method = handlerClass?.let { cls ->
+                runCatching {
+                    client.javaClass.getMethod(
+                        "probeProxyIp",
+                        String::class.java,
+                        String::class.java,
+                        String::class.java,
+                        cls,
+                    )
+                }.getOrNull()
+            }
+            if (handlerClass == null || method == null) {
+                continuation.resumeWithException(ProxyIpProbeException("UNSUPPORTED"))
+                return@suspendCancellableCoroutine
+            }
+            val handler = java.lang.reflect.Proxy.newProxyInstance(
+                handlerClass.classLoader,
+                arrayOf(handlerClass),
+            ) { _, called, args ->
+                when (called.name) {
+                    "onError" -> {
+                        val code = args?.firstOrNull() as? String ?: "UNKNOWN"
+                        continuation.resumeWithException(ProxyIpProbeException(code))
+                    }
+                    "onResult" -> {
+                        val resultJSON = args?.firstOrNull() as? String ?: ""
+                        continuation.resumeWith(runCatching { ProxyIpProbeJson.decodeFromString(resultJSON) })
+                    }
                 }
-
-                override fun onResult(resultJSON: String) {
-                    continuation.resumeWith(runCatching { ProxyIpProbeJson.decodeFromString(resultJSON) })
+                null
+            }
+            val session = try {
+                method.invoke(client, request.outboundTag, request.url, token, handler)
+            } catch (e: java.lang.reflect.InvocationTargetException) {
+                continuation.resumeWithException(e.targetException ?: e)
+                return@suspendCancellableCoroutine
+            }
+            continuation.invokeOnCancellation {
+                runCatching {
+                    if (session is AutoCloseable) {
+                        session.close()
+                    } else {
+                        session?.javaClass?.getMethod("close")?.invoke(session)
+                    }
                 }
             }
-            val session = requireClient().probeProxyIp(request.outboundTag, request.url, token, handler)
-            continuation.invokeOnCancellation { runCatching { session.close() } }
         }
 
     fun selectOutbound(groupTag: String, outboundTag: String) {
