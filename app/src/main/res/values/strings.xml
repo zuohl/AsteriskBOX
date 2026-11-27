@@ -3,7 +3,7 @@
          Keep section and resource order aligned across translations and sibling apps. -->
 
     <!-- Common -->
-    <string name="app_name">AsteriskBOX</string>
+    <string name="app_name">AsteriskBOX Lite</string>
     <string name="code_editor_format_content_changed">Content changed. Format again.</string>
     <string name="code_editor_format_failed">Formatting failed. Check the syntax.</string>
     <string name="code_editor_format_javascript">Format JavaScript</string>
@@ -682,6 +682,7 @@
     <string name="outbound_field_network">Network</string>
     <string name="outbound_field_network_strategy">Network strategy</string>
     <string name="outbound_field_network_types">Network types</string>
+    <string name="outbound_field_no_grpc_header">No gRPC header</string>
     <string name="outbound_field_obfuscation">Obfuscation</string>
     <string name="outbound_field_obfuscation_host">Obfuscation host</string>
     <string name="outbound_field_obfuscation_mode">Obfuscation mode</string>
@@ -750,6 +751,7 @@
     <string name="outbound_field_vless_encryption">VLESS Encryption</string>
     <string name="outbound_field_xhttp_extra">XHTTP extra (JSON)</string>
     <string name="outbound_field_xhttp_mode">XHTTP mode</string>
+    <string name="outbound_field_xhttp_padding_bytes">XHTTP padding bytes</string>
     <string name="outbound_field_xray_finalmask">Xray finalmask (JSON)</string>
     <string name="outbound_field_xray_stream_settings">Xray stream settings (JSON)</string>
     <string name="outbound_field_zero_rtt_handshake">0-RTT handshake</string>

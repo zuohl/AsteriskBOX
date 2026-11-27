@@ -15,6 +15,7 @@ import engine.singbox.config.SingBoxDeprecatedConfigValidator
 import engine.singbox.config.SingBoxJson
 import engine.singbox.config.SingBoxImportJson
 import engine.singbox.config.parseSingBoxJson
+import engine.singbox.config.sanitizeOutboundXhttpUtls
 import features.importing.ImportIssue
 import features.importing.ImportIssueReason
 import features.importing.ImportIssueSeverity
@@ -222,12 +223,13 @@ internal object SingBoxOutboundImporter {
                 .takeUnless(::isManagedSingBoxTag)
                 ?.takeIf(String::isNotBlank)
                 ?: "$type-${sourceIndex + 1}"
+            val sanitized = sanitizeOutboundXhttpUtls(outbound)
             ImportedSingBoxOutbound(
                 sourceIndex = sourceIndex,
                 sourceTag = tag,
                 remarks = remarks,
                 type = type,
-                json = SingBoxJson.encodeToString(JsonElement.serializer(), outbound),
+                json = SingBoxJson.encodeToString(JsonElement.serializer(), sanitized),
             )
         }
         if (imported.size != outbounds.size) {

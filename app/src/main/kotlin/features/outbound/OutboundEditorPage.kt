@@ -100,7 +100,7 @@ internal fun OutboundEditorPage(
     val initialDocument = remember(editing?.json, type) {
         editing?.json
             ?.let { json -> runCatching { SingBoxJson.parseToJsonElement(json) as JsonObject }.getOrNull() }
-            ?.let(::OutboundEditorDocument)
+            ?.let(OutboundEditorDocument::fromStored)
             ?: OutboundEditorDocument.create(type, "outbound_draft")
     }
     var document by remember(activeOutboundId, initialDocument) { mutableStateOf(initialDocument) }

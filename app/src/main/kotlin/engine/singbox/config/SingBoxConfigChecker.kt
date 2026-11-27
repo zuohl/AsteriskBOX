@@ -12,11 +12,11 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 
 internal object SingBoxConfigChecker {
-    fun check(content: String) = check(parseSingBoxJson(content))
+    fun check(content: String) = check(parseSingBoxJson(content), content)
 
     fun check(root: JsonObject, encoded: String? = null) {
         SingBoxDeprecatedConfigValidator.validate(root)
-        val compatibleRoot = root.withLibboxCompatibleEbpfInbounds()
+        val compatibleRoot = root.withLibboxCompatibleEbpfInbounds().withLibboxCompatibleXhttpUtls()
         Libbox.checkConfig(
             if (encoded != null && compatibleRoot === root) encoded else encodeSingBoxJson(compatibleRoot),
         )
@@ -28,7 +28,8 @@ internal object SingBoxConfigChecker {
         val formatted = Libbox.formatConfig(content).value
         val formattedRoot = parseSingBoxJson(formatted)
         SingBoxDeprecatedConfigValidator.validate(formattedRoot)
-        Libbox.checkConfig(formatted)
+        val compatibleFormattedRoot = formattedRoot.withLibboxCompatibleEbpfInbounds().withLibboxCompatibleXhttpUtls()
+        Libbox.checkConfig(if (compatibleFormattedRoot === formattedRoot) formatted else encodeSingBoxJson(compatibleFormattedRoot))
         return formatted
     }
 }
@@ -52,6 +53,49 @@ internal fun JsonObject.withLibboxCompatibleEbpfInbounds(): JsonObject {
         buildMap {
             putAll(this@withLibboxCompatibleEbpfInbounds)
             put("inbounds", JsonArray(compatibleInbounds))
+        },
+    )
+}
+
+internal fun JsonObject.withLibboxCompatibleXhttpUtls(): JsonObject {
+    val outbounds = this["outbounds"] as? JsonArray ?: return this
+    var replaced = false
+    val compatibleOutbounds = outbounds.map { element ->
+        val outbound = element as? JsonObject ?: return@map element
+        val sanitized = sanitizeOutboundXhttpUtls(outbound)
+        if (sanitized !== outbound) {
+            replaced = true
+            sanitized
+        } else {
+            element
+        }
+    }
+    if (!replaced) return this
+    return JsonObject(
+        buildMap {
+            putAll(this@withLibboxCompatibleXhttpUtls)
+            put("outbounds", JsonArray(compatibleOutbounds))
+        },
+    )
+}
+
+internal fun sanitizeOutboundXhttpUtls(outbound: JsonObject): JsonObject {
+    val transport = outbound["transport"] as? JsonObject ?: return outbound
+    val transportType = (transport["type"] as? JsonPrimitive)?.contentOrNull
+    if (transportType != "xhttp") return outbound
+
+    val tls = outbound["tls"] as? JsonObject ?: return outbound
+    if (!tls.containsKey("utls")) return outbound
+
+    val alpnArray = tls["alpn"] as? JsonArray
+    val firstAlpn = (alpnArray?.firstOrNull() as? JsonPrimitive)?.contentOrNull
+    if (firstAlpn != "h3") return outbound
+
+    val updatedTls = JsonObject(tls.filterKeys { it != "utls" })
+    return JsonObject(
+        buildMap {
+            putAll(outbound)
+            put("tls", updatedTls)
         },
     )
 }

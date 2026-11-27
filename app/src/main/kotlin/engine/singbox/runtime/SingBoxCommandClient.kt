@@ -168,13 +168,26 @@ internal class SingBoxCommandClient(
         unifiedDelay: Boolean,
         ignoreHandshakeTime: Boolean,
     ) {
-        requireClient().urlTestWithOptions(
-            outboundTag,
-            link,
-            timeoutMillis,
-            unifiedDelay,
-            ignoreHandshakeTime,
-        )
+        val client = requireClient()
+        val method = runCatching {
+            client.javaClass.getMethod(
+                "urlTestWithOptions",
+                String::class.java,
+                String::class.java,
+                Int::class.javaPrimitiveType,
+                Boolean::class.javaPrimitiveType,
+                Boolean::class.javaPrimitiveType,
+            )
+        }.getOrNull()
+        if (method != null) {
+            try {
+                method.invoke(client, outboundTag, link, timeoutMillis, unifiedDelay, ignoreHandshakeTime)
+            } catch (e: java.lang.reflect.InvocationTargetException) {
+                throw e.targetException ?: e
+            }
+        } else {
+            client.urlTest(outboundTag)
+        }
     }
 
     /**

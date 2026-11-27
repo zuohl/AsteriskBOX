@@ -685,7 +685,7 @@ internal fun compileOutbounds(root: JsonObject, appState: AppState): JsonArray {
         )
         put("interrupt_exist_connections", true)
     }
-    return JsonArray(retained)
+    return JsonArray(retained.map { (it as? JsonObject)?.let(::sanitizeOutboundXhttpUtls) ?: it })
 }
 
 private fun OutboundState.shouldRetainRawGroupedOutbound(parsed: JsonObject): Boolean {

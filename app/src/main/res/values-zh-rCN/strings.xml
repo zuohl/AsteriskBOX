@@ -3,7 +3,7 @@
          Keep section and resource order aligned across translations and sibling apps. -->
 
     <!-- Common -->
-    <string name="app_name">AsteriskBOX</string>
+    <string name="app_name">AsteriskBOX Lite</string>
     <string name="code_editor_format_content_changed">内容已修改，请重新格式化</string>
     <string name="code_editor_format_failed">格式化失败，请检查语法</string>
     <string name="code_editor_format_javascript">格式化 JavaScript</string>
@@ -669,6 +669,7 @@
     <string name="outbound_field_network">网络协议</string>
     <string name="outbound_field_network_strategy">网络策略</string>
     <string name="outbound_field_network_types">网络类型</string>
+    <string name="outbound_field_no_grpc_header">禁用 gRPC 头</string>
     <string name="outbound_field_obfuscation">混淆类型</string>
     <string name="outbound_field_obfuscation_host">混淆主机</string>
     <string name="outbound_field_obfuscation_mode">混淆模式</string>
@@ -737,6 +738,7 @@
     <string name="outbound_field_vless_encryption">VLESS 加密</string>
     <string name="outbound_field_xhttp_extra">XHTTP 额外配置（JSON）</string>
     <string name="outbound_field_xhttp_mode">XHTTP 模式</string>
+    <string name="outbound_field_xhttp_padding_bytes">XHTTP 填充字节</string>
     <string name="outbound_field_xray_finalmask">Xray finalmask（JSON）</string>
     <string name="outbound_field_xray_stream_settings">Xray streamSettings（JSON）</string>
     <string name="outbound_field_zero_rtt_handshake">0-RTT 握手</string>
