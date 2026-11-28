@@ -38,7 +38,6 @@ internal class VlessXrayRequiredException(
 internal fun JsonObject.xrayOnlyVlessFeatures(): List<String> = buildList {
     val transport = this@xrayOnlyVlessFeatures["transport"] as? JsonObject
     when (transport?.stringOrEmpty("type")?.lowercase()) {
-        "xhttp" -> add("XHTTP")
         "mkcp" -> add("mKCP")
         "raw" -> add("RAW header")
         "grpc" -> {

@@ -371,13 +371,6 @@ internal object OutboundEditorRegistry {
             shared.drop(grpcIndex) +
             listOf(
                 select(
-                    "transport.mode",
-                    "XHTTP mode",
-                    listOf("", "auto", "packet-up", "stream-up", "stream-one"),
-                    conditions = onType("xhttp"),
-                ),
-                field("transport.extra", "XHTTP extra (JSON)", OutboundFieldKind.MULTILINE, conditions = onType("xhttp")),
-                select(
                     "transport.header_type",
                     "Header type",
                     listOf("", "none", "http", "srtp", "utp", "wechat-video", "dtls", "wireguard", "dns"),

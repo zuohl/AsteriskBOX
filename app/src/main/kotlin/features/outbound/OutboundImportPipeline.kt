@@ -55,7 +55,7 @@ private fun canonicalV2RayTransport(transport: String): String? =
     }
 
 /** Link transport names only the VLESS (Xray) plugin implements. */
-private val VlessXrayLinkTransportTypes = setOf("xhttp", "splithttp", "kcp", "mkcp")
+private val VlessXrayLinkTransportTypes = setOf("kcp", "mkcp")
 
 private fun canonicalMihomoOutboundType(sourceType: String): String =
     when (sourceType.lowercase()) {
@@ -725,15 +725,6 @@ internal object MihomoYamlOutboundParser {
         val network = proxy.stringOrEmpty("network")
             .ifBlank { proxy.stringOrEmpty("transport") }
             .lowercase()
-        if (network == "xhttp" && proxy.stringOrEmpty("type").equals("vless", ignoreCase = true)) {
-            val options = proxy.map("xhttp-opts")
-            return buildJsonObject {
-                put("type", "xhttp")
-                putNotBlank("path", options.stringOrEmpty("path"))
-                putNotBlank("host", options.stringOrEmpty("host"))
-                putNotBlank("mode", options.stringOrEmpty("mode"))
-            }
-        }
         val sourceType = canonicalV2RayTransport(network) ?: return null
         if (sourceType == "tcp") return null
         val options = proxy.map("$network-opts").ifEmpty {

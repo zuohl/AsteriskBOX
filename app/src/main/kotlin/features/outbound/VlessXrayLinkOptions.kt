@@ -27,16 +27,6 @@ import kotlinx.serialization.json.put
  */
 internal fun vlessXrayLinkTransport(query: Map<String, List<String>>): JsonObject? {
     return when (query.param("type", "network").lowercase()) {
-        "xhttp", "splithttp" -> buildJsonObject {
-            put("type", "xhttp")
-            putParam("path", query.param("path"))
-            putParam("host", query.param("host"))
-            putParam("mode", query.param("mode"))
-            query.param("extra").takeIf(String::isNotBlank)?.let { extra ->
-                put("extra", parseLinkJsonObject("extra", extra))
-            }
-        }
-
         "kcp", "mkcp" -> buildJsonObject {
             put("type", "mkcp")
             putParam("header_type", query.param("headerType").takeUnless { it.equals("none", ignoreCase = true) })
@@ -220,14 +210,6 @@ private fun JsonObject.vlessXrayTransportShareParameters(): List<Pair<String, St
         if (hosts.isNotEmpty()) add("host" to hosts.joinToString(","))
     }
     return when (text("type").lowercase()) {
-        "xhttp" -> buildList {
-            add("type" to "xhttp")
-            addText("path", "path")
-            addHosts(single = true)
-            addText("mode", "mode")
-            transport["extra"].compactJsonObjectText()?.let { add("extra" to it) }
-        }
-
         "mkcp" -> buildList {
             add("type" to "kcp")
             addText("headerType", "header_type")
