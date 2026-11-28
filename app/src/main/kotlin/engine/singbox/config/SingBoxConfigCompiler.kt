@@ -296,7 +296,12 @@ internal fun JsonObject.withLocalRuleSets(localRuleSets: List<SingBoxLocalRuleSe
                 put("tag", ruleSet.tag)
                 put("format", ruleSet.format.configValue)
                 put("url", ruleSet.url)
-                ruleSet.downloadDetour?.let { put("download_detour", it) }
+                if (ruleSet.path.isNotBlank()) {
+                    put("initial_path", ruleSet.path)
+                }
+                putJsonObject("http_client") {
+                    ruleSet.downloadDetour?.let { put("detour", it) }
+                }
                 put("update_interval", ruleSet.updateInterval)
             } else {
                 put("type", "local")
